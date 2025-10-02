@@ -187,9 +187,28 @@ namespace CppToCsConverter.Core
         {
             var sb = new StringBuilder();
             
-            // Add using statements
-            sb.AppendLine("using System;");
-            sb.AppendLine("using System.Runtime.InteropServices;");
+            // Check if this file contains only interfaces
+            bool containsOnlyInterfaces = classes.All(c => c.IsInterface);
+            
+            // Add appropriate using statements based on content type
+            if (containsOnlyInterfaces)
+            {
+                // Interface-only files get specific using statements
+                sb.AppendLine("using Agresso.Types;");
+                sb.AppendLine("using BatchNet.Compatibility.Types;");
+                sb.AppendLine("using U4.BatchNet.Common.Compatibility;");
+            }
+            else
+            {
+                // Files with classes get extended Agresso/BatchNet using statements
+                sb.AppendLine("using Agresso.Interface.CoreServices;");
+                sb.AppendLine("using Agresso.Types;");
+                sb.AppendLine("using BatchNet.Compatibility.Types;");
+                sb.AppendLine("using BatchNet.Fundamentals.Compatibility;");
+                sb.AppendLine("using U4.BatchNet.Common.Compatibility;");
+                sb.AppendLine("using static BatchNet.Compatibility.Level1;");
+                sb.AppendLine("using static BatchNet.Compatibility.BatchApi;");
+            }
             sb.AppendLine();
 
             // Add namespace
