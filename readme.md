@@ -225,14 +225,20 @@ public class CSample : ISample
 Typical unit of code consist of:
 1. .h file with a pure virtual class definition (interface)
 2. .h file with class definition in one of the following shapes:
-    a. Pure definition with member variables and member function declaration
-    b. Definition with member variables and member function declaration where one or more member function has an inline implementation.
-    c. .h file with full inline implementation (no implementation in .cpp file)
+    a) Pure definition with member variables and member function declaration
+    b) Definition with member variables and member function declaration where one or more member function has an inline implementation.
+    c) .h file with full inline implementation (no implementation in .cpp file)
 3. One or more .cpp files containing the member function implementations (prefixed with ClassName::)
 
 When we construct the C# files we have the following rules:
 1. .h file defines the member variables and their access modifiers (private, protected, public)
 2. .h file defines the parameter value defaulting (if any)
-3. .cpp file defines the order of the implementations
-4. .cpp file defines the real parameter names
-5. When more than one .cpp file holds the class member implementations, we make the class partial and uses the same file names as the .cpp.
+3. .cpp file defines the order of the implementations and the method bodies. The metod body should be copied just as it is.
+4. Method bodies are persited as they are
+5. .cpp file defines the real parameter names
+6. When more than one .cpp file holds the class member implementations, we make the class partial and uses the same file names as the .cpp.
+7. This is all a mechical operation consentrating on the structure of the classes and parameter defaulting. 
+8. During these steps we do not about 
+   a) change data types to their C# equalent 
+   b) rewrite c++ syntax to c# syntax in parameter declarations or method bodies
+   c) Add new code, comments or throw NoImplementedException.

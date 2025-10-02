@@ -77,7 +77,7 @@ namespace CppToCsConverter.Generators
 
         private string GenerateMethodSignature(CppMethod method)
         {
-            var returnType = _typeConverter.ConvertType(method.ReturnType);
+            var returnType = method.ReturnType; // Preserve original C++ return type
             var parameters = string.Join(", ", method.Parameters.Select(GenerateParameter));
 
             return $"{returnType} {method.Name}({parameters})";
@@ -85,7 +85,7 @@ namespace CppToCsConverter.Generators
 
         private string GenerateExtensionMethodSignature(string interfaceName, CppMethod method)
         {
-            var returnType = _typeConverter.ConvertType(method.ReturnType);
+            var returnType = method.ReturnType; // Preserve original C++ return type
             var parameters = $"this {interfaceName} instance";
             
             if (method.Parameters.Any())
@@ -99,20 +99,25 @@ namespace CppToCsConverter.Generators
 
         private string GenerateParameter(CppParameter param)
         {
-            var csType = _typeConverter.ConvertType(param.Type);
-            var modifier = "";
-
-            // Handle pointer parameters as out/ref
-            if (param.IsPointer && !param.IsConst)
-            {
-                modifier = "out ";
-            }
-            else if (param.IsReference && !param.IsConst)
-            {
-                modifier = "ref ";
-            }
-
-            return $"{modifier}{csType} {param.Name}";
+            // Preserve original C++ parameter syntax exactly as-is
+            var result = "";
+            
+            if (param.IsConst)
+                result += "const ";
+                
+            result += param.Type;
+            
+            if (param.IsReference)
+                result += "&";
+            else if (param.IsPointer)
+                result += "*";
+                
+            result += " " + param.Name;
+            
+            if (!string.IsNullOrEmpty(param.DefaultValue))
+                result += " = " + param.DefaultValue;
+                
+            return result;
         }
     }
 }

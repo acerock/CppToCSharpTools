@@ -14,30 +14,51 @@ namespace CppToCsConverter.Parsers
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*=\s*([^;]+))?;\s*$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
 
-        public CppClass? ParseHeaderFile(string filePath)
+        public List<CppClass> ParseHeaderFile(string filePath)
         {
             try
             {
                 var content = File.ReadAllText(filePath);
                 var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                 
-                return ParseClassFromLines(lines, Path.GetFileNameWithoutExtension(filePath));
+                return ParseAllClassesFromLines(lines, Path.GetFileNameWithoutExtension(filePath));
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error parsing header file {filePath}: {ex.Message}");
-                return null;
+                return new List<CppClass>();
             }
         }
 
-        private CppClass? ParseClassFromLines(string[] lines, string fileName)
+        private List<CppClass> ParseAllClassesFromLines(string[] lines, string fileName)
+        {
+            var classes = new List<CppClass>();
+            int i = 0;
+            
+            while (i < lines.Length)
+            {
+                var foundClass = ParseNextClassFromLines(lines, ref i);
+                if (foundClass != null)
+                {
+                    classes.Add(foundClass);
+                }
+                else
+                {
+                    i++;
+                }
+            }
+            
+            return classes;
+        }
+
+        private CppClass? ParseNextClassFromLines(string[] lines, ref int startIndex)
         {
             CppClass? currentClass = null;
             AccessSpecifier currentAccess = AccessSpecifier.Private;
             bool inClass = false;
             int braceLevel = 0;
 
-            for (int i = 0; i < lines.Length; i++)
+            for (int i = startIndex; i < lines.Length; i++)
             {
                 var line = lines[i].Trim();
                 
@@ -77,6 +98,7 @@ namespace CppToCsConverter.Parsers
                 if (braceLevel < 0)
                 {
                     // End of class
+                    startIndex = i + 1;
                     break;
                 }
 
@@ -119,6 +141,11 @@ namespace CppToCsConverter.Parsers
                 }
             }
 
+            if (currentClass != null)
+            {
+                startIndex = lines.Length; // Reached end of file
+            }
+            
             return currentClass;
         }
 

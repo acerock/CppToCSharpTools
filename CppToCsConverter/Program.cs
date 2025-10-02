@@ -15,13 +15,53 @@ namespace CppToCsConverter
 
             if (args.Length < 1)
             {
-                Console.WriteLine("Usage: CppToCsConverter <source_directory> [output_directory]");
-                Console.WriteLine("Example: CppToCsConverter C:\\Source\\CppProject C:\\Output\\CsProject");
+                Console.WriteLine("Usage:");
+                Console.WriteLine("  CppToCsConverter <source_directory> [output_directory]");
+                Console.WriteLine("  CppToCsConverter <source_directory> <file1,file2,...> [output_directory]");
+                Console.WriteLine();
+                Console.WriteLine("Examples:");
+                Console.WriteLine("  CppToCsConverter C:\\Source\\CppProject");
+                Console.WriteLine("  CppToCsConverter C:\\Source\\CppProject C:\\Output\\CsProject");
+                Console.WriteLine("  CppToCsConverter C:\\Source\\CppProject filea.h,filea.cpp,fileb.cpp");
+                Console.WriteLine("  CppToCsConverter C:\\Source\\CppProject filea.h,filea.cpp,fileb.cpp C:\\Output\\CsProject");
                 return;
             }
 
             string sourceDirectory = args[0];
-            string outputDirectory = args.Length > 1 ? args[1] : Path.Combine(sourceDirectory, "Generated_CS");
+            string[]? specificFiles = null;
+            string outputDirectory;
+
+            // Parse arguments based on their structure
+            if (args.Length == 2)
+            {
+                // Could be: <source> <output> OR <source> <files>
+                if (args[1].Contains(",") || args[1].EndsWith(".h") || args[1].EndsWith(".cpp"))
+                {
+                    // It's a file list
+                    specificFiles = args[1].Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                          .Select(f => f.Trim())
+                                          .ToArray();
+                    outputDirectory = Path.Combine(sourceDirectory, "Generated_CS");
+                }
+                else
+                {
+                    // It's an output directory
+                    outputDirectory = args[1];
+                }
+            }
+            else if (args.Length == 3)
+            {
+                // <source> <files> <output>
+                specificFiles = args[1].Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                      .Select(f => f.Trim())
+                                      .ToArray();
+                outputDirectory = args[2];
+            }
+            else
+            {
+                // Default: <source>
+                outputDirectory = Path.Combine(sourceDirectory, "Generated_CS");
+            }
 
             if (!Directory.Exists(sourceDirectory))
             {
@@ -32,7 +72,15 @@ namespace CppToCsConverter
             try
             {
                 var converter = new CppToCsStructuralConverter();
-                converter.ConvertDirectory(sourceDirectory, outputDirectory);
+                
+                if (specificFiles != null && specificFiles.Length > 0)
+                {
+                    converter.ConvertSpecificFiles(sourceDirectory, specificFiles, outputDirectory);
+                }
+                else
+                {
+                    converter.ConvertDirectory(sourceDirectory, outputDirectory);
+                }
                 
                 Console.WriteLine($"Conversion completed successfully!");
                 Console.WriteLine($"Output directory: {outputDirectory}");
