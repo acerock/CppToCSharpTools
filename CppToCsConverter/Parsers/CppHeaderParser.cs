@@ -57,7 +57,6 @@ namespace CppToCsConverter.Parsers
             CppClass? currentClass = null;
             AccessSpecifier currentAccess = AccessSpecifier.Private;
             bool inClass = false;
-            int braceLevel = 0;
             bool foundClassEnd = false;
 
             for (int i = startIndex; i < lines.Length; i++)
@@ -89,23 +88,18 @@ namespace CppToCsConverter.Parsers
                     
                     currentAccess = currentClass.DefaultAccessSpecifier;
                     inClass = true;
+                    
+
                     continue;
                 }
 
                 if (!inClass || currentClass == null)
                     continue;
 
-                // Track brace levels
-                int openBraces = line.Count(c => c == '{');
-                int closeBraces = line.Count(c => c == '}');
-                braceLevel += openBraces - closeBraces;
-                
-
-                
-                if (braceLevel <= 0 && closeBraces > 0)
+                // Check for class ending pattern
+                if (line == "};" || (line == "}" && (i + 1 >= lines.Length || !lines[i + 1].Trim().StartsWith("else"))))
                 {
-                    // End of class - we've closed all braces and we're back to level 0
-;
+                    // This is likely the class ending brace
                     startIndex = i + 1;
                     foundClassEnd = true;
                     break;
@@ -201,7 +195,23 @@ namespace CppToCsConverter.Parsers
 
             if (method.HasInlineImplementation)
             {
-                method.InlineImplementation = methodMatch.Groups[8].Value; // Updated to Group 8
+                // Extract just the method body content between braces
+                var fullMethod = collectedMethodLine;
+                var openBrace = fullMethod.IndexOf('{');
+                var closeBrace = fullMethod.LastIndexOf('}');
+                
+                if (openBrace >= 0 && closeBrace > openBrace)
+                {
+                    var methodBody = fullMethod.Substring(openBrace + 1, closeBrace - openBrace - 1);
+                    // Replace tab characters with four spaces
+                    method.InlineImplementation = methodBody.Replace("\t", "    ");
+                }
+                else
+                {
+                    var fallbackBody = methodMatch.Groups[8].Value;
+                    // Replace tab characters with four spaces
+                    method.InlineImplementation = fallbackBody.Replace("\t", "    ");
+                }
             }
 
             // Parse parameters
@@ -308,8 +318,7 @@ namespace CppToCsConverter.Parsers
                     // Use proper line breaks for method bodies, spaces for declarations
                     if (insideMethodBody)
                     {
-                        methodBuilder.AppendLine();
-                        methodBuilder.Append(nextLine);
+                        methodBuilder.Append("\n" + nextLine);
                     }
                     else
                     {
@@ -348,13 +357,13 @@ namespace CppToCsConverter.Parsers
             else
             {
                 // We already have an opening brace, collect until braces are balanced
+                // Preserve exact formatting by using original line breaks
                 for (int i = lineIndex + 1; i < lines.Length; i++)
                 {
                     var nextLine = lines[i];
                     
-                    // Use proper line breaks for method bodies
-                    methodBuilder.AppendLine();
-                    methodBuilder.Append(nextLine);
+                    // Add line break and preserve the original line exactly
+                    methodBuilder.Append("\n" + nextLine);
                     
                     braceLevel += nextLine.Count(c => c == '{') - nextLine.Count(c => c == '}');
                     
@@ -365,9 +374,15 @@ namespace CppToCsConverter.Parsers
                         break;
                     }
                     
-                    // Prevent infinite loops - if we hit a class boundary, stop
-                    if (nextLine.Trim().StartsWith("class ") || nextLine.Trim() == "}" || nextLine.Trim() == "};")
+                    // Enhanced boundary detection - be more careful about class boundaries
+                    var trimmed = nextLine.Trim();
+                    if (trimmed.StartsWith("class ") || trimmed.StartsWith("struct ") ||
+                        (trimmed == "};" && braceLevel < 0) ||
+                        (trimmed.StartsWith("private:") || trimmed.StartsWith("public:") || trimmed.StartsWith("protected:")))
                     {
+                        // We've likely hit a class boundary before finding the method end
+                        // Back up one line to not include the boundary marker
+                        lineIndex = i - 1;
                         break;
                     }
                 }

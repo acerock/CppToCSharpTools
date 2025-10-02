@@ -30,7 +30,10 @@ namespace Generated_CSample
         public CSomeClass()
         {
             memberTwo = 33;
+
+
             memberOne.lTestType = 0;
+
         }
 
         public void CSample();
@@ -54,22 +57,32 @@ namespace Generated_CSample
 
         public int MethodPrivInl1(const TDimValue& dim1)
         {
+
+
             if (dim1.IsEmpty()) 
-                return 0;
+
+            return 0;
+
             return 42;
+
         }
 
         public void MethodPrivInl2(const TDimValue& dimPd, const agrint& lLimitHorizon, const agrint& iValue = 0, bool bError = false)
         {
+
+
             if (dimPd.IsEmpty()) 
-                return bError;
+
+            return bError;
 
             return lLimitHorizon >= iValue;
+
         }
 
         public int GetMemberTwo()
         {
             /* Sample method body */
+
             return memberTwo;
         }
 

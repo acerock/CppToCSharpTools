@@ -22,7 +22,7 @@ class CSomeClass
 		}
 
 		int GetMemberTwo() const;
-}
+};
 
 class CSample : public ISample
 {

@@ -188,7 +188,8 @@ namespace CppToCsConverter.Parsers
                     {
                         // Extract the method body (without the outer braces)
                         var methodBody = content.Substring(startBrace + 1, i - startBrace - 1);
-                        return methodBody.Trim();
+                        // Replace tab characters with four spaces
+                        return methodBody.Replace("\t", "    ").Trim();
                     }
                 }
             }

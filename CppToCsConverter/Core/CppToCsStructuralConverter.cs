@@ -318,6 +318,7 @@ namespace CppToCsConverter.Core
                     
                     var indentedInlineBody = IndentMethodBody(method.InlineImplementation, "            ");
                     sb.Append(indentedInlineBody);
+                    sb.AppendLine(); // Ensure line break before closing brace
                     sb.AppendLine("        }");
                 }
                 else
@@ -350,6 +351,7 @@ namespace CppToCsConverter.Core
                     // Include the original C++ implementation body with proper indentation
                     var indentedBody = IndentMethodBody(method.ImplementationBody, "            ");
                     sb.Append(indentedBody);
+                    sb.AppendLine(); // Ensure line break before closing brace
                 }
                 
                 sb.AppendLine("        }");
@@ -430,45 +432,37 @@ namespace CppToCsConverter.Core
             if (string.IsNullOrEmpty(methodBody))
                 return "";
 
+            // Split by lines preserving empty lines
+            var lines = methodBody.Split(new[] { '\n' }, StringSplitOptions.None);
             var sb = new StringBuilder();
-            var lines = methodBody.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             
-            for (int i = 0; i < lines.Length; i++)
+            // Remove leading and trailing empty lines
+            int start = 0;
+            int end = lines.Length - 1;
+            
+            while (start < lines.Length && string.IsNullOrWhiteSpace(lines[start]))
+                start++;
+            while (end >= 0 && string.IsNullOrWhiteSpace(lines[end]))
+                end--;
+            
+            if (start > end) return "";
+            
+            // Process each line
+            for (int i = start; i <= end; i++)
             {
-                var line = lines[i].TrimStart();
-                
-                // Skip completely empty lines
+                if (i > start)
+                    sb.AppendLine();
+                    
+                var line = lines[i];
                 if (string.IsNullOrWhiteSpace(line))
-                    continue;
-                
-                // Determine additional indentation for this line
-                string additionalIndent = "";
-                
-                // Check if previous line was a control statement without braces
-                if (i > 0)
                 {
-                    var prevLine = lines[i - 1].TrimStart();
-                    if ((prevLine.StartsWith("if ") || prevLine.StartsWith("for ") || 
-                         prevLine.StartsWith("while ") || prevLine.StartsWith("else")) &&
-                        !prevLine.TrimEnd().EndsWith("{") && !prevLine.TrimEnd().EndsWith(";"))
-                    {
-                        // The current line should be indented as it's the body of the control statement
-                        additionalIndent = "    ";
-                    }
+                    // Empty line - just append it without indentation
+                    sb.Append("");
                 }
-                
-                // Add proper indentation to all lines
-                sb.AppendLine(indentation + additionalIndent + line);
-                
-                // Add empty line after certain statements for readability
-                if ((line.EndsWith(";") && !line.StartsWith("return")) || 
-                    (line.StartsWith("return") && i < lines.Length - 1))
+                else
                 {
-                    var nextLine = i + 1 < lines.Length ? lines[i + 1].TrimStart() : "";
-                    if (!string.IsNullOrWhiteSpace(nextLine) && !nextLine.StartsWith("}"))
-                    {
-                        sb.AppendLine();
-                    }
+                    // Non-empty line - add indentation + content
+                    sb.Append(indentation + line);
                 }
             }
             
@@ -538,6 +532,7 @@ namespace CppToCsConverter.Core
                     // Use actual implementation body
                     var indentedBody = IndentMethodBody(implementation.ImplementationBody, "            ");
                     sb.Append(indentedBody);
+                    sb.AppendLine(); // Ensure line break before closing brace
                 }
                 else
                 {

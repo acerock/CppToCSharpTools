@@ -13,7 +13,7 @@ int CSomeClass::GetMemberTwo() const
     /* Sample method body */
     return memberTwo;
 }
-
+     
 CSample::m_iIndex = -1;
 
 CSample::CSample()
