@@ -211,19 +211,43 @@ namespace CppToCsConverter.Core
                     // Remove the outer namespace wrapper and extract just the interface content
                     var lines = interfaceContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                     bool insideNamespace = false;
+                    bool skipNextBrace = false;
+                    bool insideInterface = false;
+                    
                     foreach (var line in lines)
                     {
                         if (line.Contains("namespace"))
                         {
                             insideNamespace = true;
+                            skipNextBrace = true; // Skip only the next brace (namespace opening brace)
                             continue;
                         }
-                        if (insideNamespace && line.Trim() == "{")
+                        if (insideNamespace && line.Trim() == "{" && skipNextBrace)
+                        {
+                            skipNextBrace = false; // Skip namespace opening brace only
                             continue;
-                        if (insideNamespace && line.Trim() == "}")
+                        }
+                        if (insideNamespace && line.Contains("interface"))
+                        {
+                            insideInterface = true;
+                            sb.AppendLine("    " + line); // Add interface declaration
+                            continue;
+                        }
+                        if (insideNamespace && line.Trim() == "{" && insideInterface)
+                        {
+                            sb.AppendLine("    " + line); // Add interface opening brace
+                            continue;
+                        }
+                        if (insideNamespace && line.Trim() == "}" && insideInterface)
+                        {
+                            sb.AppendLine("    " + line); // Add interface closing brace
+                            insideInterface = false;
+                            continue;
+                        }
+                        if (insideNamespace && line.Trim() == "}" && !insideInterface)
                         {
                             insideNamespace = false;
-                            continue;
+                            continue; // Skip namespace closing brace
                         }
                         if (insideNamespace)
                         {
