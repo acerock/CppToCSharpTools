@@ -113,6 +113,7 @@ namespace CppToCsConverter.Core
             // Parse all files
             var parsedHeaders = new Dictionary<string, CppClass>();
             var parsedSources = new Dictionary<string, List<CppMethod>>();
+            var staticMemberInits = new Dictionary<string, List<CppStaticMemberInit>>();
 
             // Parse header files
             var headerFileClasses = new Dictionary<string, List<CppClass>>();
@@ -135,9 +136,10 @@ namespace CppToCsConverter.Core
             foreach (var sourceFile in sourceFiles)
             {
                 Console.WriteLine($"Parsing source: {Path.GetFileName(sourceFile)}");
-                var methods = _sourceParser.ParseSourceFile(sourceFile);
+                var (methods, staticInits) = _sourceParser.ParseSourceFile(sourceFile);
                 var fileName = Path.GetFileNameWithoutExtension(sourceFile);
                 parsedSources[fileName] = methods;
+                staticMemberInits[fileName] = staticInits;
             }
 
             // Generate C# files - one per header file containing all its classes
@@ -151,7 +153,7 @@ namespace CppToCsConverter.Core
                     
                 Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} class(es)");
                 
-                var csFileContent = GenerateCsFileWithMultipleClasses(fileName, classes, parsedSources, outputDirectory);
+                var csFileContent = GenerateCsFileWithMultipleClasses(fileName, classes, parsedSources, staticMemberInits, outputDirectory);
                 var csFileName = Path.Combine(outputDirectory, $"{fileName}.cs");
                 
                 try
@@ -183,7 +185,7 @@ namespace CppToCsConverter.Core
             Console.WriteLine("Conversion completed!");
         }
 
-        private string GenerateCsFileWithMultipleClasses(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, string outputDirectory)
+        private string GenerateCsFileWithMultipleClasses(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string outputDirectory)
         {
             var sb = new StringBuilder();
             
@@ -234,7 +236,7 @@ namespace CppToCsConverter.Core
                 else
                 {
                     // Generate class inline with preserved C++ method bodies
-                    GenerateClassWithCppBodies(sb, cppClass, parsedSources, fileName);
+                    GenerateClassWithCppBodies(sb, cppClass, parsedSources, staticMemberInits, fileName);
                 }
             }
 
@@ -242,18 +244,33 @@ namespace CppToCsConverter.Core
             return sb.ToString();
         }
 
-        private void GenerateClassWithCppBodies(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, string fileName)
+        private void GenerateClassWithCppBodies(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
         {
             var accessibility = cppClass.IsPublicExport ? "public" : "internal";
             sb.AppendLine($"    {accessibility} class {cppClass.Name}");
             sb.AppendLine("    {");
 
-            // Add members - preserve original C++ types
+            // Add members - preserve original C++ types and add static initializations
             foreach (var member in cppClass.Members)
             {
                 var accessModifier = ConvertAccessSpecifier(member.AccessSpecifier);
                 var staticModifier = member.IsStatic ? "static " : "";
-                sb.AppendLine($"        {accessModifier} {staticModifier}{member.Type} {member.Name};");
+                
+                // Check if this static member has an initialization value from source files
+                string initialization = "";
+                if (member.IsStatic)
+                {
+                    var staticInit = staticMemberInits.Values
+                        .SelectMany(inits => inits)
+                        .FirstOrDefault(init => init.ClassName == cppClass.Name && init.MemberName == member.Name);
+                    
+                    if (staticInit != null)
+                    {
+                        initialization = $" = {staticInit.InitializationValue}";
+                    }
+                }
+                
+                sb.AppendLine($"        {accessModifier} {staticModifier}{member.Type} {member.Name}{initialization};");
             }
 
             if (cppClass.Members.Any())

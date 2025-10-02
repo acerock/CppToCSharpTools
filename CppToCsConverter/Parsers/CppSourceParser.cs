@@ -17,9 +17,10 @@ namespace CppToCsConverter.Parsers
             @"(?:(\w+)\s+)?(\w+)\s*::\s*(\w+)\s*=\s*([^;]+);", 
             RegexOptions.Compiled);
 
-        public List<CppMethod> ParseSourceFile(string filePath)
+        public (List<CppMethod> Methods, List<CppStaticMemberInit> StaticInits) ParseSourceFile(string filePath)
         {
             var methods = new List<CppMethod>();
+            var staticInits = new List<CppStaticMemberInit>();
             
             try
             {
@@ -29,14 +30,14 @@ namespace CppToCsConverter.Parsers
                 methods.AddRange(ParseMethodImplementations(content));
                 
                 // Parse static member initializations
-                ParseStaticMemberInitializations(content);
+                staticInits.AddRange(ParseStaticMemberInitializations(content));
                 
-                return methods;
+                return (methods, staticInits);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error parsing source file {filePath}: {ex.Message}");
-                return methods;
+                return (methods, staticInits);
             }
         }
 
@@ -195,21 +196,29 @@ namespace CppToCsConverter.Parsers
             return string.Empty;
         }
 
-        private void ParseStaticMemberInitializations(string content)
+        private List<CppStaticMemberInit> ParseStaticMemberInitializations(string content)
         {
+            var staticInits = new List<CppStaticMemberInit>();
             var matches = _staticMemberInitRegex.Matches(content);
             
             foreach (Match match in matches)
             {
-                // This would be used to track static member initializations
-                // For now, we'll just identify them
                 var type = match.Groups[1].Success ? match.Groups[1].Value : "auto";
                 var className = match.Groups[2].Value;
                 var memberName = match.Groups[3].Value;
                 var initValue = match.Groups[4].Value.Trim();
                 
+                staticInits.Add(new CppStaticMemberInit
+                {
+                    ClassName = className,
+                    MemberName = memberName,
+                    InitializationValue = initValue
+                });
+                
                 Console.WriteLine($"Found static member initialization: {className}::{memberName} = {initValue}");
             }
+            
+            return staticInits;
         }
     }
 }
