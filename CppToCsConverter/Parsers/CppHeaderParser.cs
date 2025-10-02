@@ -203,14 +203,14 @@ namespace CppToCsConverter.Parsers
                 if (openBrace >= 0 && closeBrace > openBrace)
                 {
                     var methodBody = fullMethod.Substring(openBrace + 1, closeBrace - openBrace - 1);
-                    // Replace tab characters with four spaces
-                    method.InlineImplementation = methodBody.Replace("\t", "    ");
+                    // Replace tab characters with four spaces and trim leading/trailing whitespace
+                    method.InlineImplementation = methodBody.Replace("\t", "    ").Trim();
                 }
                 else
                 {
                     var fallbackBody = methodMatch.Groups[8].Value;
-                    // Replace tab characters with four spaces
-                    method.InlineImplementation = fallbackBody.Replace("\t", "    ");
+                    // Replace tab characters with four spaces and trim leading/trailing whitespace
+                    method.InlineImplementation = fallbackBody.Replace("\t", "    ").Trim();
                 }
             }
 

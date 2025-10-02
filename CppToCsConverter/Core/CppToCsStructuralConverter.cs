@@ -443,12 +443,13 @@ namespace CppToCsConverter.Core
                 
                 if (i > 0)
                 {
-                    result.AppendLine(); // Add line break before each line except the first
+                    result.Append('\n'); // Add line break before each line except the first
                 }
                 
                 if (string.IsNullOrWhiteSpace(line))
                 {
-                    // Empty line - just leave it empty (the AppendLine above handles the line break)
+                    // Empty line or line with only whitespace - replace with just indentation
+                    result.Append(indentation);
                 }
                 else
                 {
