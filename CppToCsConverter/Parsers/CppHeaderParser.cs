@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using CppToCsConverter.Models;
 
@@ -114,14 +115,22 @@ namespace CppToCsConverter.Parsers
                 if (line.Trim().StartsWith("return ") || line.Trim().StartsWith("if ") || line.Contains("{") && !line.Contains("}"))
                     continue;
 
-                // Parse methods
-                var methodMatch = _methodRegex.Match(line);
+                // Parse methods (handle multi-line declarations)
+                var methodLine = CollectMultiLineMethodDeclaration(lines, ref i);
+                var methodMatch = _methodRegex.Match(methodLine);
                 if (methodMatch.Success)
                 {
-                    var method = ParseMethod(methodMatch, currentAccess, lines, ref i);
-                    if (method != null)
+                    try
                     {
-                        currentClass.Methods.Add(method);
+                        var method = ParseMethod(methodMatch, currentAccess, methodLine);
+                        if (method != null)
+                        {
+                            currentClass.Methods.Add(method);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"Error parsing method '{methodMatch.Groups[4].Value}': {ex.Message}");
                     }
                     continue;
                 }
@@ -149,7 +158,7 @@ namespace CppToCsConverter.Parsers
             return currentClass;
         }
 
-        private CppMethod? ParseMethod(Match methodMatch, AccessSpecifier currentAccess, string[] lines, ref int lineIndex)
+        private CppMethod? ParseMethod(Match methodMatch, AccessSpecifier currentAccess, string collectedMethodLine)
         {
             var method = new CppMethod
             {
@@ -161,6 +170,8 @@ namespace CppToCsConverter.Parsers
                 IsConst = methodMatch.Groups[6].Success,
                 HasInlineImplementation = methodMatch.Groups[7].Success
             };
+            
+
             
 
 
@@ -177,21 +188,9 @@ namespace CppToCsConverter.Parsers
             var parametersString = methodMatch.Groups[5].Value;
             method.Parameters = ParseParameters(parametersString);
 
-            // Check if it's pure virtual
-            var fullLine = lines[lineIndex];
-            method.IsPureVirtual = fullLine.Contains("= 0");
-
-            // Determine return type (if not constructor/destructor)
-            if (!method.IsConstructor && !method.IsDestructor)
-            {
-                // Try to find return type by looking at the line before method name
-                var lineBeforeMethod = lines[lineIndex].Substring(0, lines[lineIndex].IndexOf(method.Name));
-                var returnTypeMatch = Regex.Match(lineBeforeMethod, @"(\w+(?:\s*\*|\s*&)?)\s*$");
-                if (returnTypeMatch.Success)
-                {
-                    method.ReturnType = returnTypeMatch.Groups[1].Value.Trim();
-                }
-            }
+            // Check if it's pure virtual by checking the collected method line
+            // We can't rely on lines[lineIndex] anymore since we collected multi-line declarations
+            method.IsPureVirtual = collectedMethodLine.Contains("= 0");
 
             return method;
         }
@@ -247,6 +246,48 @@ namespace CppToCsConverter.Parsers
             }
 
             return parameters;
+        }
+
+        private string CollectMultiLineMethodDeclaration(string[] lines, ref int lineIndex)
+        {
+            var currentLine = lines[lineIndex];
+            
+            // If the line doesn't look like the start of a method, return it as-is
+            if (!currentLine.Trim().Contains("virtual") && !currentLine.Trim().Contains("static") && !currentLine.Trim().Contains("("))
+            {
+                return currentLine;
+            }
+            
+            var methodBuilder = new StringBuilder();
+            methodBuilder.Append(currentLine);
+            
+            // If the line already ends with a semicolon or brace, it's complete
+            if (currentLine.TrimEnd().EndsWith(";") || currentLine.TrimEnd().EndsWith("}"))
+            {
+                return methodBuilder.ToString();
+            }
+            
+            // Look for the end of the method declaration
+            for (int i = lineIndex + 1; i < lines.Length; i++)
+            {
+                var nextLine = lines[i];
+                methodBuilder.Append(" " + nextLine.Trim());
+                
+                // Check if we've reached the end of the method declaration
+                if (nextLine.TrimEnd().EndsWith(";") || nextLine.TrimEnd().EndsWith("}"))
+                {
+                    lineIndex = i; // Update the line index to skip processed lines
+                    break;
+                }
+                
+                // Prevent infinite loops - if we hit a class boundary, stop
+                if (nextLine.Trim().StartsWith("class ") || nextLine.Trim() == "}" || nextLine.Trim() == "};")
+                {
+                    break;
+                }
+            }
+            
+            return methodBuilder.ToString();
         }
 
         private bool IsInterface(string[] lines, int startIndex)
