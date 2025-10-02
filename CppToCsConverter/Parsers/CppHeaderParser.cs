@@ -11,7 +11,7 @@ namespace CppToCsConverter.Parsers
     public class CppHeaderParser
     {
         private readonly Regex _classRegex = new Regex(@"(?:class|struct)\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
-        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?(?:\s*:\s*[^{]*)?(?:\s*=\s*0)?(?:\s*\{([^}]*)\})?", RegexOptions.Compiled);
+        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{([^}]*)\})?", RegexOptions.Compiled);
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
 
@@ -181,20 +181,27 @@ namespace CppToCsConverter.Parsers
                 IsVirtual = methodMatch.Groups[1].Success,
                 IsStatic = methodMatch.Groups[2].Success,
                 IsConst = methodMatch.Groups[6].Success,
-                HasInlineImplementation = methodMatch.Groups[7].Success
+                HasInlineImplementation = methodMatch.Groups[8].Success // Updated to Group 8
             };
             
-
-            
-
 
             // Check if it's a constructor or destructor
             method.IsConstructor = !method.Name.StartsWith("~") && method.Name == className && string.IsNullOrEmpty(methodMatch.Groups[3].Value.Trim());
             method.IsDestructor = method.Name.StartsWith("~");
+            
+
+
+            // Handle member initializer list for constructors
+            if (method.IsConstructor && methodMatch.Groups[7].Success && !string.IsNullOrWhiteSpace(methodMatch.Groups[7].Value))
+            {
+                method.MemberInitializerList = ParseMemberInitializerList(methodMatch.Groups[7].Value.Trim());
+            }
+            
+
 
             if (method.HasInlineImplementation)
             {
-                method.InlineImplementation = methodMatch.Groups[7].Value;
+                method.InlineImplementation = methodMatch.Groups[8].Value; // Updated to Group 8
             }
 
             // Parse parameters
@@ -271,34 +278,98 @@ namespace CppToCsConverter.Parsers
                 return currentLine;
             }
             
-
-            
             var methodBuilder = new StringBuilder();
             methodBuilder.Append(currentLine);
             
-            // If the line already ends with a semicolon or brace, it's complete
-            if (currentLine.TrimEnd().EndsWith(";") || currentLine.TrimEnd().EndsWith("}"))
+            // If the line already ends with a semicolon, it's a declaration only
+            if (currentLine.TrimEnd().EndsWith(";"))
             {
                 return methodBuilder.ToString();
             }
             
-            // Look for the end of the method declaration
-            for (int i = lineIndex + 1; i < lines.Length; i++)
+            // If the line has an opening brace, we need to collect until the matching closing brace
+            int braceLevel = currentLine.Count(c => c == '{') - currentLine.Count(c => c == '}');
+            bool insideMethodBody = braceLevel > 0;
+            
+            // If no opening brace, look for semicolon or opening brace
+            if (braceLevel == 0)
             {
-                var nextLine = lines[i];
-                methodBuilder.Append(" " + nextLine.Trim());
-                
-                // Check if we've reached the end of the method declaration
-                if (nextLine.TrimEnd().EndsWith(";") || nextLine.TrimEnd().EndsWith("}"))
+                // Look for the end of the method declaration (semicolon or opening brace)
+                for (int i = lineIndex + 1; i < lines.Length; i++)
                 {
-                    lineIndex = i; // Update the line index to skip processed lines
-                    break;
+                    var nextLine = lines[i];
+                    
+                    // Check if we're entering a method body
+                    if (nextLine.Contains("{"))
+                    {
+                        insideMethodBody = true;
+                    }
+                    
+                    // Use proper line breaks for method bodies, spaces for declarations
+                    if (insideMethodBody)
+                    {
+                        methodBuilder.AppendLine();
+                        methodBuilder.Append(nextLine);
+                    }
+                    else
+                    {
+                        methodBuilder.Append(" " + nextLine.Trim());
+                    }
+                    
+                    braceLevel += nextLine.Count(c => c == '{') - nextLine.Count(c => c == '}');
+                    
+                    // If we hit a semicolon and no braces, it's a declaration
+                    if (nextLine.TrimEnd().EndsWith(";") && braceLevel == 0)
+                    {
+                        lineIndex = i;
+                        break;
+                    }
+                    
+                    // If we have braces, continue to collect until they're balanced
+                    if (braceLevel > 0)
+                    {
+                        // Continue to next iteration to collect more lines
+                        continue;
+                    }
+                    else if (braceLevel == 0 && nextLine.Contains("}"))
+                    {
+                        // Found the closing brace
+                        lineIndex = i;
+                        break;
+                    }
+                    
+                    // Prevent infinite loops - if we hit a class boundary, stop
+                    if (nextLine.Trim().StartsWith("class ") || nextLine.Trim() == "}" || nextLine.Trim() == "};")
+                    {
+                        break;
+                    }
                 }
-                
-                // Prevent infinite loops - if we hit a class boundary, stop
-                if (nextLine.Trim().StartsWith("class ") || nextLine.Trim() == "}" || nextLine.Trim() == "};")
+            }
+            else
+            {
+                // We already have an opening brace, collect until braces are balanced
+                for (int i = lineIndex + 1; i < lines.Length; i++)
                 {
-                    break;
+                    var nextLine = lines[i];
+                    
+                    // Use proper line breaks for method bodies
+                    methodBuilder.AppendLine();
+                    methodBuilder.Append(nextLine);
+                    
+                    braceLevel += nextLine.Count(c => c == '{') - nextLine.Count(c => c == '}');
+                    
+                    if (braceLevel == 0)
+                    {
+                        // Found the matching closing brace
+                        lineIndex = i;
+                        break;
+                    }
+                    
+                    // Prevent infinite loops - if we hit a class boundary, stop
+                    if (nextLine.Trim().StartsWith("class ") || nextLine.Trim() == "}" || nextLine.Trim() == "};")
+                    {
+                        break;
+                    }
                 }
             }
             
@@ -328,6 +399,89 @@ namespace CppToCsConverter.Parsers
             }
 
             return false;
+        }
+
+        private List<CppMemberInitializer> ParseMemberInitializerList(string initializerList)
+        {
+            var initializers = new List<CppMemberInitializer>();
+            
+            if (string.IsNullOrWhiteSpace(initializerList))
+                return initializers;
+
+            // Split by commas, but be careful with nested parentheses
+            var parts = SplitMemberInitializers(initializerList);
+            
+            foreach (var part in parts)
+            {
+                var trimmedPart = part.Trim();
+                if (string.IsNullOrEmpty(trimmedPart))
+                    continue;
+
+                // Parse "memberName(value)" or "memberName{value}"
+                var match = Regex.Match(trimmedPart, @"(\w+)\s*[\(\{]([^\)\}]*?)[\)\}]");
+                if (match.Success)
+                {
+                    initializers.Add(new CppMemberInitializer
+                    {
+                        MemberName = match.Groups[1].Value,
+                        InitializationValue = match.Groups[2].Value.Trim()
+                    });
+                }
+            }
+
+            return initializers;
+        }
+
+        private List<string> SplitMemberInitializers(string initializerList)
+        {
+            var result = new List<string>();
+            var current = new StringBuilder();
+            var parenthesesLevel = 0;
+            var bracesLevel = 0;
+
+            foreach (char c in initializerList)
+            {
+                switch (c)
+                {
+                    case '(':
+                        parenthesesLevel++;
+                        current.Append(c);
+                        break;
+                    case ')':
+                        parenthesesLevel--;
+                        current.Append(c);
+                        break;
+                    case '{':
+                        bracesLevel++;
+                        current.Append(c);
+                        break;
+                    case '}':
+                        bracesLevel--;
+                        current.Append(c);
+                        break;
+                    case ',':
+                        if (parenthesesLevel == 0 && bracesLevel == 0)
+                        {
+                            result.Add(current.ToString());
+                            current.Clear();
+                        }
+                        else
+                        {
+                            current.Append(c);
+                        }
+                        break;
+                    default:
+                        current.Append(c);
+                        break;
+                }
+            }
+
+            if (current.Length > 0)
+            {
+                result.Add(current.ToString());
+            }
+
+            return result;
         }
     }
 }

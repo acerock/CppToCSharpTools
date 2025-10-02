@@ -129,11 +129,23 @@ namespace CppToCsConverter.Generators
             sb.AppendLine("        {");
 
             // Generate method body
+
             if (method.HasInlineImplementation)
             {
+                // For constructors with member initializer lists, add them first
+                if (method.IsConstructor && method.MemberInitializerList.Count > 0)
+                {
+
+                    foreach (var initializer in method.MemberInitializerList)
+                    {
+                        var convertedValue = ConvertCppToCsValue(initializer.InitializationValue);
+                        sb.AppendLine($"            {initializer.MemberName} = {convertedValue};");
+                    }
+                }
+                
                 // Use inline implementation from header
                 var convertedBody = ConvertCppToCsBody(method.InlineImplementation);
-                sb.AppendLine($"            {convertedBody}");
+                sb.AppendLine(AddIndentation(convertedBody, "            "));
             }
             else
             {
@@ -151,7 +163,28 @@ namespace CppToCsConverter.Generators
                     // Generate placeholder
                     if (method.IsConstructor)
                     {
-                        sb.AppendLine("            // TODO: Initialize members");
+
+                        
+                        // Generate member initializer assignments
+                        foreach (var initializer in method.MemberInitializerList)
+                        {
+                            var convertedValue = ConvertCppToCsValue(initializer.InitializationValue);
+                            sb.AppendLine($"            {initializer.MemberName} = {convertedValue};");
+
+                        }
+                        
+                        // Add existing inline implementation if available (constructor body)
+                        if (!string.IsNullOrEmpty(method.InlineImplementation))
+                        {
+                            var convertedBody = ConvertCppToCsBody(method.InlineImplementation);
+                            sb.AppendLine(AddIndentation(convertedBody, "            "));
+
+                        }
+                        
+                        if (method.MemberInitializerList.Count == 0 && string.IsNullOrEmpty(method.InlineImplementation))
+                        {
+                            sb.AppendLine("            // TODO: Initialize members");
+                        }
                     }
                     else if (method.ReturnType != "void" && !method.IsDestructor && !string.IsNullOrEmpty(method.ReturnType))
                     {
@@ -351,6 +384,46 @@ namespace CppToCsConverter.Generators
         private string GetAccessSpecifierName(AccessSpecifier accessSpecifier)
         {
             return accessSpecifier.ToString().ToLowerInvariant();
+        }
+
+        private string ConvertCppToCsValue(string cppValue)
+        {
+            if (string.IsNullOrWhiteSpace(cppValue))
+                return "default";
+
+            // Basic conversions for common initialization values
+            var trimmed = cppValue.Trim();
+            
+            // Handle numeric literals
+            if (int.TryParse(trimmed, out _) || 
+                double.TryParse(trimmed, out _) || 
+                trimmed.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("false", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed;
+            }
+
+            // Handle string literals
+            if (trimmed.StartsWith("\"") && trimmed.EndsWith("\""))
+            {
+                return trimmed;
+            }
+
+            // Handle character literals
+            if (trimmed.StartsWith("'") && trimmed.EndsWith("'"))
+            {
+                return trimmed;
+            }
+
+            // Handle nullptr/NULL
+            if (trimmed.Equals("nullptr", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("NULL", StringComparison.OrdinalIgnoreCase))
+            {
+                return "null";
+            }
+
+            // For other values, return as-is (might be constants, enums, etc.)
+            return trimmed;
         }
     }
 }

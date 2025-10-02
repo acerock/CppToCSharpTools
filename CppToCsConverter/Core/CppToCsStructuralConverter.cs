@@ -301,15 +301,28 @@ namespace CppToCsConverter.Core
                 
                 if (method.HasInlineImplementation)
                 {
+
                     // Include inline implementation with proper indentation
                     sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{method.Name}({parameters})");
                     sb.AppendLine("        {");
+                    
+                    // For constructors, add member initializer assignments first
+                    if (method.IsConstructor && method.MemberInitializerList.Count > 0)
+                    {
+                        foreach (var initializer in method.MemberInitializerList)
+                        {
+                            var convertedValue = ConvertCppToCsValue(initializer.InitializationValue);
+                            sb.AppendLine($"            {initializer.MemberName} = {convertedValue};");
+                        }
+                    }
+                    
                     var indentedInlineBody = IndentMethodBody(method.InlineImplementation, "            ");
                     sb.Append(indentedInlineBody);
                     sb.AppendLine("        }");
                 }
                 else
                 {
+
                     // Method declaration without body
                     sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{method.Name}({parameters});");
                 }
@@ -418,14 +431,45 @@ namespace CppToCsConverter.Core
                 return "";
 
             var sb = new StringBuilder();
-            // Use RemoveEmptyEntries to eliminate extra empty lines caused by splitting
             var lines = methodBody.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             
             for (int i = 0; i < lines.Length; i++)
             {
-                var line = lines[i];
+                var line = lines[i].TrimStart();
+                
+                // Skip completely empty lines
+                if (string.IsNullOrWhiteSpace(line))
+                    continue;
+                
+                // Determine additional indentation for this line
+                string additionalIndent = "";
+                
+                // Check if previous line was a control statement without braces
+                if (i > 0)
+                {
+                    var prevLine = lines[i - 1].TrimStart();
+                    if ((prevLine.StartsWith("if ") || prevLine.StartsWith("for ") || 
+                         prevLine.StartsWith("while ") || prevLine.StartsWith("else")) &&
+                        !prevLine.TrimEnd().EndsWith("{") && !prevLine.TrimEnd().EndsWith(";"))
+                    {
+                        // The current line should be indented as it's the body of the control statement
+                        additionalIndent = "    ";
+                    }
+                }
+                
                 // Add proper indentation to all lines
-                sb.AppendLine(indentation + line.TrimStart());
+                sb.AppendLine(indentation + additionalIndent + line);
+                
+                // Add empty line after certain statements for readability
+                if ((line.EndsWith(";") && !line.StartsWith("return")) || 
+                    (line.StartsWith("return") && i < lines.Length - 1))
+                {
+                    var nextLine = i + 1 < lines.Length ? lines[i + 1].TrimStart() : "";
+                    if (!string.IsNullOrWhiteSpace(nextLine) && !nextLine.StartsWith("}"))
+                    {
+                        sb.AppendLine();
+                    }
+                }
             }
             
             return sb.ToString();
@@ -529,6 +573,46 @@ namespace CppToCsConverter.Core
                 result += " = " + param.DefaultValue;
                 
             return result;
+        }
+
+        private string ConvertCppToCsValue(string cppValue)
+        {
+            if (string.IsNullOrWhiteSpace(cppValue))
+                return "default";
+
+            // Basic conversions for common initialization values
+            var trimmed = cppValue.Trim();
+            
+            // Handle numeric literals
+            if (int.TryParse(trimmed, out _) || 
+                double.TryParse(trimmed, out _) || 
+                trimmed.Equals("true", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("false", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed;
+            }
+
+            // Handle string literals
+            if (trimmed.StartsWith("\"") && trimmed.EndsWith("\""))
+            {
+                return trimmed;
+            }
+
+            // Handle character literals
+            if (trimmed.StartsWith("'") && trimmed.EndsWith("'"))
+            {
+                return trimmed;
+            }
+
+            // Handle nullptr/NULL
+            if (trimmed.Equals("nullptr", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.Equals("NULL", StringComparison.OrdinalIgnoreCase))
+            {
+                return "null";
+            }
+
+            // For other values, return as-is (might be constants, enums, etc.)
+            return trimmed;
         }
     }
 }

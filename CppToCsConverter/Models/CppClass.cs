@@ -40,6 +40,7 @@ namespace CppToCsConverter.Models
         public string ImplementationBody { get; set; } = string.Empty;
         public string ClassName { get; set; } = string.Empty; // For source file parsing
         public int OrderIndex { get; set; } // For maintaining order from .cpp files
+        public List<CppMemberInitializer> MemberInitializerList { get; set; } = new List<CppMemberInitializer>();
     }
 
     public class CppParameter
@@ -56,6 +57,12 @@ namespace CppToCsConverter.Models
     {
         public string Type { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public string InitializationValue { get; set; } = string.Empty;
+    }
+
+    public class CppMemberInitializer
+    {
+        public string MemberName { get; set; } = string.Empty;
         public string InitializationValue { get; set; } = string.Empty;
     }
 

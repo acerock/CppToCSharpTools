@@ -16,10 +16,11 @@ namespace U4.BatchNet.LibSample.Compatibility
 	internal class CSomeClass
 	{
 		private StructOne memberOne;
-		private int memberTwo = 33;
+		private int memberTwo;
 
 		public CSomeClass()
 		{
+			memberTwo = 33;
 			memberOne.lTestType = 0;
 		}
 
