@@ -305,7 +305,11 @@ namespace CppToCsConverter.Core
                 var accessModifier = "public"; // Assume public for implemented methods
                 var staticModifier = method.IsStatic ? "static " : "";
                 var returnType = method.IsConstructor || method.IsDestructor ? "" : method.ReturnType + " ";
-                var parameters = string.Join(", ", method.Parameters.Select(p => FormatCppParameter(p)));
+                
+                // Find corresponding header declaration to get default values
+                var headerMethod = cppClass.Methods.FirstOrDefault(h => h.Name == method.Name);
+                var parametersWithDefaults = MergeParametersWithDefaults(method.Parameters, headerMethod?.Parameters);
+                var parameters = string.Join(", ", parametersWithDefaults.Select(p => FormatCppParameter(p)));
                 
                 sb.AppendLine($"        {accessModifier} {staticModifier}{returnType}{method.Name}({parameters})");
                 sb.AppendLine("        {");
@@ -355,6 +359,38 @@ namespace CppToCsConverter.Core
                 result += " = " + param.DefaultValue;
                 
             return result;
+        }
+
+        private List<CppParameter> MergeParametersWithDefaults(List<CppParameter> implParameters, List<CppParameter>? headerParameters)
+        {
+            if (headerParameters == null || headerParameters.Count == 0)
+                return implParameters;
+
+            var mergedParameters = new List<CppParameter>();
+            
+            for (int i = 0; i < implParameters.Count; i++)
+            {
+                var implParam = implParameters[i];
+                var mergedParam = new CppParameter
+                {
+                    Name = implParam.Name, // Use implementation parameter name
+                    Type = implParam.Type, // Use implementation parameter type
+                    IsConst = implParam.IsConst,
+                    IsReference = implParam.IsReference,
+                    IsPointer = implParam.IsPointer,
+                    DefaultValue = "" // Will be set below
+                };
+
+                // If there's a corresponding header parameter at the same position, use its default value
+                if (i < headerParameters.Count && !string.IsNullOrEmpty(headerParameters[i].DefaultValue))
+                {
+                    mergedParam.DefaultValue = headerParameters[i].DefaultValue;
+                }
+
+                mergedParameters.Add(mergedParam);
+            }
+
+            return mergedParameters;
         }
     }
 }
