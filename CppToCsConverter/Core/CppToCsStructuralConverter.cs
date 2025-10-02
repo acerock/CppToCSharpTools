@@ -346,12 +346,12 @@ namespace CppToCsConverter.Core
 
             foreach (var method in relatedMethods)
             {
-                var accessModifier = "public"; // Assume public for implemented methods
+                // Find corresponding header declaration to get access modifier and default values
+                var headerMethod = cppClass.Methods.FirstOrDefault(h => h.Name == method.Name);
+                var accessModifier = headerMethod != null ? ConvertAccessSpecifier(headerMethod.AccessSpecifier) : "public";
                 var staticModifier = method.IsStatic ? "static " : "";
                 var returnType = method.IsConstructor || method.IsDestructor ? "" : method.ReturnType + " ";
                 
-                // Find corresponding header declaration to get default values
-                var headerMethod = cppClass.Methods.FirstOrDefault(h => h.Name == method.Name);
                 var parametersWithDefaults = MergeParametersWithDefaults(method.Parameters, headerMethod?.Parameters);
                 var parameters = string.Join(", ", parametersWithDefaults.Select(p => FormatCppParameter(p)));
                 
