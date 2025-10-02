@@ -349,7 +349,8 @@ namespace CppToCsConverter.Core
                 if (!string.IsNullOrEmpty(method.ImplementationBody))
                 {
                     // Include the original C++ implementation body with proper indentation
-                    var indentedBody = IndentMethodBody(method.ImplementationBody, "            ");
+                    // Use 8 spaces since .cpp method bodies already have indentation
+                    var indentedBody = IndentMethodBody(method.ImplementationBody, "        ");
                     sb.Append(indentedBody);
                     sb.AppendLine(); // Ensure line break before closing brace
                 }
@@ -432,41 +433,31 @@ namespace CppToCsConverter.Core
             if (string.IsNullOrEmpty(methodBody))
                 return "";
 
-            // Split by lines preserving empty lines
+            // Simply add indentation to each line - preserve everything else exactly as captured
             var lines = methodBody.Split(new[] { '\n' }, StringSplitOptions.None);
-            var sb = new StringBuilder();
+            var result = new StringBuilder();
             
-            // Remove leading and trailing empty lines
-            int start = 0;
-            int end = lines.Length - 1;
-            
-            while (start < lines.Length && string.IsNullOrWhiteSpace(lines[start]))
-                start++;
-            while (end >= 0 && string.IsNullOrWhiteSpace(lines[end]))
-                end--;
-            
-            if (start > end) return "";
-            
-            // Process each line
-            for (int i = start; i <= end; i++)
+            for (int i = 0; i < lines.Length; i++)
             {
-                if (i > start)
-                    sb.AppendLine();
-                    
-                var line = lines[i];
+                var line = lines[i].TrimEnd('\r'); // Remove any trailing \r from Windows line endings
+                
+                if (i > 0)
+                {
+                    result.AppendLine(); // Add line break before each line except the first
+                }
+                
                 if (string.IsNullOrWhiteSpace(line))
                 {
-                    // Empty line - just append it without indentation
-                    sb.Append("");
+                    // Empty line - just leave it empty (the AppendLine above handles the line break)
                 }
                 else
                 {
-                    // Non-empty line - add indentation + content
-                    sb.Append(indentation + line);
+                    // Non-empty line - add indentation + preserve original content exactly
+                    result.Append(indentation + line);
                 }
             }
             
-            return sb.ToString();
+            return result.ToString();
         }
 
         private void GenerateInterfaceInline(StringBuilder sb, CppClass cppInterface)
@@ -530,7 +521,8 @@ namespace CppToCsConverter.Core
                 if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
                 {
                     // Use actual implementation body
-                    var indentedBody = IndentMethodBody(implementation.ImplementationBody, "            ");
+                    // Use 8 spaces since .cpp method bodies already have indentation
+                    var indentedBody = IndentMethodBody(implementation.ImplementationBody, "        ");
                     sb.Append(indentedBody);
                     sb.AppendLine(); // Ensure line break before closing brace
                 }
