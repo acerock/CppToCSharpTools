@@ -90,9 +90,6 @@ namespace CppToCsConverter
                 Console.WriteLine($"Error during conversion: {ex.Message}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
             }
-
-            Console.WriteLine("\nPress any key to exit...");
-            Console.ReadKey();
         }
     }
 }
