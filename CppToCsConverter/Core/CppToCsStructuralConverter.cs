@@ -259,9 +259,23 @@ namespace CppToCsConverter.Core
             if (cppClass.Members.Any())
                 sb.AppendLine();
 
+            // Get method implementations from source files first to avoid duplicates
+            var relatedMethods = parsedSources.Values
+                .SelectMany(methods => methods)
+                .Where(m => m.ClassName == cppClass.Name)
+                .ToList();
+
+            // Get names of methods that have implementations (to avoid duplicating declarations)
+            var implementedMethodNames = relatedMethods.Select(m => m.Name).ToHashSet();
+
             // Add methods from header (declarations only) - preserve C++ syntax
+            // Skip methods that have implementations in source files to avoid duplicates
             foreach (var method in cppClass.Methods.Where(m => m.AccessSpecifier == AccessSpecifier.Public))
             {
+                // Skip if this method has an implementation in source files (avoid duplicates)
+                if (!method.HasInlineImplementation && implementedMethodNames.Contains(method.Name))
+                    continue;
+
                 var accessModifier = ConvertAccessSpecifier(method.AccessSpecifier);
                 var staticModifier = method.IsStatic ? "static " : "";
                 var virtualModifier = method.IsVirtual ? "virtual " : "";
@@ -285,10 +299,6 @@ namespace CppToCsConverter.Core
             }
 
             // Add method implementations from source files - preserve C++ code exactly as-is
-            var relatedMethods = parsedSources.Values
-                .SelectMany(methods => methods)
-                .Where(m => m.ClassName == cppClass.Name)
-                .ToList();
 
             foreach (var method in relatedMethods)
             {
