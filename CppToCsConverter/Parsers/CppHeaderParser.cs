@@ -11,7 +11,7 @@ namespace CppToCsConverter.Parsers
     {
         private readonly Regex _classRegex = new Regex(@"class\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
         private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:::\w+)?)\s*::\s*)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?(?:\s*=\s*0)?(?:\s*\{([^}]*)\})?", RegexOptions.Compiled);
-        private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*=\s*([^;]+))?;\s*$", RegexOptions.Compiled);
+        private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
 
         public List<CppClass> ParseHeaderFile(string filePath)
@@ -128,7 +128,7 @@ namespace CppToCsConverter.Parsers
 
                 // Parse members - only if it looks like a proper member declaration
                 var memberMatch = _memberRegex.Match(line);
-                if (memberMatch.Success && !line.Contains("return") && !line.Contains("if") && !line.Contains("for") && !line.Contains("while"))
+                if (memberMatch.Success && !line.TrimStart().StartsWith("return ") && !line.TrimStart().StartsWith("if ") && !line.TrimStart().StartsWith("for ") && !line.TrimStart().StartsWith("while "))
                 {
                     var member = new CppMember
                     {
