@@ -1,68 +1,92 @@
-using System;
+using Agresso.Interface.CoreServices;
+using Agresso.Types;
+using BatchNet.Compatibility.Types;
+using BatchNet.Fundamentals.Compatibility;
+using U4.BatchNet.Common.Compatibility;
+using static BatchNet.Compatibility.Level1;
+using static BatchNet.Compatibility.BatchApi;
 
-namespace GeneratedClasses
+namespace Generated_CSample
 {
-    public class CSample : ISample
+    internal class StructOne
     {
-        #region private Members
+        public agrint lTestType;
+        public TAttId attId;
+        public TDimValue dimVal;
 
-        private int m_value1;
-        private string cValue1;
-        private string cValue2;
-        private string cValue3;
-        private static int m_iIndex;
-        private int m_iAnotherPrivateInteger;
-        #endregion
+    }
 
-        public void CSample()
+    internal class CSomeClass
+    {
+        private StructOne memberOne;
+        private int memberTwo;
+
+        public CSomeClass();
+
+        public int GetMemberTwo()
         {
-            return default;
+            /* Sample method body */
+            return memberTwo;
         }
 
+    }
 
-        private bool MethodP1(TDimValue dim1, int int1, int int2 = 0, bool bool1 = false)
+    internal class CSample
+    {
+        private agrint m_value1;
+        private CString cValue1;
+        private CString cValue2;
+        private CString cValue3;
+        private static agrint m_iIndex = -1;
+
+        public CSample()
         {
+            m_value1 = 0;
+            
+            cValue1 = _T("ABC");
+            cValue2 = _T("DEF");
+            cValue3 = _T("GHI");
+        }
+
+        public ~CSample()
+        {
+            // Cleanup code here
+        }
+
+        public void MethodOne(const CString& cParam1, const bool &bParam2, CString *pcParam3)
+        {
+            // Implementation of MethodOne
+        }
+
+        public bool MethodP1(const TDimValue& dimPd, const agrint& lLimitHorizon, const agrint& iValue, bool bError)
+        {
+            if (dimPd.IsEmpty()) 
+            return bError;
+            return lLimitHorizon >= iValue;
+        }
+
+        public bool MethodP2(const TDimValue& dim1, const agrint& int1, const agrint& int2, bool bool1)
+        {
+            // Implementation of MethodP2
+            return true;
+        }
+
+        public bool MethodP3(const TDimValue& dimVal, const agrint& intVal, const agrint& int2)
+        {
+            // Implementation of MethodP3
             return false;
         }
 
-        private bool MethodP2(TDimValue dim1, int int1, int int2 = 0, bool bool1 = false)
+        public bool MethodP4()
         {
-            return false;
+            // Implementation of MethodP4
+            return cValue1 == cValue3;
         }
 
-        private bool MethodP3(TDimValue dim1, int int1, int int2)
+        public bool MethodP5(const TDimValue& dim1, const agrint& int1, const agrint& int2)
         {
-            return false;
-        }
-
-        private bool MethodP4()
-        {
-            return false;
-        }
-
-        private bool MethodP5(TDimValue dim1, int int1, int int2 = 0)
-        {
-            return false;
-        }
-
-        private string PrivateMemberWithBodyInHfile(TAttId &att_id)
-        {
-            return string.Empty;
-        }
-
-        public bool MethodTwo()
-        {
-            return cValue1 == cValue2;
-        }
-
-        private int MethodPrivInl1(TDimValue dim1)
-        {
-            return 0;
-        }
-
-        private void MethodPrivInl2(TDimValue dimPd, int lLimitHorizon, int iValue = 0, bool bError = false)
-        {
-            return default;
+            // Implementation of MethodP5
+            return !dim1.IsEmpty() && int1 > int2;
         }
 
     }

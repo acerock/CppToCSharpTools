@@ -2,6 +2,28 @@
 
 #include "ISample.h"
 
+struct StructOne
+{
+public:
+	agrint lTestType;
+
+	TAttId attId;
+	TDimValue dimVal;
+};
+
+class CSomeClass
+{
+	StructOne memberOne;
+	int memberTwo;
+
+	public:
+		CSomeClass() : memberTwo(33) {
+			memberOne.lTestType = 0;
+		}
+
+		int GetMemberTwo() const;
+}
+
 class CSample : public ISample
 {
 private:

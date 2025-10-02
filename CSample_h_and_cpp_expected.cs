@@ -4,13 +4,29 @@ using U4.BatchNet.Common.Compatibility;
 
 
 namespace U4.BatchNet.LibSample.Compatibility
-{
-	public static class ISampleExtensions
+{	
+	internal struct StructOne
 	{
-		public static ISample GetInstance(this ISample sample)
+		internal agrint lTestType;
+
+		internal TAttId attId;
+		internal TDimValue dimVal;
+	}
+
+	internal class CSomeClass
+	{
+		private StructOne memberOne;
+		private int memberTwo = 33;
+
+		public CSomeClass()
 		{
-			CSample* pSample = new CSample();
-			return pSample;
+			memberOne.lTestType = 0;
+		}
+
+		public int GetMemberTwo()
+		{
+			/* Sample method body */
+			return memberTwo;
 		}
 	}
 	

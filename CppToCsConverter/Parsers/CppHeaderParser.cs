@@ -10,8 +10,8 @@ namespace CppToCsConverter.Parsers
 {
     public class CppHeaderParser
     {
-        private readonly Regex _classRegex = new Regex(@"class\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
-        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?(?:\s*=\s*0)?(?:\s*\{([^}]*)\})?", RegexOptions.Compiled);
+        private readonly Regex _classRegex = new Regex(@"(?:class|struct)\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
+        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?(?:\s*:\s*[^{]*)?(?:\s*=\s*0)?(?:\s*\{([^}]*)\})?", RegexOptions.Compiled);
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
 
@@ -58,6 +58,7 @@ namespace CppToCsConverter.Parsers
             AccessSpecifier currentAccess = AccessSpecifier.Private;
             bool inClass = false;
             int braceLevel = 0;
+            bool foundClassEnd = false;
 
             for (int i = startIndex; i < lines.Length; i++)
             {
@@ -71,6 +72,7 @@ namespace CppToCsConverter.Parsers
                 var classMatch = _classRegex.Match(line);
                 if (classMatch.Success && !inClass)
                 {
+
                     currentClass = new CppClass
                     {
                         Name = classMatch.Groups[1].Value,
@@ -94,12 +96,18 @@ namespace CppToCsConverter.Parsers
                     continue;
 
                 // Track brace levels
-                braceLevel += line.Count(c => c == '{') - line.Count(c => c == '}');
+                int openBraces = line.Count(c => c == '{');
+                int closeBraces = line.Count(c => c == '}');
+                braceLevel += openBraces - closeBraces;
                 
-                if (braceLevel < 0)
+
+                
+                if (braceLevel <= 0 && closeBraces > 0)
                 {
-                    // End of class
+                    // End of class - we've closed all braces and we're back to level 0
+;
                     startIndex = i + 1;
+                    foundClassEnd = true;
                     break;
                 }
 
@@ -112,7 +120,9 @@ namespace CppToCsConverter.Parsers
                 }
 
                 // Skip lines that are clearly inside method bodies (contain return, if, etc.)
-                if (line.Trim().StartsWith("return ") || line.Trim().StartsWith("if ") || line.Contains("{") && !line.Contains("}"))
+                // But don't skip method declarations that start with a method name and have opening braces
+                if (line.Trim().StartsWith("return ") || line.Trim().StartsWith("if ") || 
+                    (line.Contains("{") && !line.Contains("}") && !line.Contains("(") && !line.Trim().StartsWith("~")))
                     continue;
 
                 // Parse methods (handle multi-line declarations)
@@ -122,9 +132,10 @@ namespace CppToCsConverter.Parsers
                 {
                     try
                     {
-                        var method = ParseMethod(methodMatch, currentAccess, methodLine);
+                        var method = ParseMethod(methodMatch, currentAccess, methodLine, currentClass.Name);
                         if (method != null)
                         {
+
                             currentClass.Methods.Add(method);
                         }
                     }
@@ -150,7 +161,9 @@ namespace CppToCsConverter.Parsers
                 }
             }
 
-            if (currentClass != null)
+            // If we reach here, we've processed all lines without finding the end of the class
+            // This shouldn't happen with well-formed C++ code, but handle it gracefully
+            if (currentClass != null && !foundClassEnd)
             {
                 startIndex = lines.Length; // Reached end of file
             }
@@ -158,7 +171,7 @@ namespace CppToCsConverter.Parsers
             return currentClass;
         }
 
-        private CppMethod? ParseMethod(Match methodMatch, AccessSpecifier currentAccess, string collectedMethodLine)
+        private CppMethod? ParseMethod(Match methodMatch, AccessSpecifier currentAccess, string collectedMethodLine, string className)
         {
             var method = new CppMethod
             {
@@ -176,7 +189,7 @@ namespace CppToCsConverter.Parsers
 
 
             // Check if it's a constructor or destructor
-            method.IsConstructor = !method.Name.StartsWith("~") && method.Name == methodMatch.Groups[3].Value;
+            method.IsConstructor = !method.Name.StartsWith("~") && method.Name == className && string.IsNullOrEmpty(methodMatch.Groups[3].Value.Trim());
             method.IsDestructor = method.Name.StartsWith("~");
 
             if (method.HasInlineImplementation)
@@ -258,6 +271,8 @@ namespace CppToCsConverter.Parsers
                 return currentLine;
             }
             
+
+            
             var methodBuilder = new StringBuilder();
             methodBuilder.Append(currentLine);
             
@@ -296,11 +311,22 @@ namespace CppToCsConverter.Parsers
             for (int i = startIndex; i < lines.Length; i++)
             {
                 var line = lines[i].Trim();
-                if (line.Contains("= 0"))
+                
+                // Only consider "= 0;" at the end of method declarations, not in method bodies
+                // Pure virtual methods end with "= 0;" and are function declarations
+                if (line.EndsWith("= 0;") && 
+                    (line.Contains("virtual") || 
+                     (line.Contains("(") && line.Contains(")") && !line.Contains("{") && !line.Contains("."))))
+                {
+
                     return true;
+                }
+                
+                // Stop at the end of the class
                 if (line.Contains("};") && line.Count(c => c == '}') > line.Count(c => c == '{'))
                     break;
             }
+
             return false;
         }
     }

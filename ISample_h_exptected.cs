@@ -6,3 +6,12 @@ public interface ISample
 
 	bool MethodTwo();
 }
+
+public static class ISampleExtensions
+{
+    public static ISample GetInstance(this ISample sample)
+    {
+        CSample* pSample = new CSample();
+        return pSample;
+    }
+}
