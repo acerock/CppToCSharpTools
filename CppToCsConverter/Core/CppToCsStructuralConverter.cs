@@ -327,10 +327,11 @@ namespace CppToCsConverter.Core
                 
                 if (method.HasInlineImplementation)
                 {
-                    // Include inline implementation exactly as-is
+                    // Include inline implementation with proper indentation
                     sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{method.Name}({parameters})");
                     sb.AppendLine("        {");
-                    sb.AppendLine($"            {method.InlineImplementation}");
+                    var indentedInlineBody = IndentMethodBody(method.InlineImplementation, "            ");
+                    sb.Append(indentedInlineBody);
                     sb.AppendLine("        }");
                 }
                 else
@@ -359,8 +360,9 @@ namespace CppToCsConverter.Core
                 
                 if (!string.IsNullOrEmpty(method.ImplementationBody))
                 {
-                    // Include the original C++ implementation body exactly as-is
-                    sb.AppendLine(method.ImplementationBody);
+                    // Include the original C++ implementation body with proper indentation
+                    var indentedBody = IndentMethodBody(method.ImplementationBody, "            ");
+                    sb.Append(indentedBody);
                 }
                 
                 sb.AppendLine("        }");
@@ -434,6 +436,25 @@ namespace CppToCsConverter.Core
             }
 
             return mergedParameters;
+        }
+
+        private string IndentMethodBody(string methodBody, string indentation)
+        {
+            if (string.IsNullOrEmpty(methodBody))
+                return "";
+
+            var sb = new StringBuilder();
+            // Use RemoveEmptyEntries to eliminate extra empty lines caused by splitting
+            var lines = methodBody.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                // Add proper indentation to all lines
+                sb.AppendLine(indentation + line.TrimStart());
+            }
+            
+            return sb.ToString();
         }
     }
 }
