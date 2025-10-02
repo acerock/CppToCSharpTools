@@ -225,54 +225,11 @@ namespace CppToCsConverter.Core
                 
                 if (cppClass.IsInterface)
                 {
-                    // Generate interface inline
-                    var interfaceContent = _interfaceGenerator.GenerateInterface(cppClass);
-                    // Remove the outer namespace wrapper and extract just the interface content
-                    var lines = interfaceContent.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                    bool insideNamespace = false;
-                    bool skipNextBrace = false;
-                    bool insideInterface = false;
+                    // Generate interface without extension methods first
+                    GenerateInterfaceInline(sb, cppClass);
                     
-                    foreach (var line in lines)
-                    {
-                        if (line.Contains("namespace"))
-                        {
-                            insideNamespace = true;
-                            skipNextBrace = true; // Skip only the next brace (namespace opening brace)
-                            continue;
-                        }
-                        if (insideNamespace && line.Trim() == "{" && skipNextBrace)
-                        {
-                            skipNextBrace = false; // Skip namespace opening brace only
-                            continue;
-                        }
-                        if (insideNamespace && line.Contains("interface"))
-                        {
-                            insideInterface = true;
-                            sb.AppendLine("    " + line); // Add interface declaration
-                            continue;
-                        }
-                        if (insideNamespace && line.Trim() == "{" && insideInterface)
-                        {
-                            sb.AppendLine("    " + line); // Add interface opening brace
-                            continue;
-                        }
-                        if (insideNamespace && line.Trim() == "}" && insideInterface)
-                        {
-                            sb.AppendLine("    " + line); // Add interface closing brace
-                            insideInterface = false;
-                            continue;
-                        }
-                        if (insideNamespace && line.Trim() == "}" && !insideInterface)
-                        {
-                            insideNamespace = false;
-                            continue; // Skip namespace closing brace
-                        }
-                        if (insideNamespace)
-                        {
-                            sb.AppendLine("    " + line); // Add extra indentation for namespace
-                        }
-                    }
+                    // Generate extension class for static methods if any exist
+                    GenerateExtensionClassIfNeeded(sb, cppClass, parsedSources);
                 }
                 else
                 {
@@ -455,6 +412,106 @@ namespace CppToCsConverter.Core
             }
             
             return sb.ToString();
+        }
+
+        private void GenerateInterfaceInline(StringBuilder sb, CppClass cppInterface)
+        {
+            // Generate just the interface part (without extension methods)
+            var accessibility = cppInterface.IsPublicExport ? "public" : "internal";
+            sb.AppendLine($"    {accessibility} interface {cppInterface.Name}");
+            sb.AppendLine("    {");
+
+            // Add methods (skip constructors, destructors, and static methods for interfaces)
+            var interfaceMethods = cppInterface.Methods
+                .Where(m => !m.IsConstructor && !m.IsDestructor && !m.IsStatic)
+                .Where(m => m.AccessSpecifier == AccessSpecifier.Public);
+
+            foreach (var method in interfaceMethods)
+            {
+                var returnType = method.ReturnType ?? "void";
+                var parameters = string.Join(", ", method.Parameters.Select(p => GenerateInterfaceParameter(p)));
+                sb.AppendLine($"        {returnType} {method.Name}({parameters});");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("    }");
+        }
+
+        private void GenerateExtensionClassIfNeeded(StringBuilder sb, CppClass cppInterface, Dictionary<string, List<CppMethod>> parsedSources)
+        {
+            var staticMethods = cppInterface.Methods
+                .Where(m => m.IsStatic && m.AccessSpecifier == AccessSpecifier.Public)
+                .ToList();
+
+            if (!staticMethods.Any())
+                return;
+
+            var allSourceMethods = parsedSources.Values.SelectMany(methods => methods).ToList();
+
+            sb.AppendLine();
+            sb.AppendLine($"    public static class {cppInterface.Name}Extensions");
+            sb.AppendLine("    {");
+
+            foreach (var staticMethod in staticMethods)
+            {
+                // Find implementation in source files
+                var implementation = allSourceMethods.FirstOrDefault(impl =>
+                    impl.ClassName == cppInterface.Name &&
+                    impl.Name == staticMethod.Name &&
+                    !string.IsNullOrEmpty(impl.ImplementationBody));
+
+                var returnType = staticMethod.ReturnType ?? "void";
+                var parameters = $"this {cppInterface.Name} instance";
+                
+                if (staticMethod.Parameters.Any())
+                {
+                    var methodParams = string.Join(", ", staticMethod.Parameters.Select(p => GenerateInterfaceParameter(p)));
+                    parameters += ", " + methodParams;
+                }
+
+                sb.AppendLine($"        public static {returnType} {staticMethod.Name}({parameters})");
+                sb.AppendLine("        {");
+
+                if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
+                {
+                    // Use actual implementation body
+                    var indentedBody = IndentMethodBody(implementation.ImplementationBody, "            ");
+                    sb.Append(indentedBody);
+                }
+                else
+                {
+                    sb.AppendLine("            // TODO: Implementation not found");
+                    sb.AppendLine("            throw new NotImplementedException();");
+                }
+
+                sb.AppendLine("        }");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("    }");
+        }
+
+        private string GenerateInterfaceParameter(CppParameter param)
+        {
+            // Preserve original C++ parameter syntax exactly as-is
+            var result = "";
+            
+            if (param.IsConst)
+                result += "const ";
+                
+            result += param.Type;
+            
+            if (param.IsReference)
+                result += "&";
+            else if (param.IsPointer)
+                result += "*";
+                
+            result += " " + param.Name;
+            
+            if (!string.IsNullOrEmpty(param.DefaultValue))
+                result += " = " + param.DefaultValue;
+                
+            return result;
         }
     }
 }

@@ -2,7 +2,7 @@
 #include "CSample.h"
 
 
-ISample* CSample::GetInstance()
+ISample* ISample::GetInstance()
 {
 	CSample* pSample = new CSample();
 	return pSample;

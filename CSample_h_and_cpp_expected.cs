@@ -9,7 +9,8 @@ namespace U4.BatchNet.LibSample.Compatibility
 	{
 		public static ISample GetInstance(this ISample sample)
 		{
-			return new CSample();
+			CSample* pSample = new CSample();
+			return pSample;
 		}
 	}
 	

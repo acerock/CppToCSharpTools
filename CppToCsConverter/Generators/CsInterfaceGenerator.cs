@@ -14,7 +14,7 @@ namespace CppToCsConverter.Generators
             _typeConverter = new TypeConverter();
         }
 
-        public string GenerateInterface(CppClass cppInterface)
+        public string GenerateInterface(CppClass cppInterface, List<CppMethod>? sourceImplementations = null)
         {
             var sb = new StringBuilder();
             
@@ -58,11 +58,28 @@ namespace CppToCsConverter.Generators
 
                 foreach (var staticMethod in staticMethods)
                 {
+                    // Find implementation in source files
+                    var implementation = sourceImplementations?.FirstOrDefault(impl => 
+                        impl.ClassName == cppInterface.Name && 
+                        impl.Name == staticMethod.Name && 
+                        !string.IsNullOrEmpty(impl.ImplementationBody));
+                    
                     var methodSignature = GenerateExtensionMethodSignature(cppInterface.Name, staticMethod);
                     sb.AppendLine($"        {methodSignature}");
                     sb.AppendLine("        {");
-                    sb.AppendLine("            // TODO: Implement extension method");
-                    sb.AppendLine("            throw new NotImplementedException();");
+                    
+                    if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
+                    {
+                        // Use actual implementation body
+                        var indentedBody = IndentMethodBody(implementation.ImplementationBody, 3);
+                        sb.Append(indentedBody);
+                    }
+                    else
+                    {
+                        sb.AppendLine("            // TODO: Implementation not found");
+                        sb.AppendLine("            throw new NotImplementedException();");
+                    }
+                    
                     sb.AppendLine("        }");
                     sb.AppendLine();
                 }
@@ -118,6 +135,30 @@ namespace CppToCsConverter.Generators
                 result += " = " + param.DefaultValue;
                 
             return result;
+        }
+        
+        private string IndentMethodBody(string methodBody, int indentLevel)
+        {
+            if (string.IsNullOrEmpty(methodBody))
+                return string.Empty;
+                
+            var lines = methodBody.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+            var sb = new StringBuilder();
+            var indent = new string(' ', indentLevel * 4);
+            
+            foreach (var line in lines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    sb.AppendLine(indent + line.TrimStart());
+                }
+                else
+                {
+                    sb.AppendLine();
+                }
+            }
+            
+            return sb.ToString();
         }
     }
 }

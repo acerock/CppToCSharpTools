@@ -10,7 +10,7 @@ namespace CppToCsConverter.Parsers
     public class CppHeaderParser
     {
         private readonly Regex _classRegex = new Regex(@"class\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
-        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:::\w+)?)\s*::\s*)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?(?:\s*=\s*0)?(?:\s*\{([^}]*)\})?", RegexOptions.Compiled);
+        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?(?:\s*=\s*0)?(?:\s*\{([^}]*)\})?", RegexOptions.Compiled);
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
 
@@ -154,12 +154,15 @@ namespace CppToCsConverter.Parsers
             var method = new CppMethod
             {
                 Name = methodMatch.Groups[4].Value,
+                ReturnType = methodMatch.Groups[3].Success ? methodMatch.Groups[3].Value.Trim() : "void",
                 AccessSpecifier = currentAccess,
                 IsVirtual = methodMatch.Groups[1].Success,
                 IsStatic = methodMatch.Groups[2].Success,
                 IsConst = methodMatch.Groups[6].Success,
                 HasInlineImplementation = methodMatch.Groups[7].Success
             };
+            
+
 
             // Check if it's a constructor or destructor
             method.IsConstructor = !method.Name.StartsWith("~") && method.Name == methodMatch.Groups[3].Value;
