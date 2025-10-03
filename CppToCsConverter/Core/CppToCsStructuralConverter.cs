@@ -303,15 +303,15 @@ namespace CppToCsConverter.Core
                 .Where(m => m.ClassName == cppClass.Name)
                 .ToList();
 
-            // Get names of methods that have implementations (to avoid duplicating declarations)
-            var implementedMethodNames = relatedMethods.Select(m => m.Name).ToHashSet();
+            // Create signature-based matching for overloaded methods
+            var implementedMethodSignatures = relatedMethods.Select(m => GetMethodSignature(m)).ToHashSet();
 
             // Add methods from header (declarations only) - preserve C++ syntax
             // Skip methods that have implementations in source files to avoid duplicates
             foreach (var method in cppClass.Methods.Where(m => m.AccessSpecifier == AccessSpecifier.Public))
             {
-                // Skip if this method has an implementation in source files (avoid duplicates)
-                if (!method.HasInlineImplementation && implementedMethodNames.Contains(method.Name))
+                // Skip if this exact method signature has an implementation in source files (avoid duplicates)
+                if (!method.HasInlineImplementation && implementedMethodSignatures.Contains(GetMethodSignature(method)))
                     continue;
 
                 var accessModifier = ConvertAccessSpecifier(method.AccessSpecifier);
@@ -653,6 +653,24 @@ namespace CppToCsConverter.Core
                 
             // If class has only static members and methods, it should be static
             return cppClass.Members.Any() || cppClass.Methods.Any() || relatedSourceMethods.Any();
+        }
+
+        private string GetMethodSignature(CppMethod method)
+        {
+            // Create a unique signature that includes method name and parameter types
+            var parameterTypes = method.Parameters.Select(p => NormalizeParameterType(p.Type));
+            return $"{method.Name}({string.Join(",", parameterTypes)})";
+        }
+
+        private string NormalizeParameterType(string type)
+        {
+            // Normalize parameter type to handle variations in const, reference, pointer syntax
+            return type.Trim()
+                .Replace(" ", "")           // Remove spaces
+                .Replace("const", "")       // Remove const keyword
+                .Replace("&", "")           // Remove reference
+                .Replace("*", "")           // Remove pointer
+                .ToLowerInvariant();        // Case insensitive comparison
         }
     }
 }

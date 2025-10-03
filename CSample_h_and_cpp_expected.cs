@@ -117,6 +117,18 @@ namespace Generated_CSample
 			return lLimitHorizon >= iValue;
 		}
 
+        bool MethodWithOverloads(const TDimValue& dim1)
+        {
+            // Implementation of the first overload
+            return !dim1.IsEmpty();
+		}
+
+        bool MethodWithOverloads(const TDimValue& dim1, const agrint& int1)
+        {
+			// Implementation of the second overload
+			return !dim1.IsEmpty() && int1 > 0;
+		}        
+
 		private int m_iAnotherPrivateInteger;
 	}	
 }

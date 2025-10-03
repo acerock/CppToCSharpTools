@@ -68,3 +68,15 @@ bool CSample::MethodP5(const TDimValue& dim1, const agrint& int1, const agrint& 
     // Implementation of MethodP5
     return !dim1.IsEmpty() && int1 > int2;
 }
+
+bool CSample::MethodWithOverloads(const TDimValue& dim1)
+{
+    // Implementation of the first overload
+    return !dim1.IsEmpty();
+}
+
+bool CSample::MethodWithOverloads(const TDimValue& dim1, const agrint& int1)
+{
+    // Implementation of the second overload
+    return !dim1.IsEmpty() && int1 > 0;
+}

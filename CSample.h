@@ -61,6 +61,9 @@ private:
 	bool MethodP2(const TDimValue& dim1, const agrint& int1, const agrint& int2=0, bool bool1=false);
 	bool MethodP3(const TDimValue& dim1, const agrint& int1, const agrint& int2);
 
+	bool MethodWithOverloads(const TDimValue& dim1);
+	bool MethodWithOverloads(const TDimValue& dim1, const agrint& int1);
+
 	int MethodPrivInl1(const TDimValue& dim1)
 	{
 		if (dim1.IsEmpty()) 

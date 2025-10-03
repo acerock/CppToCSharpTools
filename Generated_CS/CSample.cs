@@ -115,5 +115,17 @@ namespace Generated_CSample
             return !dim1.IsEmpty() && int1 > int2;
         }
 
+        public bool MethodWithOverloads(const TDimValue& dim1)
+        {
+        // Implementation of the first overload
+            return !dim1.IsEmpty();
+        }
+
+        public bool MethodWithOverloads(const TDimValue& dim1, const agrint& int1)
+        {
+        // Implementation of the second overload
+            return !dim1.IsEmpty() && int1 > 0;
+        }
+
     }
 }
