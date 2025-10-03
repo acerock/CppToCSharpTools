@@ -11,7 +11,7 @@ namespace CppToCsConverter.Parsers
     public class CppHeaderParser
     {
         private readonly Regex _classRegex = new Regex(@"(?:class|struct)\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
-        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{([^}]*)\})?", RegexOptions.Compiled);
+        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(.*?\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{.*?\})?", RegexOptions.Compiled | RegexOptions.Singleline);
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*(\d*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
 
@@ -176,8 +176,8 @@ namespace CppToCsConverter.Parsers
                 AccessSpecifier = currentAccess,
                 IsVirtual = methodMatch.Groups[1].Success,
                 IsStatic = methodMatch.Groups[2].Success,
-                IsConst = methodMatch.Groups[6].Success,
-                HasInlineImplementation = methodMatch.Groups[8].Success // Updated to Group 8
+                IsConst = methodMatch.Groups[5].Success,
+                HasInlineImplementation = collectedMethodLine.Contains("{") // Use string matching for detection
             };
             
 
@@ -188,9 +188,9 @@ namespace CppToCsConverter.Parsers
 
 
             // Handle member initializer list for constructors
-            if (method.IsConstructor && methodMatch.Groups[7].Success && !string.IsNullOrWhiteSpace(methodMatch.Groups[7].Value))
+            if (method.IsConstructor && methodMatch.Groups[6].Success && !string.IsNullOrWhiteSpace(methodMatch.Groups[6].Value))
             {
-                method.MemberInitializerList = ParseMemberInitializerList(methodMatch.Groups[7].Value.Trim());
+                method.MemberInitializerList = ParseMemberInitializerList(methodMatch.Groups[6].Value.Trim());
             }
             
 
@@ -210,14 +210,22 @@ namespace CppToCsConverter.Parsers
                 }
                 else
                 {
-                    var fallbackBody = methodMatch.Groups[8].Value;
-                    // Replace tab characters with four spaces and trim leading/trailing whitespace
-                    method.InlineImplementation = fallbackBody.Replace("\t", "    ").Trim();
+                    // No method body found in regex groups, use empty string
+                    method.InlineImplementation = "";
                 }
             }
 
-            // Parse parameters
-            var parametersString = methodMatch.Groups[5].Value;
+            // Parse parameters - always use balanced parentheses extraction for robust parsing
+            string parametersString = "";
+            
+            // Always use our balanced parentheses extractor for consistent results
+            var methodName = methodMatch.Groups[4].Value;
+            int methodNameIndex = collectedMethodLine.IndexOf(methodName);
+            if (methodNameIndex >= 0)
+            {
+                parametersString = ExtractBalancedParameters(collectedMethodLine, methodNameIndex);
+            }
+            
             method.Parameters = ParseParameters(parametersString);
 
             // Check if it's pure virtual by checking the collected method line
@@ -234,7 +242,7 @@ namespace CppToCsConverter.Parsers
             if (string.IsNullOrWhiteSpace(parametersString))
                 return parameters;
 
-            var paramParts = parametersString.Split(',');
+            var paramParts = SplitParametersRespectingParentheses(parametersString);
             
             foreach (var part in paramParts)
             {
@@ -496,6 +504,156 @@ namespace CppToCsConverter.Parsers
             if (current.Length > 0)
             {
                 result.Add(current.ToString());
+            }
+
+            return result;
+        }
+
+        private string ExtractBalancedParameters(string methodLine, int startPos)
+        {
+            // Find the opening parenthesis and extract parameters with balanced parentheses
+            int openParenIndex = methodLine.IndexOf('(', startPos);
+            if (openParenIndex == -1) return "";
+
+            int parenLevel = 0;
+            int startParamIndex = openParenIndex + 1;
+            bool inQuotes = false;
+            char quoteChar = '\0';
+            
+            for (int i = openParenIndex; i < methodLine.Length; i++)
+            {
+                char c = methodLine[i];
+                
+                // Handle quotes
+                if (!inQuotes && (c == '"' || c == '\''))
+                {
+                    inQuotes = true;
+                    quoteChar = c;
+                }
+                else if (inQuotes && c == quoteChar)
+                {
+                    // Check if it's escaped
+                    if (i > 0 && methodLine[i - 1] == '\\')
+                    {
+                        // Escaped quote, continue
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                    }
+                }
+                else if (!inQuotes)
+                {
+                    // Only count parentheses when not inside quotes
+                    if (c == '(') parenLevel++;
+                    else if (c == ')') 
+                    {
+                        parenLevel--;
+                        if (parenLevel == 0)
+                        {
+                            // Found the matching closing parenthesis
+                            return methodLine.Substring(startParamIndex, i - startParamIndex);
+                        }
+                    }
+                }
+            }
+            
+            // If we get here, parentheses weren't balanced - return what we have
+            return methodLine.Substring(startParamIndex);
+        }
+
+        private (string parameters, string remaining) ExtractParametersAndRemaining(string methodLine, int startPos)
+        {
+            // Find the opening parenthesis and extract parameters with balanced parentheses
+            int openParenIndex = methodLine.IndexOf('(', startPos);
+            if (openParenIndex == -1) return ("", methodLine);
+
+            int parenLevel = 0;
+            int startParamIndex = openParenIndex + 1;
+            
+            for (int i = openParenIndex; i < methodLine.Length; i++)
+            {
+                char c = methodLine[i];
+                if (c == '(') parenLevel++;
+                else if (c == ')') 
+                {
+                    parenLevel--;
+                    if (parenLevel == 0)
+                    {
+                        // Found the matching closing parenthesis
+                        string parameters = methodLine.Substring(startParamIndex, i - startParamIndex);
+                        string remaining = i + 1 < methodLine.Length ? methodLine.Substring(i + 1) : "";
+                        return (parameters, remaining);
+                    }
+                }
+            }
+            
+            // If we get here, parentheses weren't balanced - return what we have
+            return (methodLine.Substring(startParamIndex), "");
+        }
+
+        private List<string> SplitParametersRespectingParentheses(string parametersString)
+        {
+            var result = new List<string>();
+            var current = new StringBuilder();
+            int parenLevel = 0;
+            int angleLevel = 0;
+            bool inQuotes = false;
+            char quoteChar = '\0';
+
+            for (int i = 0; i < parametersString.Length; i++)
+            {
+                char c = parametersString[i];
+                
+                // Handle quotes
+                if (!inQuotes && (c == '"' || c == '\''))
+                {
+                    inQuotes = true;
+                    quoteChar = c;
+                    current.Append(c);
+                }
+                else if (inQuotes && c == quoteChar)
+                {
+                    // Check if it's escaped
+                    if (i > 0 && parametersString[i - 1] == '\\')
+                    {
+                        current.Append(c);
+                    }
+                    else
+                    {
+                        inQuotes = false;
+                        current.Append(c);
+                    }
+                }
+                else if (inQuotes)
+                {
+                    current.Append(c);
+                }
+                else
+                {
+                    // Not in quotes, handle brackets and commas
+                    if (c == '(') parenLevel++;
+                    else if (c == ')') parenLevel--;
+                    else if (c == '<') angleLevel++;
+                    else if (c == '>') angleLevel--;
+                    else if (c == ',' && parenLevel == 0 && angleLevel == 0)
+                    {
+                        // This comma is a parameter separator
+                        if (current.Length > 0)
+                        {
+                            result.Add(current.ToString().Trim());
+                            current.Clear();
+                        }
+                        continue; // Don't add the comma to current
+                    }
+                    
+                    current.Append(c);
+                }
+            }
+
+            if (current.Length > 0)
+            {
+                result.Add(current.ToString().Trim());
             }
 
             return result;

@@ -80,5 +80,28 @@ private:
 		return lLimitHorizon >= iValue;
 	}
 
+	int InlineMethodWithOverload(const TDimValue& dim1)
+	{
+		if (dim1.IsEmpty()) 
+			return -1;
+
+		return 100;
+	}
+
+	int InlineMethodWithOverload(const TDimValue& dim1, bool bFlag, const CString& cPar = _T("xyz"))
+	{
+		if (dim1.IsEmpty() || cPar == _T("xyz") || !bFlag)
+			return -2;
+		return 200;
+	}
+
+	int InlineMethodWithOverload(const TDimValue& dim1, bool bFlag, int i = 3)
+	{
+		if (dim1.IsEmpty()) 
+			return -2;
+
+		return 200;
+	}
+	
 	int m_iAnotherPrivateInteger;
 };

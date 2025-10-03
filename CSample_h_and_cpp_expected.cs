@@ -123,6 +123,13 @@ namespace Generated_CSample
             return !dim1.IsEmpty();
 		}
 
+        int InlineMethodWithOverload(const TDimValue& dim1, bool bFlag, const CString& cPar = _T("xyz"))
+		{
+			if (dim1.IsEmpty() || cPar == _T("xyz") || !bFlag)
+				return -2;
+			return 200;
+		}	
+
         bool MethodWithOverloads(const TDimValue& dim1, const agrint& int1)
         {
 			// Implementation of the second overload
