@@ -14,7 +14,7 @@ namespace CppToCsConverter.Parsers
             RegexOptions.Compiled | RegexOptions.Multiline);
         
         private readonly Regex _staticMemberInitRegex = new Regex(
-            @"(?:(\w+)\s+)?(\w+)\s*::\s*(\w+)\s*=\s*([^;]+);", 
+            @"(?:(const)\s+)?(?:(\w+)\s+)?(\w+)\s*::\s*(\w+)(?:\s*\[\s*\])?(?:\s*\[\s*(\d*)\s*\])?\s*=\s*([^;]+);", 
             RegexOptions.Compiled);
 
         public (List<CppMethod> Methods, List<CppStaticMemberInit> StaticInits) ParseSourceFile(string filePath)
@@ -204,16 +204,22 @@ namespace CppToCsConverter.Parsers
             
             foreach (Match match in matches)
             {
-                var type = match.Groups[1].Success ? match.Groups[1].Value : "auto";
-                var className = match.Groups[2].Value;
-                var memberName = match.Groups[3].Value;
-                var initValue = match.Groups[4].Value.Trim();
+                var isConst = match.Groups[1].Success;
+                var type = match.Groups[2].Success ? match.Groups[2].Value : "auto";
+                var className = match.Groups[3].Value;
+                var memberName = match.Groups[4].Value;
+                var arraySize = match.Groups[5].Success ? match.Groups[5].Value : string.Empty;
+                var initValue = match.Groups[6].Value.Trim();
                 
                 staticInits.Add(new CppStaticMemberInit
                 {
                     ClassName = className,
                     MemberName = memberName,
-                    InitializationValue = initValue
+                    InitializationValue = initValue,
+                    IsArray = !string.IsNullOrEmpty(arraySize) || initValue.Trim().StartsWith("{"),
+                    ArraySize = arraySize,
+                    Type = type,
+                    IsConst = isConst
                 });
                 
                 Console.WriteLine($"Found static member initialization: {className}::{memberName} = {initValue}");

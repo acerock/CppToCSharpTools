@@ -197,6 +197,30 @@ public partial class CSample : ISample
     }
 }
 ```
+## Classes with static member and intialization
+A C++ class can have a static member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
+
+#### Sample for multiple .cpp files with method bodies
+CSample.h
+```
+class CSample : public ISample
+{
+private:
+	static agrint s_value;
+}
+```
+CSample.cpp
+```
+CSample::m_value = 42;
+```
+CSample.cs
+```
+public class CSample : ISample
+{
+    private static agrint s_value = 42;
+}
+```
+
 ## Classes with static members and intialization
 A C++ class can have a static member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
 
@@ -229,6 +253,7 @@ Typical unit of code consist of:
     b) Definition with member variables and member function declaration where one or more member function has an inline implementation.
     c) .h file with full inline implementation (no implementation in .cpp file)
 3. One or more .cpp files containing the member function implementations (prefixed with ClassName::)
+4. Classes where all members are static should be declared as static in .cs equalent.
 
 When we construct the C# files we have the following rules:
 1. .h file defines the member variables and their access modifiers (private, protected, public)

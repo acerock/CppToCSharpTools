@@ -247,7 +247,8 @@ namespace CppToCsConverter.Core
         private void GenerateClassWithCppBodies(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
         {
             var accessibility = cppClass.IsPublicExport ? "public" : "internal";
-            sb.AppendLine($"    {accessibility} class {cppClass.Name}");
+            var classStaticModifier = ShouldBeStaticClass(cppClass, parsedSources) ? "static " : "";
+            sb.AppendLine($"    {accessibility} {classStaticModifier}class {cppClass.Name}");
             sb.AppendLine("    {");
 
             // Add members - preserve original C++ types and add static initializations
@@ -258,6 +259,9 @@ namespace CppToCsConverter.Core
                 
                 // Check if this static member has an initialization value from source files
                 string initialization = "";
+                string memberType = member.Type;
+                string memberName = member.Name;
+                
                 if (member.IsStatic)
                 {
                     var staticInit = staticMemberInits.Values
@@ -267,10 +271,27 @@ namespace CppToCsConverter.Core
                     if (staticInit != null)
                     {
                         initialization = $" = {staticInit.InitializationValue}";
+                        
+                        // Handle array syntax conversion: static const CString ColFrom[4] with initialization becomes 
+                        // public static CString[] ColFrom = { ... };
+                        if (member.IsArray || staticInit.IsArray)
+                        {
+                            memberType = $"{member.Type}[]";
+                        }
+                    }
+                    else if (member.IsArray)
+                    {
+                        // Array declaration without initialization
+                        memberType = $"{member.Type}[]";
                     }
                 }
+                else if (member.IsArray)
+                {
+                    // Non-static array member
+                    memberType = $"{member.Type}[]";
+                }
                 
-                sb.AppendLine($"        {accessModifier} {staticModifier}{member.Type} {member.Name}{initialization};");
+                sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {memberName}{initialization};");
             }
 
             if (cppClass.Members.Any())
@@ -601,6 +622,37 @@ namespace CppToCsConverter.Core
 
             // For other values, return as-is (might be constants, enums, etc.)
             return trimmed;
+        }
+
+        private bool ShouldBeStaticClass(CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources)
+        {
+            // A class should be static if:
+            // 1. All members are static 
+            // 2. All methods are static (except constructors/destructors which aren't allowed in static classes)
+            // 3. Has no instance constructors
+            
+            // Check if all members are static
+            var hasNonStaticMembers = cppClass.Members.Any(m => !m.IsStatic);
+            if (hasNonStaticMembers)
+                return false;
+                
+            // Check if all methods from header are static (except constructors/destructors)
+            var hasNonStaticHeaderMethods = cppClass.Methods
+                .Where(m => !m.IsConstructor && !m.IsDestructor)
+                .Any(m => !m.IsStatic);
+            if (hasNonStaticHeaderMethods)
+                return false;
+                
+            // Check if any methods from source files are non-static
+            var relatedSourceMethods = parsedSources.Values
+                .SelectMany(methods => methods)
+                .Where(m => m.ClassName == cppClass.Name && !m.IsConstructor && !m.IsDestructor);
+            var hasNonStaticSourceMethods = relatedSourceMethods.Any(m => !m.IsStatic);
+            if (hasNonStaticSourceMethods)
+                return false;
+                
+            // If class has only static members and methods, it should be static
+            return cppClass.Members.Any() || cppClass.Methods.Any() || relatedSourceMethods.Any();
         }
     }
 }

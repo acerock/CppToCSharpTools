@@ -12,7 +12,7 @@ namespace CppToCsConverter.Parsers
     {
         private readonly Regex _classRegex = new Regex(@"(?:class|struct)\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
         private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{([^}]*)\})?", RegexOptions.Compiled);
-        private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
+        private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*(\d*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
 
         public List<CppClass> ParseHeaderFile(string filePath)
@@ -146,10 +146,12 @@ namespace CppToCsConverter.Parsers
                 {
                     var member = new CppMember
                     {
-                        Type = memberMatch.Groups[2].Value.Trim(),
-                        Name = memberMatch.Groups[3].Value,
+                        Type = memberMatch.Groups[3].Value.Trim(),
+                        Name = memberMatch.Groups[4].Value,
                         AccessSpecifier = currentAccess,
-                        IsStatic = memberMatch.Groups[1].Success
+                        IsStatic = memberMatch.Groups[1].Success,
+                        IsArray = memberMatch.Groups[5].Success,
+                        ArraySize = memberMatch.Groups[5].Success ? memberMatch.Groups[5].Value : string.Empty
                     };
                     currentClass.Members.Add(member);
                 }
