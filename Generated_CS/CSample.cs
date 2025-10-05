@@ -78,6 +78,7 @@ namespace Generated_CSample
         }
 
             // Comment from .h
+        // Comment from .cpp
         private bool MethodP1(const TDimValue& dimPd, const agrint& lLimitHorizon, const agrint& iValue = 0, bool bError = false)
         {
         if (dimPd.IsEmpty()) 

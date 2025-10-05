@@ -49,18 +49,16 @@ namespace CppToCsConverter.Parsers
 
         private void AddCommentsAndRegionsToMethods(string[] lines, List<CppMethod> methods)
         {
-            // Find method implementations in the lines and add comments/regions
-            for (int i = 0; i < lines.Length; i++)
+            // For each method, find its line in the source file and collect comments
+            foreach (var method in methods)
             {
-                var methodMatch = _methodImplementationRegex.Match(lines[i]);
-                if (methodMatch.Success)
+                // Look for method declaration line (may span multiple lines)
+                for (int i = 0; i < lines.Length; i++)
                 {
-                    var className = methodMatch.Groups[2].Value;
-                    var methodName = methodMatch.Groups[3].Value;
+                    var line = lines[i].Trim();
                     
-                    // Find the corresponding method in our parsed list
-                    var method = methods.FirstOrDefault(m => m.ClassName == className && m.Name == methodName);
-                    if (method != null)
+                    // Check if this line contains the method signature
+                    if (line.Contains($"{method.ClassName}::{method.Name}") && line.Contains("("))
                     {
                         // Collect comments before method
                         method.SourceComments = CollectPrecedingComments(lines, i);
@@ -69,6 +67,8 @@ namespace CppToCsConverter.Parsers
                         var (regionStart, regionEnd) = ParseSourceRegionMarkers(lines, i, methods, method.OrderIndex);
                         method.SourceRegionStart = regionStart;
                         method.SourceRegionEnd = regionEnd;
+                        
+                        break; // Found this method, move to next one
                     }
                 }
             }

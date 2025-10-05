@@ -71,7 +71,7 @@ namespace CppToCsConverter.Parsers
                 // Skip comments and pragma directives that are not regions - they will be collected by comment parsing methods
                 if ((line.StartsWith("//") || line.StartsWith("/*")) && !inClass)
                 {
-                    Console.WriteLine($"DEBUG: Skipping comment line: {line}");
+    
                     continue;
                 }
                     
