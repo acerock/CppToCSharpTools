@@ -204,7 +204,8 @@ namespace CppToCsConverter.Core.Parsers
                 IsVirtual = methodMatch.Groups[1].Success,
                 IsStatic = methodMatch.Groups[2].Success,
                 IsConst = methodMatch.Groups[5].Success,
-                HasInlineImplementation = collectedMethodLine.Contains("{") // Use string matching for detection
+                HasInlineImplementation = collectedMethodLine.Contains("{"), // Use string matching for detection
+                ClassName = className // Fix: Set the ClassName for proper method matching
             };
             
 
