@@ -4,11 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using CppToCsConverter.Core.Models;
+using CppToCsConverter.Core.Logging;
 
 namespace CppToCsConverter.Core.Parsers
 {
     public class CppSourceParser
     {
+        private readonly ILogger _logger;
         private readonly Regex _methodImplementationRegex = new Regex(
             @"(?:(\w+(?:\s*\*|\s*&)?)\s+)?(\w+)\s*::\s*([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?\s*\{", 
             RegexOptions.Compiled | RegexOptions.Multiline);
@@ -18,6 +20,11 @@ namespace CppToCsConverter.Core.Parsers
             RegexOptions.Compiled);
 
         private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
+
+        public CppSourceParser(ILogger? logger = null)
+        {
+            _logger = logger ?? new ConsoleLogger();
+        }
 
         public (List<CppMethod> Methods, List<CppStaticMemberInit> StaticInits) ParseSourceFile(string filePath)
         {
@@ -42,7 +49,7 @@ namespace CppToCsConverter.Core.Parsers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error parsing source file {filePath}: {ex.Message}");
+                _logger.LogError($"Error parsing source file {filePath}: {ex.Message}");
                 return (methods, staticInits);
             }
         }

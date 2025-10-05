@@ -5,16 +5,23 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using CppToCsConverter.Core.Models;
+using CppToCsConverter.Core.Logging;
 
 namespace CppToCsConverter.Core.Parsers
 {
     public class CppHeaderParser
     {
+        private readonly ILogger _logger;
         private readonly Regex _classRegex = new Regex(@"(?:class|struct)\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
         private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(.*?\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{.*?\})?", RegexOptions.Compiled | RegexOptions.Singleline);
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*(\d*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
         private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
+
+        public CppHeaderParser(ILogger? logger = null)
+        {
+            _logger = logger ?? new ConsoleLogger();
+        }
 
         public List<CppClass> ParseHeaderFile(string filePath)
         {
@@ -27,7 +34,7 @@ namespace CppToCsConverter.Core.Parsers
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error parsing header file {filePath}: {ex.Message}");
+                _logger.LogError($"Error parsing header file {filePath}: {ex.Message}");
                 return new List<CppClass>();
             }
         }

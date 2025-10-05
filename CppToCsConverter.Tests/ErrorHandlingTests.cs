@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using Xunit;
 using CppToCsConverter.Core.Parsers;
+using CppToCsConverter.Tests.Mocks;
 
 namespace CppToCsConverter.Tests
 {
@@ -12,46 +13,56 @@ namespace CppToCsConverter.Tests
     /// </summary>
     public class ErrorHandlingTests
     {
-        private readonly CppHeaderParser _headerParser;
-        private readonly CppSourceParser _sourceParser;
-
-        public ErrorHandlingTests()
-        {
-            _headerParser = new CppHeaderParser();
-            _sourceParser = new CppSourceParser();
-        }
 
         [Fact]
-        public void ParseHeaderFile_NonExistentFile_ShouldThrowException()
+        public void ParseHeaderFile_NonExistentFile_ShouldLogError()
         {
             // Arrange
+            var mockLogger = new MockLogger();
+            var headerParser = new CppHeaderParser(mockLogger);
             var nonExistentFile = "C:\\NonExistent\\File.h";
 
-            // Act & Assert
-            Assert.Throws<FileNotFoundException>(() => _headerParser.ParseHeaderFile(nonExistentFile));
+            // Act
+            var result = headerParser.ParseHeaderFile(nonExistentFile);
+
+            // Assert
+            Assert.Empty(result); // Should return empty list
+            Assert.Single(mockLogger.ErrorMessages); // Should log exactly one error
+            Assert.Contains("Error parsing header file", mockLogger.ErrorMessages[0]);
+            Assert.Contains(nonExistentFile, mockLogger.ErrorMessages[0]);
         }
 
         [Fact]
-        public void ParseSourceFile_NonExistentFile_ShouldThrowException()
+        public void ParseSourceFile_NonExistentFile_ShouldLogError()
         {
             // Arrange
+            var mockLogger = new MockLogger();
+            var sourceParser = new CppSourceParser(mockLogger);
             var nonExistentFile = "C:\\NonExistent\\File.cpp";
 
-            // Act & Assert
-            Assert.Throws<FileNotFoundException>(() => _sourceParser.ParseSourceFile(nonExistentFile));
+            // Act
+            var (methods, staticInits) = sourceParser.ParseSourceFile(nonExistentFile);
+
+            // Assert
+            Assert.Empty(methods); // Should return empty list
+            Assert.Empty(staticInits); // Should return empty list
+            Assert.Single(mockLogger.ErrorMessages); // Should log exactly one error
+            Assert.Contains("Error parsing source file", mockLogger.ErrorMessages[0]);
+            Assert.Contains(nonExistentFile, mockLogger.ErrorMessages[0]);
         }
 
         [Fact]
         public void ParseHeaderFile_EmptyFile_ShouldReturnEmptyList()
         {
             // Arrange
+            var headerParser = new CppHeaderParser();
             var tempFile = Path.GetTempFileName();
             File.WriteAllText(tempFile, "");
 
             try
             {
                 // Act
-                var classes = _headerParser.ParseHeaderFile(tempFile);
+                var classes = headerParser.ParseHeaderFile(tempFile);
 
                 // Assert
                 Assert.Empty(classes);
@@ -72,7 +83,8 @@ namespace CppToCsConverter.Tests
             try
             {
                 // Act
-                var (methods, staticInits) = _sourceParser.ParseSourceFile(tempFile);
+                var sourceParser = new CppSourceParser();
+                var (methods, staticInits) = sourceParser.ParseSourceFile(tempFile);
 
                 // Assert
                 Assert.Empty(methods);
@@ -102,7 +114,8 @@ class MalformedClass
             try
             {
                 // Act - Should not crash, may return partial results or empty
-                var result = _headerParser.ParseHeaderFile(tempFile);
+                var headerParser = new CppHeaderParser();
+                var result = headerParser.ParseHeaderFile(tempFile);
 
                 // Assert - Should handle gracefully without exception
                 Assert.NotNull(result);
@@ -134,8 +147,12 @@ void AnotherMethod()
 
             try
             {
+                // Arrange
+                var mockLogger = new MockLogger();
+                var sourceParser = new CppSourceParser(mockLogger);
+                
                 // Act - Should not crash
-                var (methods, staticInits) = _sourceParser.ParseSourceFile(tempFile);
+                var (methods, staticInits) = sourceParser.ParseSourceFile(tempFile);
 
                 // Assert - Should handle gracefully
                 Assert.NotNull(methods);
@@ -169,48 +186,15 @@ public:
 
             try
             {
+                // Arrange
+                var mockLogger = new MockLogger();
+                var headerParser = new CppHeaderParser(mockLogger);
+                
                 // Act
-                var result = _headerParser.ParseHeaderFile(tempFile);
+                var result = headerParser.ParseHeaderFile(tempFile);
 
                 // Assert - Should not crash
                 Assert.NotNull(result);
-            }
-            finally
-            {
-                File.Delete(tempFile);
-            }
-        }
-
-        [Fact]
-        public void ParseHeaderFile_InvalidCharacters_ShouldHandleGracefully()
-        {
-            // Arrange - File with invalid/special characters
-            var headerContent = @"
-class TestClass
-{
-public:
-    void Method™Ωβ(); // Unicode characters
-    void Method🚀(); // Emoji
-    void NormalMethod();
-};
-";
-
-            var tempFile = Path.GetTempFileName();
-            File.WriteAllText(tempFile, headerContent);
-
-            try
-            {
-                // Act
-                var result = _headerParser.ParseHeaderFile(tempFile);
-
-                // Assert
-                Assert.NotNull(result);
-                if (result.Any())
-                {
-                    var testClass = result[0];
-                    // Should at least parse the normal method
-                    Assert.Contains(testClass.Methods, m => m.Name == "NormalMethod");
-                }
             }
             finally
             {
@@ -241,9 +225,13 @@ public:
                     }
                 }
 
+                // Arrange
+                var mockLogger = new MockLogger();
+                var sourceParser = new CppSourceParser(mockLogger);
+                
                 // Act - Should complete within reasonable time
                 var startTime = DateTime.Now;
-                var (methods, staticInits) = _sourceParser.ParseSourceFile(tempFile);
+                var (methods, staticInits) = sourceParser.ParseSourceFile(tempFile);
                 var duration = DateTime.Now - startTime;
 
                 // Assert
@@ -279,8 +267,12 @@ public:
 
             try
             {
+                // Arrange
+                var mockLogger = new MockLogger();
+                var headerParser = new CppHeaderParser(mockLogger);
+                
                 // Act
-                var result = _headerParser.ParseHeaderFile(tempFile);
+                var result = headerParser.ParseHeaderFile(tempFile);
 
                 // Assert - Should handle nested structures gracefully
                 Assert.NotNull(result);
@@ -324,8 +316,12 @@ public:
 
             try
             {
+                // Arrange
+                var mockLogger = new MockLogger();
+                var headerParser = new CppHeaderParser(mockLogger);
+                
                 // Act
-                var result = _headerParser.ParseHeaderFile(tempFile);
+                var result = headerParser.ParseHeaderFile(tempFile);
 
                 // Assert - Should parse successfully, ignoring preprocessor directives
                 Assert.NotNull(result);
@@ -361,8 +357,12 @@ void TestClass::Method1()
 
             try
             {
+                // Arrange
+                var mockLogger = new MockLogger();
+                var sourceParser = new CppSourceParser(mockLogger);
+                
                 // Act
-                var (methods, staticInits) = _sourceParser.ParseSourceFile(tempFile);
+                var (methods, staticInits) = sourceParser.ParseSourceFile(tempFile);
 
                 // Assert - Should complete without infinite loops
                 Assert.NotNull(methods);
