@@ -645,7 +645,7 @@ namespace CppToCsConverter.Core.Core
                     impl.Name == staticMethod.Name &&
                     !string.IsNullOrEmpty(impl.ImplementationBody));
 
-                var returnType = staticMethod.ReturnType ?? "void";
+                var returnType = ConvertTypeForExtensionMethod(staticMethod.ReturnType ?? "void");
                 var parameters = $"this {cppInterface.Name} instance";
                 
                 if (staticMethod.Parameters.Any())
@@ -657,9 +657,15 @@ namespace CppToCsConverter.Core.Core
                 sb.AppendLine($"        public static {returnType} {staticMethod.Name}({parameters})");
                 sb.AppendLine("        {");
 
-                if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
+                // For interface extension methods, provide clean C# factory implementations
+                if (IsFactoryMethod(staticMethod, cppInterface.Name))
                 {
-                    // Use actual implementation body
+                    var implementationClassName = GetImplementationClassName(cppInterface.Name);
+                    sb.AppendLine($"            return new {implementationClassName}();");
+                }
+                else if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
+                {
+                    // Use actual implementation body for non-factory methods
                     // Use 8 spaces since .cpp method bodies already have indentation
                     var indentedBody = IndentMethodBody(implementation.ImplementationBody, "        ");
                     sb.Append(indentedBody);
@@ -827,6 +833,44 @@ namespace CppToCsConverter.Core.Core
             
             // Fall back to just name match if no perfect match found
             return headerMethods.FirstOrDefault(h => h.Name == sourceMethod.Name);
+        }
+
+        private string ConvertTypeForExtensionMethod(string cppType)
+        {
+            // For extension methods, convert C++ pointer types to C# reference types
+            // Remove trailing pointer indicator if present
+            if (cppType.EndsWith("*"))
+            {
+                return cppType.Substring(0, cppType.Length - 1).Trim();
+            }
+            
+            // Return the type as-is if no conversion needed
+            return cppType;
+        }
+
+        private bool IsFactoryMethod(CppMethod method, string interfaceName)
+        {
+            // Check if this is a factory method that returns the interface type
+            // Common patterns: GetInstance, Create, etc.
+            var returnType = ConvertTypeForExtensionMethod(method.ReturnType ?? "");
+            return returnType == interfaceName && 
+                   (method.Name.Contains("Instance") || 
+                    method.Name.Contains("Create") ||
+                    method.Name == "Get" ||
+                    method.Name.StartsWith("Get"));
+        }
+
+        private string GetImplementationClassName(string interfaceName)
+        {
+            // Convert interface name to implementation class name
+            // ISample -> CSample, IMyInterface -> CMyInterface, etc.
+            if (interfaceName.StartsWith("I") && interfaceName.Length > 1 && char.IsUpper(interfaceName[1]))
+            {
+                return "C" + interfaceName.Substring(1);
+            }
+            
+            // Fallback: just prepend C
+            return "C" + interfaceName;
         }
     }
 }

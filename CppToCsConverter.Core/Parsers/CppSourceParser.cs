@@ -390,8 +390,57 @@ namespace CppToCsConverter.Core.Parsers
                 }
             }
             
-            // Look for region end after the current method - this will be associated with the previous method
-            // For now, we'll handle region end placement in the code generator
+            // Look for region end after the current method (look ahead to find the corresponding endregion)
+            if (!string.IsNullOrEmpty(regionStart))
+            {
+                // Find the end of the current method first
+                int methodEndIndex = currentIndex;
+                int braceCount = 0;
+                bool inMethodBody = false;
+                
+                for (int i = currentIndex; i < lines.Length; i++)
+                {
+                    var line = lines[i].Trim();
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    
+                    if (line.Contains("{"))
+                    {
+                        inMethodBody = true;
+                        braceCount += line.Count(c => c == '{');
+                    }
+                    
+                    if (inMethodBody && line.Contains("}"))
+                    {
+                        braceCount -= line.Count(c => c == '}');
+                        if (braceCount <= 0)
+                        {
+                            methodEndIndex = i;
+                            break;
+                        }
+                    }
+                }
+                
+                // Now look for region end after the method
+                for (int i = methodEndIndex + 1; i < lines.Length; i++)
+                {
+                    var line = lines[i].Trim();
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+                    
+                    var regionMatch = _pragmaRegionRegex.Match(line);
+                    if (regionMatch.Success && regionMatch.Groups[1].Value.Equals("endregion", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var description = regionMatch.Groups[2].Success ? regionMatch.Groups[2].Value.Trim() : string.Empty;
+                        regionEnd = $"#endregion{(string.IsNullOrEmpty(description) ? "" : " " + description)}";
+                        break;
+                    }
+                    
+                    // If we hit another method or non-comment line, stop looking
+                    if (_methodImplementationRegex.IsMatch(line))
+                    {
+                        break;
+                    }
+                }
+            }
             
             return (regionStart, regionEnd);
         }

@@ -102,7 +102,7 @@ namespace CppToCsConverter.Core.Generators
 
         private string GenerateExtensionMethodSignature(string interfaceName, CppMethod method)
         {
-            var returnType = method.ReturnType; // Preserve original C++ return type
+            var returnType = ConvertTypeForExtensionMethod(method.ReturnType);
             var parameters = $"this {interfaceName} instance";
             
             if (method.Parameters.Any())
@@ -112,6 +112,19 @@ namespace CppToCsConverter.Core.Generators
             }
 
             return $"public static {returnType} {method.Name}({parameters})";
+        }
+
+        private string ConvertTypeForExtensionMethod(string cppType)
+        {
+            // For extension methods, convert C++ pointer types to C# reference types
+            // Remove trailing pointer indicator if present
+            if (cppType.EndsWith("*"))
+            {
+                return cppType.Substring(0, cppType.Length - 1).Trim();
+            }
+            
+            // Return the type as-is if no conversion needed
+            return cppType;
         }
 
         private string GenerateParameter(CppParameter param)
