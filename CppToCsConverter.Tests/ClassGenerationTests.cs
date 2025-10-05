@@ -94,12 +94,15 @@ private:
 
                 var result = _generator.GenerateClass(cppClass, new System.Collections.Generic.List<CppMethod>(), "CSample");
 
-                // Assert - Verify types are preserved, not converted
+                // Assert - Verify types are preserved, not converted and methods have implementation bodies (header-only)
                 Assert.Contains("private agrint m_value1;", result);
                 Assert.Contains("private CString cValue1;", result);
-                Assert.Contains("public CSample();", result);
-                Assert.Contains("public void PublicMethod();", result);
-                Assert.Contains("private bool PrivateMethod();", result);
+                Assert.Contains("public CSample()", result);  // Implementation format, not declaration
+                Assert.Contains("public void PublicMethod()", result);
+                Assert.Contains("private bool PrivateMethod()", result);
+                // Verify header-only TODO bodies are generated
+                Assert.Contains("// TODO: Initialize members", result);
+                Assert.Contains("// TODO: Implement method", result);
             }
             finally
             {
@@ -203,11 +206,13 @@ public:
 
                 var result = _generator.GenerateClass(cppClass, new System.Collections.Generic.List<CppMethod>(), "CSample");
 
-                // Assert - Verify C++ types are preserved, not converted
+                // Assert - Verify C++ types are preserved, not converted and static modifiers preserved (header-only)
                 Assert.Contains("private static agrint s_value;", result);
                 Assert.Contains("private agrint m_instanceValue;", result);
-                Assert.Contains("public static void StaticMethod();", result);
-                Assert.Contains("public void InstanceMethod();", result);
+                Assert.Contains("public static void StaticMethod()", result);  // Implementation format, not declaration
+                Assert.Contains("public void InstanceMethod()", result);
+                // Verify header-only TODO bodies are generated
+                Assert.Contains("// TODO: Implement method", result);
             }
             finally
             {
