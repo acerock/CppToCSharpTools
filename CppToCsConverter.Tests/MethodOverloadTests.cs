@@ -1,11 +1,14 @@
 using System;
-using System.Reflection;
 using Xunit;
 using CppToCsConverter.Core.Core;
 using CppToCsConverter.Core.Models;
 
 namespace CppToCsConverter.Tests
 {
+    /// <summary>
+    /// Tests for method overload handling and signature generation.
+    /// Uses friend assembly access to test internal methods directly instead of reflection.
+    /// </summary>
     public class MethodOverloadTests
     {
         [Fact]
@@ -18,9 +21,9 @@ namespace CppToCsConverter.Tests
             var method3 = CreateTestMethod("TestMethod", new[] { "double" });
             
             // Act
-            var sig1 = InvokeGetMethodSignature(converter, method1);
-            var sig2 = InvokeGetMethodSignature(converter, method2);
-            var sig3 = InvokeGetMethodSignature(converter, method3);
+            var sig1 = converter.GetMethodSignature(method1);
+            var sig2 = converter.GetMethodSignature(method2);
+            var sig3 = converter.GetMethodSignature(method3);
             
             // Assert
             Assert.NotEqual(sig1, sig2);
@@ -39,11 +42,11 @@ namespace CppToCsConverter.Tests
             var converter = new CppToCsStructuralConverter();
             
             // Act & Assert
-            Assert.Equal("tdimvalue", InvokeNormalizeParameterType(converter, "const TDimValue&"));
-            Assert.Equal("tdimvalue", InvokeNormalizeParameterType(converter, "TDimValue"));
-            Assert.Equal("tdimvalue", InvokeNormalizeParameterType(converter, "const TDimValue *"));
-            Assert.Equal("agrint", InvokeNormalizeParameterType(converter, "const agrint&"));
-            Assert.Equal("agrint", InvokeNormalizeParameterType(converter, "agrint"));
+            Assert.Equal("tdimvalue", converter.NormalizeParameterType("const TDimValue&"));
+            Assert.Equal("tdimvalue", converter.NormalizeParameterType("TDimValue"));
+            Assert.Equal("tdimvalue", converter.NormalizeParameterType("const TDimValue *"));
+            Assert.Equal("agrint", converter.NormalizeParameterType("const agrint&"));
+            Assert.Equal("agrint", converter.NormalizeParameterType("agrint"));
         }
         
         // Helper methods
@@ -60,17 +63,6 @@ namespace CppToCsConverter.Tests
             }
             return method;
         }
-        
-        private static string InvokeGetMethodSignature(CppToCsStructuralConverter converter, CppMethod method)
-        {
-            var methodInfo = typeof(CppToCsStructuralConverter).GetMethod("GetMethodSignature", BindingFlags.NonPublic | BindingFlags.Instance);
-            return (string)methodInfo.Invoke(converter, new object[] { method });
-        }
-        
-        private static string InvokeNormalizeParameterType(CppToCsStructuralConverter converter, string type)
-        {
-            var methodInfo = typeof(CppToCsStructuralConverter).GetMethod("NormalizeParameterType", BindingFlags.NonPublic | BindingFlags.Instance);
-            return (string)methodInfo.Invoke(converter, new object[] { type });
-        }
+
     }
 }

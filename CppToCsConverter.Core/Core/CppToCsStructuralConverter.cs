@@ -551,7 +551,7 @@ namespace CppToCsConverter.Core.Core
             return mergedParameters;
         }
 
-        private string IndentMethodBody(string methodBody, string indentation)
+        internal string IndentMethodBody(string methodBody, string indentation)
         {
             if (string.IsNullOrEmpty(methodBody))
                 return "";
@@ -757,14 +757,14 @@ namespace CppToCsConverter.Core.Core
             return cppClass.Members.Any() || cppClass.Methods.Any() || relatedSourceMethods.Any();
         }
 
-        private string GetMethodSignature(CppMethod method)
+        internal string GetMethodSignature(CppMethod method)
         {
             // Create a unique signature that includes method name and parameter types
             var parameterTypes = method.Parameters.Select(p => NormalizeParameterType(p.Type));
             return $"{method.Name}({string.Join(",", parameterTypes)})";
         }
 
-        private string NormalizeParameterType(string type)
+        internal string NormalizeParameterType(string type)
         {
             // Normalize parameter type to handle variations in const, reference, pointer syntax
             return type.Trim()

@@ -14,7 +14,7 @@ public class IndentMethodBodyTests
         var indentation = "        "; // 8 spaces
         
         // Act
-        var result = InvokeIndentMethodBody(converter, methodBody, indentation);
+        var result = converter.IndentMethodBody(methodBody, indentation);
         
         // Assert
         Assert.Equal("        return true;", result);
@@ -29,7 +29,7 @@ public class IndentMethodBodyTests
         var indentation = "        "; // 8 spaces
         
         // Act
-        var result = InvokeIndentMethodBody(converter, methodBody, indentation);
+        var result = converter.IndentMethodBody(methodBody, indentation);
         
         // Assert
         var expected = "        if (condition)\n            return true;\n        return false;";
@@ -45,7 +45,7 @@ public class IndentMethodBodyTests
         var indentation = "        "; // 8 spaces
         
         // Act
-        var result = InvokeIndentMethodBody(converter, methodBody, indentation);
+        var result = converter.IndentMethodBody(methodBody, indentation);
         
         // Assert
         var lines = result.Split('\n');
@@ -64,7 +64,7 @@ public class IndentMethodBodyTests
         var indentation = "            "; // 12 spaces for inline methods
         
         // Act
-        var result = InvokeIndentMethodBody(converter, methodBody, indentation);
+        var result = converter.IndentMethodBody(methodBody, indentation);
         
         // Assert
         var lines = result.Split('\n');
@@ -88,7 +88,7 @@ public class IndentMethodBodyTests
         var indentation = "        "; // 8 spaces for .cpp methods
         
         // Act
-        var result = InvokeIndentMethodBody(converter, methodBody, indentation);
+        var result = converter.IndentMethodBody(methodBody, indentation);
         
         // Assert
         var lines = result.Split('\n');
@@ -97,14 +97,5 @@ public class IndentMethodBodyTests
         Assert.Equal("        ", lines[1]); // Preserved blank line
         Assert.Equal("        cValue1 = _T(\"ABC\");", lines[2]);
         Assert.Equal("        cValue2 = _T(\"DEF\");", lines[3]);
-    }
-    
-    // Helper method to invoke the private IndentMethodBody method
-    private static string InvokeIndentMethodBody(CppToCsStructuralConverter converter, string methodBody, string indentation)
-    {
-        var method = typeof(CppToCsStructuralConverter).GetMethod("IndentMethodBody", 
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        
-        return (string)method!.Invoke(converter, new object[] { methodBody, indentation })!;
     }
 }

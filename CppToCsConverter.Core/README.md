@@ -66,3 +66,23 @@ converter.ConvertFiles(
 ## Target Framework
 
 - .NET 8.0
+
+## Testing
+
+The library exposes internal methods to the test assembly using `InternalsVisibleTo`, making tests more readable and maintainable by avoiding reflection:
+
+```csharp
+// Before (using reflection)
+var methodInfo = typeof(CppToCsStructuralConverter).GetMethod("GetMethodSignature", 
+    BindingFlags.NonPublic | BindingFlags.Instance);
+var result = (string)methodInfo.Invoke(converter, new object[] { method });
+
+// After (using friend assembly)
+var result = converter.GetMethodSignature(method);
+```
+
+### Internal Methods Available for Testing
+
+- `GetMethodSignature(CppMethod method)` - Generates unique signatures for method overload detection
+- `NormalizeParameterType(string type)` - Normalizes C++ parameter types for comparison
+- `IndentMethodBody(string methodBody, string indentation)` - Properly indents method body code
