@@ -118,7 +118,8 @@ namespace CppToCsConverter.Core.Generators
 
             var accessibility = GetAccessSpecifierName(member.AccessSpecifier).ToLower();
             var staticKeyword = member.IsStatic ? "static " : "";
-            var csType = _typeConverter.ConvertType(member.Type);
+            // Preserve original C++ type for downstream processing
+            var csType = member.Type;
             
             sb.AppendLine($"        {accessibility} {staticKeyword}{csType} {member.Name};");
 
@@ -182,7 +183,8 @@ namespace CppToCsConverter.Core.Generators
             }
             else
             {
-                returnType = _typeConverter.ConvertType(method.ReturnType) + " ";
+                // Preserve original C++ return type for downstream processing
+                returnType = method.ReturnType + " ";
             }
             
             // Merge header declaration with implementation parameters
@@ -339,7 +341,8 @@ namespace CppToCsConverter.Core.Generators
 
         private string GenerateParameter(CppParameter param)
         {
-            var csType = _typeConverter.ConvertType(param.Type);
+            // Preserve original C++ parameter type for downstream processing
+            var csType = param.Type;
             var modifier = "";
 
             // Handle pointer parameters as out/ref
@@ -433,7 +436,8 @@ namespace CppToCsConverter.Core.Generators
 
         private string GetDefaultReturnValue(string returnType)
         {
-            var csType = _typeConverter.ConvertType(returnType);
+            // Preserve original C++ type for downstream processing
+            var csType = returnType;
             
             switch (csType.ToLower())
             {

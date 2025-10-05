@@ -11,32 +11,23 @@ namespace CppToCsConverter.Core.Generators
         {
             _typeMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                // Basic types
+                // All C++ types preserved for downstream processing
+                // Only keeping identity mappings for modifier cleanup purposes
                 { "void", "void" },
                 { "bool", "bool" },
                 { "char", "char" },
-                { "unsigned char", "byte" },
                 { "short", "short" },
-                { "unsigned short", "ushort" },
                 { "int", "int" },
-                { "unsigned int", "uint" },
                 { "long", "long" },
-                { "unsigned long", "ulong" },
                 { "float", "float" },
                 { "double", "double" },
-                { "size_t", "ulong" },
+                // Note: unsigned char, unsigned int, size_t etc. preserved as-is
                 
-                // Common C++ types
-                { "agrint", "int" }, // Based on the sample code
+                // Common C++ types - preserve for downstream processing
+                // Note: agrint, CString etc. are preserved as-is
                 
-                // MFC types (assuming these are available)
-                { "CString", "string" }, // or keep as CString if you have MFC wrapper
-                { "DWORD", "uint" },
-                { "WORD", "ushort" },
-                { "LPSTR", "string" },
-                { "LPCSTR", "string" },
-                { "LPWSTR", "string" },
-                { "LPCWSTR", "string" },
+                // Windows API types - preserve for downstream processing
+                // Note: DWORD, LPSTR etc. are preserved as-is
                 
                 // Custom types (these might need to be preserved or mapped)
                 { "TDimValue", "TDimValue" }, // Assuming this struct exists in C#
@@ -83,43 +74,9 @@ namespace CppToCsConverter.Core.Generators
             if (string.IsNullOrWhiteSpace(cppDefaultValue))
                 return "";
 
-            var normalized = cppDefaultValue.Trim();
-
-            // Handle common C++ default values
-            switch (normalized.ToLower())
-            {
-                case "null":
-                case "nullptr":
-                case "0":
-                    return "null";
-                case "true":
-                case "false":
-                    return normalized.ToLower();
-                case "\"\"":
-                    return "string.Empty";
-            }
-
-            // Handle _T macro
-            if (normalized.StartsWith("_T(\"") && normalized.EndsWith("\")"))
-            {
-                return normalized.Substring(3, normalized.Length - 5) + "\"";
-            }
-
-            if (normalized.StartsWith("_T(") && normalized.EndsWith(")"))
-            {
-                return normalized.Substring(3, normalized.Length - 4);
-            }
-
-            // Handle numeric values
-            if (int.TryParse(normalized, out _) || 
-                double.TryParse(normalized, out _) ||
-                float.TryParse(normalized, out _))
-            {
-                return normalized;
-            }
-
-            // For anything else, return as-is with a comment
-            return $"{normalized} /* TODO: Verify default value */";
+            // Preserve C++ default values as-is for downstream processing
+            // The downstream tools will handle conversion to appropriate C# defaults
+            return cppDefaultValue.Trim();
         }
 
         private string ConvertTemplateType(string templateType)

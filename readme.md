@@ -3,6 +3,15 @@ This folder contains files to demostrate how C++ interfaces and classes are defi
 
 This document describes the recommeded approach to handle the complexity of translating these classes into the desired C# output.
 
+## What this project is about
+* This project is about building the C# files based on the content of one or more C++ header (.h) files and implementation (.cpp) files.
+* It focus on assembling the type (interfaces and classes) to ensure access modifiers, default values and method bodies is correctly applied.
+* This project is to be understood as one step in a pipeline. There will be steps later to follow up on the .cs files produced to reason about type conversions, ref/out parameters etc. This project is about persisting all types and C++ construct for member variables/fields and method arguments so that steps later in the pipeline can succeed doing their tasks.
+
+## What this project is NOT about
+* This is not about building 100% valid C# code.
+* This is not about converting MFC, Windows API types, C++/CLI or user defined types to the C# world equalent. This is also true for default values for these types. For instance, _T("") should not be translated to string.Empty, or nullptr to null, etc. 
+
 The following files exist to highlight common structure in .h and .cpp files with expected .cs.
 
 # C++ interface defintions
@@ -29,9 +38,9 @@ public:
 ```
 public interface ISample
 {
-    void MethodOne(CString cParam1,
-                   bool bParam2,
-                   out CString pcParam3);
+    void MethodOne(const CString cParam1,
+                   const bool& bParam2,
+                   CString* pcParam3);
 
 	bool MethodTwo();
 }
@@ -58,9 +67,9 @@ public:
 ```
 internal interface ISample
 {
-    void MethodOne(CString cParam1,
-                   bool bParam2,
-                   out CString pcParam3);
+    void MethodOne(const CString cParam1,
+                   const bool& bParam2,
+                   CString* pcParam3);
 
 	bool MethodTwo();
 }

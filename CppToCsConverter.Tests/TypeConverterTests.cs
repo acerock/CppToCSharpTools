@@ -17,44 +17,49 @@ namespace CppToCsConverter.Tests
         }
 
         [Fact]
-        public void ConvertType_BasicTypes_ShouldMapCorrectly()
+        public void ConvertType_BasicTypes_ShouldPreserveAllCppTypes()
         {
-            // Arrange & Act & Assert
+            // Arrange & Act & Assert - All C++ types preserved for downstream processing
             Assert.Equal("bool", _converter.ConvertType("bool"));
             Assert.Equal("int", _converter.ConvertType("int"));
-            Assert.Equal("string", _converter.ConvertType("CString"));
-            Assert.Equal("int", _converter.ConvertType("agrint"));
+            Assert.Equal("unsigned char", _converter.ConvertType("unsigned char"));
+            Assert.Equal("unsigned int", _converter.ConvertType("unsigned int"));
+            Assert.Equal("size_t", _converter.ConvertType("size_t"));
+            Assert.Equal("CString", _converter.ConvertType("CString"));
+            Assert.Equal("agrint", _converter.ConvertType("agrint"));
         }
 
         [Fact]
-        public void ConvertType_WithConstModifier_ShouldRemoveConst()
+        public void ConvertType_WithConstModifier_ShouldRemoveConstButPreserveType()
         {
-            // Arrange & Act & Assert - Based on readme examples
-            Assert.Equal("string", _converter.ConvertType("const CString"));
+            // Arrange & Act & Assert - Const removed but types preserved
+            Assert.Equal("CString", _converter.ConvertType("const CString"));
             Assert.Equal("TDimValue", _converter.ConvertType("const TDimValue"));
             Assert.Equal("bool", _converter.ConvertType("const bool"));
-            Assert.Equal("int", _converter.ConvertType("const agrint"));
+            Assert.Equal("agrint", _converter.ConvertType("const agrint"));
+            Assert.Equal("unsigned char", _converter.ConvertType("const unsigned char"));
+            Assert.Equal("size_t", _converter.ConvertType("const size_t"));
         }
 
         [Fact]
         public void ConvertType_WithReferenceAndPointer_ShouldRemoveModifiers()
         {
             // Arrange & Act & Assert - Based on readme parameter examples
-            Assert.Equal("string", _converter.ConvertType("const CString&"));
+            Assert.Equal("CString", _converter.ConvertType("const CString&"));
             Assert.Equal("TDimValue", _converter.ConvertType("const TDimValue&"));
             Assert.Equal("bool", _converter.ConvertType("const bool&"));
-            Assert.Equal("string", _converter.ConvertType("CString*"));
+            Assert.Equal("CString", _converter.ConvertType("CString*"));
         }
 
         [Fact]
-        public void ConvertDefaultValue_CommonCppDefaults_ShouldConvertToCS()
+        public void ConvertDefaultValue_CommonCppDefaults_ShouldPreserveForDownstream()
         {
-            // Arrange & Act & Assert - Based on readme default parameter examples
-            Assert.Equal("null", _converter.ConvertDefaultValue("0"));
-            Assert.Equal("null", _converter.ConvertDefaultValue("nullptr"));
+            // Arrange & Act & Assert - C++ defaults preserved for downstream processing
+            Assert.Equal("0", _converter.ConvertDefaultValue("0"));
+            Assert.Equal("nullptr", _converter.ConvertDefaultValue("nullptr"));
             Assert.Equal("false", _converter.ConvertDefaultValue("false"));
             Assert.Equal("true", _converter.ConvertDefaultValue("true"));
-            Assert.Equal("string.Empty", _converter.ConvertDefaultValue("\"\""));
+            Assert.Equal("\"\"", _converter.ConvertDefaultValue("\"\""));
         }
 
         [Fact]
@@ -69,8 +74,8 @@ namespace CppToCsConverter.Tests
         [Theory]
         [InlineData("std::string", "std::string")]
         [InlineData("std::vector<int>", "std::vector<int>")]
-        [InlineData("DWORD", "uint")]
-        [InlineData("LPSTR", "string")]
+        [InlineData("DWORD", "DWORD")]
+        [InlineData("LPSTR", "LPSTR")]
         public void ConvertType_CommonCppTypes_ShouldPreserveStdTypes(string cppType, string expectedCsType)
         {
             // Act

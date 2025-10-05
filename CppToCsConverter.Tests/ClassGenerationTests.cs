@@ -94,7 +94,7 @@ private:
 
                 var result = _generator.GenerateClass(cppClass, new System.Collections.Generic.List<CppMethod>(), "CSample");
 
-                // Assert
+                // Assert - Verify types are preserved, not converted
                 Assert.Contains("private agrint m_value1;", result);
                 Assert.Contains("private CString cValue1;", result);
                 Assert.Contains("public CSample();", result);
@@ -203,7 +203,7 @@ public:
 
                 var result = _generator.GenerateClass(cppClass, new System.Collections.Generic.List<CppMethod>(), "CSample");
 
-                // Assert
+                // Assert - Verify C++ types are preserved, not converted
                 Assert.Contains("private static agrint s_value;", result);
                 Assert.Contains("private agrint m_instanceValue;", result);
                 Assert.Contains("public static void StaticMethod();", result);

@@ -28,9 +28,9 @@ namespace CppToCsConverter.Tests
             Console.WriteLine($"std::vector<int> -> '{stdVector}'");
             Console.WriteLine($"DWORD -> '{dword}'");
             
-            // These should pass based on current implementation
-            Assert.Equal("std::string", stdString); // It preserves unknown types
-            Assert.Equal("uint", dword); // This should work
+            // These should pass based on current implementation - all types preserved
+            Assert.Equal("std::string", stdString); // std:: types preserved
+            Assert.Equal("DWORD", dword); // Windows API types preserved for downstream processing
         }
         
         [Fact]
