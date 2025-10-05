@@ -246,6 +246,15 @@ namespace CppToCsConverter.Core
 
         private void GenerateClassWithCppBodies(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
         {
+            // Add comments before class declaration
+            if (cppClass.PrecedingComments.Any())
+            {
+                foreach (var comment in cppClass.PrecedingComments)
+                {
+                    sb.AppendLine($"    {comment}");
+                }
+            }
+
             var accessibility = cppClass.IsPublicExport ? "public" : "internal";
             var classStaticModifier = ShouldBeStaticClass(cppClass, parsedSources) ? "static " : "";
             sb.AppendLine($"    {accessibility} {classStaticModifier}class {cppClass.Name}");
@@ -254,6 +263,23 @@ namespace CppToCsConverter.Core
             // Add members - preserve original C++ types and add static initializations
             foreach (var member in cppClass.Members)
             {
+                // Add region start marker (from .h file, converted to comment)
+                if (!string.IsNullOrEmpty(member.RegionStart))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"        {member.RegionStart}");
+                    sb.AppendLine();
+                }
+
+                // Add comments before member
+                if (member.PrecedingComments.Any())
+                {
+                    foreach (var comment in member.PrecedingComments)
+                    {
+                        sb.AppendLine($"        {comment}");
+                    }
+                }
+
                 var accessModifier = ConvertAccessSpecifier(member.AccessSpecifier);
                 var staticModifier = member.IsStatic ? "static " : "";
                 
@@ -292,6 +318,13 @@ namespace CppToCsConverter.Core
                 }
                 
                 sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {memberName}{initialization};");
+
+                // Add region end marker (from .h file, converted to comment)  
+                if (!string.IsNullOrEmpty(member.RegionEnd))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"        {member.RegionEnd}");
+                }
             }
 
             if (cppClass.Members.Any())
@@ -313,6 +346,40 @@ namespace CppToCsConverter.Core
                 // Skip if this exact method signature has an implementation in source files (avoid duplicates)
                 if (!method.HasInlineImplementation && implementedMethodSignatures.Contains(GetMethodSignature(method)))
                     continue;
+
+                // Add source region start (from .cpp file - preserved as region)
+                if (!string.IsNullOrEmpty(method.SourceRegionStart))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"        {method.SourceRegionStart}");
+                    sb.AppendLine();
+                }
+
+                // Add header region start (from .h file - converted to comment)
+                if (!string.IsNullOrEmpty(method.HeaderRegionStart))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"        {method.HeaderRegionStart}");
+                    sb.AppendLine();
+                }
+
+                // Add comments from .h file
+                if (method.HeaderComments.Any())
+                {
+                    foreach (var comment in method.HeaderComments)
+                    {
+                        sb.AppendLine($"        {comment}");
+                    }
+                }
+
+                // Add comments from .cpp file
+                if (method.SourceComments.Any())
+                {
+                    foreach (var comment in method.SourceComments)
+                    {
+                        sb.AppendLine($"        {comment}");
+                    }
+                }
 
                 var accessModifier = ConvertAccessSpecifier(method.AccessSpecifier);
                 var staticModifier = method.IsStatic ? "static " : "";
@@ -355,8 +422,43 @@ namespace CppToCsConverter.Core
 
             foreach (var method in relatedMethods)
             {
+                // Add source region start (from .cpp file - preserved as region)
+                if (!string.IsNullOrEmpty(method.SourceRegionStart))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"        {method.SourceRegionStart}");
+                    sb.AppendLine();
+                }
+
                 // Find corresponding header declaration to get access modifier and default values
-                var headerMethod = cppClass.Methods.FirstOrDefault(h => h.Name == method.Name);
+                var headerMethod = FindMatchingHeaderMethod(cppClass.Methods, method);
+                
+                // Add header region start (from .h file - converted to comment)
+                if (headerMethod != null && !string.IsNullOrEmpty(headerMethod.HeaderRegionStart))
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"        {headerMethod.HeaderRegionStart}");
+                    sb.AppendLine();
+                }
+
+                // Add comments from .h file
+                if (headerMethod != null && headerMethod.HeaderComments.Any())
+                {
+                    foreach (var comment in headerMethod.HeaderComments)
+                    {
+                        sb.AppendLine($"        {comment}");
+                    }
+                }
+
+                // Add comments from .cpp file
+                if (method.SourceComments.Any())
+                {
+                    foreach (var comment in method.SourceComments)
+                    {
+                        sb.AppendLine($"        {comment}");
+                    }
+                }
+
                 var accessModifier = headerMethod != null ? ConvertAccessSpecifier(headerMethod.AccessSpecifier) : "public";
                 var staticModifier = method.IsStatic ? "static " : "";
                 var returnType = method.IsConstructor || method.IsDestructor ? "" : method.ReturnType + " ";
@@ -671,6 +773,45 @@ namespace CppToCsConverter.Core
                 .Replace("&", "")           // Remove reference
                 .Replace("*", "")           // Remove pointer
                 .ToLowerInvariant();        // Case insensitive comparison
+        }
+
+        private CppMethod? FindMatchingHeaderMethod(List<CppMethod> headerMethods, CppMethod sourceMethod)
+        {
+            // First try to find exact match by name and parameter count
+            var candidates = headerMethods.Where(h => h.Name == sourceMethod.Name && h.Parameters.Count == sourceMethod.Parameters.Count).ToList();
+            
+            if (candidates.Count == 1)
+            {
+                return candidates[0];
+            }
+            
+            if (candidates.Count > 1)
+            {
+                // Multiple candidates, try to match by parameter types
+                foreach (var candidate in candidates)
+                {
+                    bool typesMatch = true;
+                    for (int i = 0; i < candidate.Parameters.Count; i++)
+                    {
+                        var headerType = NormalizeParameterType(candidate.Parameters[i].Type);
+                        var sourceType = NormalizeParameterType(sourceMethod.Parameters[i].Type);
+                        
+                        if (headerType != sourceType)
+                        {
+                            typesMatch = false;
+                            break;
+                        }
+                    }
+                    
+                    if (typesMatch)
+                    {
+                        return candidate;
+                    }
+                }
+            }
+            
+            // Fall back to just name match if no perfect match found
+            return headerMethods.FirstOrDefault(h => h.Name == sourceMethod.Name);
         }
     }
 }

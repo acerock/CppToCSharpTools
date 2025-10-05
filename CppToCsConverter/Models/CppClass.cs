@@ -11,6 +11,7 @@ namespace CppToCsConverter.Models
         public List<CppMember> Members { get; set; } = new List<CppMember>();
         public List<CppMethod> Methods { get; set; } = new List<CppMethod>();
         public List<CppStaticMember> StaticMembers { get; set; } = new List<CppStaticMember>();
+        public List<string> PrecedingComments { get; set; } = new List<string>(); // Comments before class declaration
         
         public AccessSpecifier DefaultAccessSpecifier => IsInterface ? AccessSpecifier.Public : AccessSpecifier.Private;
     }
@@ -23,6 +24,9 @@ namespace CppToCsConverter.Models
         public bool IsStatic { get; set; }
         public bool IsArray { get; set; }
         public string ArraySize { get; set; } = string.Empty;
+        public List<string> PrecedingComments { get; set; } = new List<string>(); // Comments before member declaration
+        public string RegionStart { get; set; } = string.Empty; // Region start marker (from .h file - converted to comment)
+        public string RegionEnd { get; set; } = string.Empty; // Region end marker (from .h file - converted to comment)
     }
 
     public class CppMethod
@@ -43,6 +47,12 @@ namespace CppToCsConverter.Models
         public string ClassName { get; set; } = string.Empty; // For source file parsing
         public int OrderIndex { get; set; } // For maintaining order from .cpp files
         public List<CppMemberInitializer> MemberInitializerList { get; set; } = new List<CppMemberInitializer>();
+        public List<string> HeaderComments { get; set; } = new List<string>(); // Comments from .h file
+        public List<string> SourceComments { get; set; } = new List<string>(); // Comments from .cpp file
+        public string HeaderRegionStart { get; set; } = string.Empty; // Region start from .h file (converted to comment)
+        public string HeaderRegionEnd { get; set; } = string.Empty; // Region end from .h file (converted to comment)  
+        public string SourceRegionStart { get; set; } = string.Empty; // Region start from .cpp file (preserved as region)
+        public string SourceRegionEnd { get; set; } = string.Empty; // Region end from .cpp file (preserved as region)
     }
 
     public class CppParameter
@@ -68,6 +78,18 @@ namespace CppToCsConverter.Models
     {
         public string MemberName { get; set; } = string.Empty;
         public string InitializationValue { get; set; } = string.Empty;
+    }
+
+    public class CppCommentBlock
+    {
+        public List<string> Lines { get; set; } = new List<string>();
+        public CommentType Type { get; set; }
+    }
+
+    public enum CommentType
+    {
+        SingleLine,   // //
+        MultiLine     // /* */
     }
 
     public enum AccessSpecifier

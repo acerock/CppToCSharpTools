@@ -37,6 +37,15 @@ namespace CppToCsConverter.Generators
             sb.AppendLine("namespace GeneratedClasses");
             sb.AppendLine("{");
 
+            // Add comments before class declaration
+            if (cppClass.PrecedingComments.Any())
+            {
+                foreach (var comment in cppClass.PrecedingComments)
+                {
+                    sb.AppendLine($"    {comment}");
+                }
+            }
+
             // Class declaration
             var partialKeyword = isPartial ? "partial " : "";
             var inheritance = cppClass.BaseClasses.Any() ? $" : {string.Join(", ", cppClass.BaseClasses)}" : "";
@@ -66,40 +75,82 @@ namespace CppToCsConverter.Generators
 
         private void GenerateMembers(StringBuilder sb, CppClass cppClass)
         {
-            // Group members by access specifier
-            var memberGroups = cppClass.Members
-                .GroupBy(m => m.AccessSpecifier)
-                .OrderBy(g => GetAccessSpecifierOrder(g.Key));
-
-            foreach (var group in memberGroups)
+            // Generate members in the order they appear, preserving comments and regions
+            foreach (var member in cppClass.Members)
             {
-                if (group.Any())
-                {
-                    sb.AppendLine($"        #region {GetAccessSpecifierName(group.Key)} Members");
-                    sb.AppendLine();
-
-                    foreach (var member in group)
-                    {
-                        GenerateMember(sb, member);
-                    }
-
-                    sb.AppendLine($"        #endregion");
-                    sb.AppendLine();
-                }
+                GenerateMember(sb, member);
             }
         }
 
         private void GenerateMember(StringBuilder sb, CppMember member)
         {
+            // Add region start marker (from .h file, converted to comment)
+            if (!string.IsNullOrEmpty(member.RegionStart))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"        {member.RegionStart}");
+                sb.AppendLine();
+            }
+
+            // Add comments before member
+            if (member.PrecedingComments.Any())
+            {
+                foreach (var comment in member.PrecedingComments)
+                {
+                    sb.AppendLine($"        {comment}");
+                }
+            }
+
             var accessibility = GetAccessSpecifierName(member.AccessSpecifier).ToLower();
             var staticKeyword = member.IsStatic ? "static " : "";
             var csType = _typeConverter.ConvertType(member.Type);
             
             sb.AppendLine($"        {accessibility} {staticKeyword}{csType} {member.Name};");
+
+            // Add region end marker (from .h file, converted to comment)  
+            if (!string.IsNullOrEmpty(member.RegionEnd))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"        {member.RegionEnd}");
+            }
         }
 
         private void GenerateMethod(StringBuilder sb, CppMethod method, List<CppMethod> implementationMethods)
         {
+            // Add source region start (from .cpp file - preserved as region)
+            if (!string.IsNullOrEmpty(method.SourceRegionStart))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"        {method.SourceRegionStart}");
+                sb.AppendLine();
+            }
+
+            // Add header region start (from .h file - converted to comment)
+            if (!string.IsNullOrEmpty(method.HeaderRegionStart))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"        {method.HeaderRegionStart}");
+                sb.AppendLine();
+            }
+
+            // Add comments from .h file
+            if (method.HeaderComments.Any())
+            {
+                foreach (var comment in method.HeaderComments)
+                {
+                    sb.AppendLine($"        {comment}");
+                }
+            }
+
+            // Add comments from .cpp file
+            if (method.SourceComments.Any())
+            {
+                foreach (var comment in method.SourceComments)
+                {
+                    sb.AppendLine($"        {comment}");
+                }
+            }
+
             var accessibility = GetAccessSpecifierName(method.AccessSpecifier).ToLower();
             var staticKeyword = method.IsStatic ? "static " : "";
             var virtualKeyword = method.IsVirtual && !method.IsStatic ? "virtual " : "";
@@ -199,6 +250,20 @@ namespace CppToCsConverter.Generators
             }
 
             sb.AppendLine("        }");
+
+            // Add header region end (from .h file - converted to comment)
+            if (!string.IsNullOrEmpty(method.HeaderRegionEnd))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"        {method.HeaderRegionEnd}");
+            }
+
+            // Add source region end (from .cpp file - preserved as region)
+            if (!string.IsNullOrEmpty(method.SourceRegionEnd))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"        {method.SourceRegionEnd}");
+            }
         }
 
         private CppMethod MergeMethodWithImplementation(CppMethod headerMethod, List<CppMethod> implementationMethods)

@@ -14,6 +14,7 @@ namespace CppToCsConverter.Parsers
         private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(.*?\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{.*?\})?", RegexOptions.Compiled | RegexOptions.Singleline);
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*(\d*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
+        private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
 
         public List<CppClass> ParseHeaderFile(string filePath)
         {
@@ -63,19 +64,32 @@ namespace CppToCsConverter.Parsers
             {
                 var line = lines[i].Trim();
                 
-                // Skip empty lines and comments
-                if (string.IsNullOrEmpty(line) || line.StartsWith("//") || line.StartsWith("/*"))
+                // Skip empty lines but NOT comments (we need to collect them)
+                if (string.IsNullOrEmpty(line))
+                    continue;
+
+                // Skip comments and pragma directives that are not regions - they will be collected by comment parsing methods
+                if ((line.StartsWith("//") || line.StartsWith("/*")) && !inClass)
+                {
+                    Console.WriteLine($"DEBUG: Skipping comment line: {line}");
+                    continue;
+                }
+                    
+                if (line.StartsWith("#") && !line.Contains("pragma region"))
                     continue;
 
                 // Check for class declaration
                 var classMatch = _classRegex.Match(line);
                 if (classMatch.Success && !inClass)
                 {
+                    // Collect comments before the class declaration
+                    var precedingComments = CollectPrecedingComments(lines, i);
 
                     currentClass = new CppClass
                     {
                         Name = classMatch.Groups[1].Value,
-                        IsPublicExport = line.Contains("__declspec(dllexport)")
+                        IsPublicExport = line.Contains("__declspec(dllexport)"),
+                        PrecedingComments = precedingComments
                     };
 
                     if (classMatch.Groups[2].Success)
@@ -120,6 +134,7 @@ namespace CppToCsConverter.Parsers
                     continue;
 
                 // Parse methods (handle multi-line declarations)
+                var originalIndex = i;
                 var methodLine = CollectMultiLineMethodDeclaration(lines, ref i);
                 var methodMatch = _methodRegex.Match(methodLine);
                 if (methodMatch.Success)
@@ -129,6 +144,11 @@ namespace CppToCsConverter.Parsers
                         var method = ParseMethod(methodMatch, currentAccess, methodLine, currentClass.Name);
                         if (method != null)
                         {
+                            // Collect comments and region markers for method from .h file
+                            method.HeaderComments = CollectPrecedingComments(lines, originalIndex);
+                            var (regionStart, regionEnd) = ParseRegionMarkers(lines, originalIndex, i);
+                            method.HeaderRegionStart = regionStart;
+                            method.HeaderRegionEnd = regionEnd;
 
                             currentClass.Methods.Add(method);
                         }
@@ -144,6 +164,10 @@ namespace CppToCsConverter.Parsers
                 var memberMatch = _memberRegex.Match(line);
                 if (memberMatch.Success && !line.TrimStart().StartsWith("return ") && !line.TrimStart().StartsWith("if ") && !line.TrimStart().StartsWith("for ") && !line.TrimStart().StartsWith("while "))
                 {
+                    // Collect comments and region markers for member
+                    var precedingComments = CollectPrecedingComments(lines, i);
+                    var (regionStart, regionEnd) = ParseRegionMarkers(lines, i, i);
+                    
                     var member = new CppMember
                     {
                         Type = memberMatch.Groups[3].Value.Trim(),
@@ -151,7 +175,10 @@ namespace CppToCsConverter.Parsers
                         AccessSpecifier = currentAccess,
                         IsStatic = memberMatch.Groups[1].Success,
                         IsArray = memberMatch.Groups[5].Success,
-                        ArraySize = memberMatch.Groups[5].Success ? memberMatch.Groups[5].Value : string.Empty
+                        ArraySize = memberMatch.Groups[5].Success ? memberMatch.Groups[5].Value : string.Empty,
+                        PrecedingComments = precedingComments,
+                        RegionStart = regionStart,
+                        RegionEnd = regionEnd
                     };
                     currentClass.Members.Add(member);
                 }
@@ -307,8 +334,14 @@ namespace CppToCsConverter.Parsers
                 return methodBuilder.ToString();
             }
             
-            // If the line has an opening brace, we need to collect until the matching closing brace
+            // Check if this is a single-line inline method (balanced braces on same line)
             int braceLevel = currentLine.Count(c => c == '{') - currentLine.Count(c => c == '}');
+            if (braceLevel == 0 && currentLine.Contains("{") && currentLine.Contains("}"))
+            {
+                // Single-line inline method - return as-is without collecting more lines
+                return methodBuilder.ToString();
+            }
+            
             bool insideMethodBody = braceLevel > 0;
             
             // If no opening brace, look for semicolon or opening brace
@@ -657,6 +690,152 @@ namespace CppToCsConverter.Parsers
             }
 
             return result;
+        }
+
+        // Comment and region parsing methods
+        private List<string> CollectPrecedingComments(string[] lines, int currentIndex)
+        {
+            var comments = new List<string>();
+            int lookbackIndex = currentIndex - 1;
+            
+            // Skip empty lines immediately before
+            while (lookbackIndex >= 0 && string.IsNullOrWhiteSpace(lines[lookbackIndex]))
+            {
+                lookbackIndex--;
+            }
+            
+            // Collect comment blocks working backwards
+            var commentBlock = new List<string>();
+            bool inMultiLineComment = false;
+            
+            while (lookbackIndex >= 0)
+            {
+                var line = lines[lookbackIndex].Trim();
+                
+                // Check for single line comments
+                if (line.StartsWith("//"))
+                {
+                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    lookbackIndex--;
+                    continue;
+                }
+                
+                // Check for end of multi-line comment
+                if (line.EndsWith("*/"))
+                {
+                    inMultiLineComment = true;
+                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    
+                    // If this line also starts the comment, we're done with this block
+                    if (line.StartsWith("/*"))
+                    {
+                        inMultiLineComment = false;
+                        lookbackIndex--;
+                        continue;
+                    }
+                    
+                    lookbackIndex--;
+                    continue;
+                }
+                
+                // Check for start of multi-line comment
+                if (inMultiLineComment && line.StartsWith("/*"))
+                {
+                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    inMultiLineComment = false;
+                    lookbackIndex--;
+                    continue;
+                }
+                
+                // Inside multi-line comment
+                if (inMultiLineComment)
+                {
+                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    lookbackIndex--;
+                    continue;
+                }
+                
+                // Check for empty lines between comment blocks
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    // Peek ahead to see if there are more comments
+                    int peekIndex = lookbackIndex - 1;
+                    while (peekIndex >= 0 && string.IsNullOrWhiteSpace(lines[peekIndex]))
+                    {
+                        peekIndex--;
+                    }
+                    
+                    if (peekIndex >= 0)
+                    {
+                        var peekLine = lines[peekIndex].Trim();
+                        if (peekLine.StartsWith("//") || peekLine.EndsWith("*/"))
+                        {
+                            // There are more comments, include the empty line
+                            commentBlock.Insert(0, lines[lookbackIndex]);
+                            lookbackIndex--;
+                            continue;
+                        }
+                    }
+                }
+                
+                // Not a comment line, stop collecting
+                break;
+            }
+            
+            // Add the collected comment block to results if any
+            comments.AddRange(commentBlock);
+            
+            return comments;
+        }
+
+        private (string regionStart, string regionEnd) ParseRegionMarkers(string[] lines, int startIndex, int endIndex)
+        {
+            string regionStart = string.Empty;
+            string regionEnd = string.Empty;
+            
+            // Look for region start before the construct
+            for (int i = startIndex - 1; i >= 0; i--)
+            {
+                var line = lines[i].Trim();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                
+                var regionMatch = _pragmaRegionRegex.Match(line);
+                if (regionMatch.Success && regionMatch.Groups[1].Value.Equals("region", StringComparison.OrdinalIgnoreCase))
+                {
+                    var description = regionMatch.Groups[2].Success ? regionMatch.Groups[2].Value.Trim() : string.Empty;
+                    regionStart = $"//#region {description}".Trim();
+                    break;
+                }
+                
+                // If we hit non-empty, non-comment line, stop looking
+                if (!line.StartsWith("//") && !line.StartsWith("/*") && !line.EndsWith("*/"))
+                {
+                    break;
+                }
+            }
+            
+            // Look for region end after the construct
+            for (int i = endIndex + 1; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                
+                var regionMatch = _pragmaRegionRegex.Match(line);
+                if (regionMatch.Success && regionMatch.Groups[1].Value.Equals("endregion", StringComparison.OrdinalIgnoreCase))
+                {
+                    var comment = regionMatch.Groups[2].Success ? regionMatch.Groups[2].Value.Trim() : string.Empty;
+                    regionEnd = $"//#endregion {comment}".Trim();
+                    break;
+                }
+                
+                // If we hit a non-empty line that's not a comment, stop looking
+                if (!line.StartsWith("//") && !line.StartsWith("/*") && !line.EndsWith("*/"))
+                {
+                    break;
+                }
+            }
+            
+            return (regionStart, regionEnd);
         }
     }
 }

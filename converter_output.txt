@@ -1,0 +1,39 @@
+C++ to C# Structural Converter
+==============================
+Converting specific C++ files from: .
+Files to convert: CSample.h, CSample.cpp
+Output directory: .\Generated_CS
+Found 1 header files and 1 source files
+Output directory path: '.\Generated_CS'
+Output directory already exists: .\Generated_CS
+Parsing header: CSample.h
+DEBUG: Skipping comment line: // Comment for class
+Found class/struct: StructOne in CSample.h
+Found class/struct: CSomeClass in CSample.h
+Found class/struct: CSample in CSample.h
+Parsing source: CSample.cpp
+Found static member initialization: CSample::m_iIndex = -1
+Generating C# file: CSample.cs with 3 class(es)
+DEBUG: For source method 'GetMemberTwo' with 0 params, found header method: GetMemberTwo
+DEBUG: For source method 'CSample' with 0 params, found header method: CSample
+DEBUG: For source method '~CSample' with 0 params, found header method: ~CSample
+DEBUG: For source method 'MethodOne' with 3 params, found header method: MethodOne
+DEBUG: For source method 'MethodP1' with 4 params, found header method: MethodP1
+DEBUG MethodP1: Source has 4 params, Header has 4 params
+DEBUG MethodP1: Merged result has 4 params
+DEBUG MethodP1 Param 0: Name='dimPd', Type='TDimValue', Default=''
+DEBUG MethodP1 Param 1: Name='lLimitHorizon', Type='agrint', Default=''
+DEBUG MethodP1 Param 2: Name='iValue', Type='agrint', Default='0'
+DEBUG MethodP1 Param 3: Name='bError', Type='bool', Default='false'
+DEBUG: For source method 'MethodP2' with 4 params, found header method: MethodP2
+DEBUG: For source method 'MethodP3' with 3 params, found header method: MethodP3
+DEBUG: For source method 'MethodP4' with 0 params, found header method: MethodP4
+DEBUG: For source method 'MethodP5' with 3 params, found header method: MethodP5
+DEBUG: For source method 'MethodWithOverloads' with 1 params, found header method: MethodWithOverloads
+DEBUG: For source method 'MethodWithOverloads' with 2 params, found header method: MethodWithOverloads
+Writing C# file: .\Generated_CS\CSample.cs
+Generated C# file: CSample.cs (Size: 3266 chars)
+File verified: .\Generated_CS\CSample.cs (Size: 3266 bytes)
+Conversion completed!
+Conversion completed successfully!
+Output directory: .\Generated_CS

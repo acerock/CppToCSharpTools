@@ -11,8 +11,14 @@ namespace Generated_CSample
     internal class StructOne
     {
         public agrint lTestType;
+
+        //#region Just a h-file pragma test
+
+            // att-id memeber comment
         public TAttId attId;
         public TDimValue dimVal;
+
+        //#endregion // Comment test
 
     }
 
@@ -35,54 +41,21 @@ namespace Generated_CSample
 
     }
 
+    // Comment for class
     internal class CSample
     {
         private agrint m_value1;
         private CString cValue1;
         private CString cValue2;
         private CString cValue3;
+            // Static member
         private static agrint m_iIndex = -1;
-        public int m_iAnotherPrivateInteger;
+        private int m_iAnotherPrivateInteger;
 
+            // Method with body in header file
         public bool MethodTwo()
         {
             return cValue1 == cValue2;
-        }
-
-        public int MethodPrivInl1(const TDimValue& dim1)
-        {
-            if (dim1.IsEmpty()) 
-                        return 0;
-            
-                    return 42;
-        }
-
-        public void MethodPrivInl2(const TDimValue& dimPd, const agrint& lLimitHorizon, const agrint& iValue = 0, bool bError = false)
-        {
-            if (dimPd.IsEmpty()) 
-                        return bError;
-                    return lLimitHorizon >= iValue;
-        }
-
-        public int InlineMethodWithOverload(const TDimValue& dim1)
-        {
-            if (dim1.IsEmpty()) 
-                        return -1;
-                    return 100;
-        }
-
-        public int InlineMethodWithOverload(const TDimValue& dim1, bool bFlag, const CString& cPar = _T("xyz"))
-        {
-            if (dim1.IsEmpty() || cPar == _T("xyz") || !bFlag)
-                        return -2;
-                    return 200;
-        }
-
-        public int InlineMethodWithOverload(const TDimValue& dim1, bool bFlag, int i = 3)
-        {
-            if (dim1.IsEmpty()) 
-                        return -2;
-                    return 200;
         }
 
         public CSample()
@@ -104,7 +77,8 @@ namespace Generated_CSample
         // Implementation of MethodOne
         }
 
-        public bool MethodP1(const TDimValue& dimPd, const agrint& lLimitHorizon, const agrint& iValue, bool bError)
+            // Comment from .h
+        private bool MethodP1(const TDimValue& dimPd, const agrint& lLimitHorizon, const agrint& iValue = 0, bool bError = false)
         {
         if (dimPd.IsEmpty()) 
                 return bError;
@@ -112,37 +86,37 @@ namespace Generated_CSample
             return lLimitHorizon >= iValue;
         }
 
-        public bool MethodP2(const TDimValue& dim1, const agrint& int1, const agrint& int2 = 0, bool bool1 = false)
+        private bool MethodP2(const TDimValue& dim1, const agrint& int1, const agrint& int2 = 0, bool bool1 = false)
         {
         // Implementation of MethodP2
             return true;
         }
 
-        public bool MethodP3(const TDimValue& dimVal, const agrint& intVal, const agrint& int2)
+        private bool MethodP3(const TDimValue& dimVal, const agrint& intVal, const agrint& int2)
         {
         // Implementation of MethodP3
             return false;
         }
 
-        public bool MethodP4()
+        private bool MethodP4()
         {
         // Implementation of MethodP4
             return cValue1 == cValue3;
         }
 
-        public bool MethodP5(const TDimValue& dim1, const agrint& int1, const agrint& int2 = 0)
+        private bool MethodP5(const TDimValue& dim1, const agrint& int1, const agrint& int2 = 0)
         {
         // Implementation of MethodP5
             return !dim1.IsEmpty() && int1 > int2;
         }
 
-        public bool MethodWithOverloads(const TDimValue& dim1)
+        private bool MethodWithOverloads(const TDimValue& dim1)
         {
         // Implementation of the first overload
             return !dim1.IsEmpty();
         }
 
-        public bool MethodWithOverloads(const TDimValue& dim1, const agrint& int1)
+        private bool MethodWithOverloads(const TDimValue& dim1, const agrint& int1)
         {
         // Implementation of the second overload
             return !dim1.IsEmpty() && int1 > 0;

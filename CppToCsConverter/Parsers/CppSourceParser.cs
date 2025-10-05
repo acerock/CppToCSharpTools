@@ -17,6 +17,8 @@ namespace CppToCsConverter.Parsers
             @"(?:(const)\s+)?(?:(\w+)\s+)?(\w+)\s*::\s*(\w+)(?:\s*\[\s*\])?(?:\s*\[\s*(\d*)\s*\])?\s*=\s*([^;]+);", 
             RegexOptions.Compiled);
 
+        private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
+
         public (List<CppMethod> Methods, List<CppStaticMemberInit> StaticInits) ParseSourceFile(string filePath)
         {
             var methods = new List<CppMethod>();
@@ -25,9 +27,13 @@ namespace CppToCsConverter.Parsers
             try
             {
                 var content = File.ReadAllText(filePath);
+                var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                 
-                // Parse method implementations
+                // Parse method implementations using the original approach
                 methods.AddRange(ParseMethodImplementations(content));
+                
+                // Add comments and regions to the parsed methods
+                AddCommentsAndRegionsToMethods(lines, methods);
                 
                 // Parse static member initializations
                 staticInits.AddRange(ParseStaticMemberInitializations(content));
@@ -38,6 +44,33 @@ namespace CppToCsConverter.Parsers
             {
                 Console.WriteLine($"Error parsing source file {filePath}: {ex.Message}");
                 return (methods, staticInits);
+            }
+        }
+
+        private void AddCommentsAndRegionsToMethods(string[] lines, List<CppMethod> methods)
+        {
+            // Find method implementations in the lines and add comments/regions
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var methodMatch = _methodImplementationRegex.Match(lines[i]);
+                if (methodMatch.Success)
+                {
+                    var className = methodMatch.Groups[2].Value;
+                    var methodName = methodMatch.Groups[3].Value;
+                    
+                    // Find the corresponding method in our parsed list
+                    var method = methods.FirstOrDefault(m => m.ClassName == className && m.Name == methodName);
+                    if (method != null)
+                    {
+                        // Collect comments before method
+                        method.SourceComments = CollectPrecedingComments(lines, i);
+                        
+                        // Look for region markers around method
+                        var (regionStart, regionEnd) = ParseSourceRegionMarkers(lines, i, methods, method.OrderIndex);
+                        method.SourceRegionStart = regionStart;
+                        method.SourceRegionEnd = regionEnd;
+                    }
+                }
             }
         }
 
@@ -226,6 +259,134 @@ namespace CppToCsConverter.Parsers
             }
             
             return staticInits;
+        }
+
+        // Comment and region parsing methods for .cpp files
+        private List<string> CollectPrecedingComments(string[] lines, int currentIndex)
+        {
+            var comments = new List<string>();
+            int lookbackIndex = currentIndex - 1;
+            
+            // Skip empty lines immediately before
+            while (lookbackIndex >= 0 && string.IsNullOrWhiteSpace(lines[lookbackIndex]))
+            {
+                lookbackIndex--;
+            }
+            
+            // Collect comment blocks working backwards
+            var commentBlock = new List<string>();
+            bool inMultiLineComment = false;
+            
+            while (lookbackIndex >= 0)
+            {
+                var line = lines[lookbackIndex].Trim();
+                
+                // Check for single line comments
+                if (line.StartsWith("//"))
+                {
+                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    lookbackIndex--;
+                    continue;
+                }
+                
+                // Check for end of multi-line comment
+                if (line.EndsWith("*/"))
+                {
+                    inMultiLineComment = true;
+                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    
+                    // If this line also starts the comment, we're done with this block
+                    if (line.StartsWith("/*"))
+                    {
+                        inMultiLineComment = false;
+                        lookbackIndex--;
+                        continue;
+                    }
+                    
+                    lookbackIndex--;
+                    continue;
+                }
+                
+                // Check for start of multi-line comment
+                if (inMultiLineComment && line.StartsWith("/*"))
+                {
+                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    inMultiLineComment = false;
+                    lookbackIndex--;
+                    continue;
+                }
+                
+                // Inside multi-line comment
+                if (inMultiLineComment)
+                {
+                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    lookbackIndex--;
+                    continue;
+                }
+                
+                // Check for empty lines between comment blocks
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    // Peek ahead to see if there are more comments
+                    int peekIndex = lookbackIndex - 1;
+                    while (peekIndex >= 0 && string.IsNullOrWhiteSpace(lines[peekIndex]))
+                    {
+                        peekIndex--;
+                    }
+                    
+                    if (peekIndex >= 0)
+                    {
+                        var peekLine = lines[peekIndex].Trim();
+                        if (peekLine.StartsWith("//") || peekLine.EndsWith("*/"))
+                        {
+                            // There are more comments, include the empty line
+                            commentBlock.Insert(0, lines[lookbackIndex]);
+                            lookbackIndex--;
+                            continue;
+                        }
+                    }
+                }
+                
+                // Not a comment line, stop collecting
+                break;
+            }
+            
+            // Add the collected comment block to results if any
+            comments.AddRange(commentBlock);
+            
+            return comments;
+        }
+
+        private (string regionStart, string regionEnd) ParseSourceRegionMarkers(string[] lines, int currentIndex, List<CppMethod> existingMethods, int currentOrderIndex)
+        {
+            string regionStart = string.Empty;
+            string regionEnd = string.Empty;
+            
+            // Look for region start before current method
+            for (int i = currentIndex - 1; i >= 0; i--)
+            {
+                var line = lines[i].Trim();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                
+                var regionMatch = _pragmaRegionRegex.Match(line);
+                if (regionMatch.Success && regionMatch.Groups[1].Value.Equals("region", StringComparison.OrdinalIgnoreCase))
+                {
+                    var description = regionMatch.Groups[2].Success ? regionMatch.Groups[2].Value.Trim() : string.Empty;
+                    regionStart = $"#region {description}".Trim();
+                    break;
+                }
+                
+                // If we hit a method implementation or non-empty, non-comment line, stop looking
+                if (_methodImplementationRegex.IsMatch(line) || (!line.StartsWith("//") && !line.StartsWith("/*") && !line.EndsWith("*/")))
+                {
+                    break;
+                }
+            }
+            
+            // Look for region end after the current method - this will be associated with the previous method
+            // For now, we'll handle region end placement in the code generator
+            
+            return (regionStart, regionEnd);
         }
     }
 }
