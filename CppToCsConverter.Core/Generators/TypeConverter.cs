@@ -124,21 +124,10 @@ namespace CppToCsConverter.Core.Generators
 
         private string ConvertTemplateType(string templateType)
         {
-            // Basic template conversion - this could be expanded
-            // For now, just preserve the structure
-            
-            // Example: std::vector<int> -> List<int>
-            if (templateType.StartsWith("std::vector<"))
+            // Preserve std:: types as-is since downstream tools will handle translation
+            if (templateType.StartsWith("std::"))
             {
-                var innerType = ExtractTemplateParameter(templateType);
-                var convertedInnerType = ConvertType(innerType);
-                return $"List<{convertedInnerType}>";
-            }
-
-            // Example: std::string -> string
-            if (templateType == "std::string")
-            {
-                return "string";
+                return templateType;
             }
 
             // For other templates, preserve as-is

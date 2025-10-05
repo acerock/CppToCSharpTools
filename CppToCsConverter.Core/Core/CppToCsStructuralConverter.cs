@@ -246,6 +246,21 @@ namespace CppToCsConverter.Core.Core
 
         private void GenerateClassWithCppBodies(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
         {
+            // Check if this is header-only generation and show warning
+            var implementationMethods = parsedSources.ContainsKey(cppClass.Name) ? parsedSources[cppClass.Name] : new List<CppMethod>();
+            bool isHeaderOnlyGeneration = implementationMethods.Count == 0 || 
+                                        (cppClass.Methods.Count > 0 && implementationMethods.Count < cppClass.Methods.Count / 2);
+
+            if (isHeaderOnlyGeneration && cppClass.Methods.Any())
+            {
+                // Write warning to console with yellow color
+                var currentColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"⚠️  WARNING: Generating '{fileName}' from header-only content. Methods will contain TODO implementations.");
+                Console.WriteLine($"    Class: {cppClass.Name} | Header methods: {cppClass.Methods.Count} | Implementation methods: {implementationMethods.Count}");
+                Console.ForegroundColor = currentColor;
+            }
+
             // Add comments before class declaration
             if (cppClass.PrecedingComments.Any())
             {

@@ -67,11 +67,11 @@ namespace CppToCsConverter.Tests
         }
 
         [Theory]
-        [InlineData("std::string", "string")]
-        [InlineData("std::vector<int>", "List<int>")]
+        [InlineData("std::string", "std::string")]
+        [InlineData("std::vector<int>", "std::vector<int>")]
         [InlineData("DWORD", "uint")]
         [InlineData("LPSTR", "string")]
-        public void ConvertType_CommonCppTypes_ShouldMapToCS(string cppType, string expectedCsType)
+        public void ConvertType_CommonCppTypes_ShouldPreserveStdTypes(string cppType, string expectedCsType)
         {
             // Act
             var result = _converter.ConvertType(cppType);

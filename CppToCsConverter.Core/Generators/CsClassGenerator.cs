@@ -27,6 +27,21 @@ namespace CppToCsConverter.Core.Generators
 
         private string GenerateClassInternal(CppClass cppClass, List<CppMethod> implementationMethods, string fileName, bool isPartial)
         {
+            // Check if this is likely header-only generation (few or no implementation methods)
+            bool isHeaderOnlyGeneration = implementationMethods == null || 
+                                        implementationMethods.Count == 0 || 
+                                        (cppClass.Methods.Count > 0 && implementationMethods.Count < cppClass.Methods.Count / 2);
+
+            if (isHeaderOnlyGeneration && cppClass.Methods.Any())
+            {
+                // Write warning to console with yellow color
+                var currentColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine($"⚠️  WARNING: Generating '{fileName}' from header-only content. Methods will contain TODO implementations.");
+                Console.WriteLine($"    Class: {cppClass.Name} | Header methods: {cppClass.Methods.Count} | Implementation methods: {implementationMethods?.Count ?? 0}");
+                Console.ForegroundColor = currentColor;
+            }
+
             var sb = new StringBuilder();
             
             // Add using statements
@@ -59,11 +74,11 @@ namespace CppToCsConverter.Core.Generators
             }
 
             // Add methods - order by implementation order if available
-            var orderedMethods = GetOrderedMethods(cppClass, implementationMethods);
+            var orderedMethods = GetOrderedMethods(cppClass, implementationMethods ?? new List<CppMethod>());
             
             foreach (var method in orderedMethods)
             {
-                GenerateMethod(sb, method, implementationMethods);
+                GenerateMethod(sb, method, implementationMethods ?? new List<CppMethod>());
                 sb.AppendLine();
             }
 
