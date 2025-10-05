@@ -5,103 +5,110 @@
 struct StructOne
 {
 public:
-	agrint lTestType;
+    agrint lTestType;
 
-	TAttId attId;
-	TDimValue dimVal;
+#pragma region Just a h-file pragma test
+    // att-id memeber comment
+    TAttId attId;
+    TDimValue dimVal;
+#pragma endregion // Comment test
 };
 
 class CSomeClass
 {
-	StructOne memberOne;
-	int memberTwo;
+    StructOne memberOne;
+    int memberTwo;
 
-	public:
-		CSomeClass() : memberTwo(33) {
-			memberOne.lTestType = 0;
-		}
+    public:
+        CSomeClass() : memberTwo(33) {
+            memberOne.lTestType = 0;
+        }
 
-		int GetMemberTwo() const;
+        int GetMemberTwo() const;
 };
 
+// Comment for class
 class CSample : public ISample
 {
 private:
-	agrint m_value1;
+    agrint m_value1;
 
-	CString cValue1;
-	CString cValue2;
-	CString cValue3;
+    CString cValue1;
+    CString cValue2;
+    CString cValue3;
 
-	static agrint m_iIndex;
+    // Static member
 
-	CString PrivateMemberWithBodyInHfile(const TAttId &att_id)
-	{
-		if (cValue1.IsEmpty()) return _T("");
+    static agrint m_iIndex;
 
-		return cValue1;
-	}
+    CString PrivateMemberWithBodyInHfile(const TAttId &att_id)
+    {
+        if (cValue1.IsEmpty()) return _T("");
+
+        return cValue1;
+    }
 
 public:
-	CSample();
-	~CSample();
+    CSample();
+    ~CSample();
 
-	void MethodOne(const CString& cParam1,
+    void MethodOne(const CString& cParam1,
                    const bool &bParam2,
                    CString *pcParam3);
 
-	// Method with body in header file
-	bool MethodTwo() { return cValue1 == cValue2; }
+    // Method with body in header file
+    bool MethodTwo() { return cValue1 == cValue2; }
 
 private:
 
-	bool MethodP1(const TDimValue& dim1, const agrint& int1, const agrint& int2=0, bool bool1=false);
-	bool MethodP5(const TDimValue& dim1, const agrint& int1, const agrint& int2=0);
-	bool MethodP4() const;
-	bool MethodP2(const TDimValue& dim1, const agrint& int1, const agrint& int2=0, bool bool1=false);
-	bool MethodP3(const TDimValue& dim1, const agrint& int1, const agrint& int2);
+    // Comment from .h
+    bool MethodP1(const TDimValue& dim1, const agrint& int1, const agrint& int2=0, bool bool1=false);
+    bool MethodP5(const TDimValue& dim1, const agrint& int1, const agrint& int2=0);
+    bool MethodP4() const;
+    bool MethodP2(const TDimValue& dim1, const agrint& int1, const agrint& int2=0, bool bool1=false);
+    bool MethodP3(const TDimValue& dim1, const agrint& int1, const agrint& int2);
 
-	bool MethodWithOverloads(const TDimValue& dim1);
-	bool MethodWithOverloads(const TDimValue& dim1, const agrint& int1);
+    bool MethodWithOverloads(const TDimValue& dim1);
+    bool MethodWithOverloads(const TDimValue& dim1, const agrint& int1);
 
-	int MethodPrivInl1(const TDimValue& dim1)
-	{
-		if (dim1.IsEmpty()) 
-			return 0;
-		
-		return 42;
-	}
+    int MethodPrivInl1(const TDimValue& dim1)
+    {
+        if (dim1.IsEmpty()) 
+            return 0;
+        
+        return 42;
+    }
 
-	bool CSample::MethodPrivInl2(const TDimValue& dimPd, const agrint& lLimitHorizon, const agrint& iValue=0, bool bError=false)
-	{
-		if (dimPd.IsEmpty()) 
-			return bError;
+    bool CSample::MethodPrivInl2(const TDimValue& dimPd, const agrint& lLimitHorizon, const agrint& iValue=0, bool bError=false)
+    {
+        if (dimPd.IsEmpty()) 
+            return bError;
 
-		return lLimitHorizon >= iValue;
-	}
+        return lLimitHorizon >= iValue;
+    }
 
-	int InlineMethodWithOverload(const TDimValue& dim1)
-	{
-		if (dim1.IsEmpty()) 
-			return -1;
+    int InlineMethodWithOverload(const TDimValue& dim1)
+    {
+        if (dim1.IsEmpty()) 
+            return -1;
 
-		return 100;
-	}
+        return 100;
+    }
 
-	int InlineMethodWithOverload(const TDimValue& dim1, bool bFlag, const CString& cPar = _T("xyz"))
-	{
-		if (dim1.IsEmpty() || cPar == _T("xyz") || !bFlag)
-			return -2;
-		return 200;
-	}
+    int InlineMethodWithOverload(const TDimValue& dim1, bool bFlag, const CString& cPar = _T("xyz"))
+    {
+        if (dim1.IsEmpty() || cPar == _T("xyz") || !bFlag)
+            return -2;
+        return 200;
+    }
 
-	int InlineMethodWithOverload(const TDimValue& dim1, bool bFlag, int i = 3)
-	{
-		if (dim1.IsEmpty()) 
-			return -2;
+    int InlineMethodWithOverload(const TDimValue& dim1, bool bFlag, int i = 3)
+    {
+        if (dim1.IsEmpty()) 
+            return -2;
 
-		return 200;
-	}
-	
-	int m_iAnotherPrivateInteger;
+        return 200;
+    }
+    
+    int m_iAnotherPrivateInteger;
 };

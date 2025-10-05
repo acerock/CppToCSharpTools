@@ -1,5 +1,6 @@
 #pragma once
 
+/* The Interface */
 class __declspec(dllexport) ISample
 {
 public:
@@ -10,5 +11,5 @@ public:
                            const bool &bParam2,
                            CString *pcParam3) = 0;
 
-	virtual bool MethodTwo() = 0;
+    virtual bool MethodTwo() = 0;
 };

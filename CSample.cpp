@@ -4,8 +4,8 @@
 
 ISample* ISample::GetInstance()
 {
-	CSample* pSample = new CSample();
-	return pSample;
+    CSample* pSample = new CSample();
+    return pSample;
 };
 
 int CSomeClass::GetMemberTwo() const
@@ -27,16 +27,17 @@ CSample::CSample()
 
 CSample::~CSample()
 {
-	// Cleanup code here
+    // Cleanup code here
 };
 
 void CSample::MethodOne(const CString& cParam1,
                    const bool &bParam2,
                    CString *pcParam3)
 {
-	// Implementation of MethodOne
+    // Implementation of MethodOne
 }
 
+// Comment from .cpp
 bool CSample::MethodP1(const TDimValue& dimPd, const agrint& lLimitHorizon, const agrint& iValue, bool bError)
 {
     if (dimPd.IsEmpty()) 

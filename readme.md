@@ -112,7 +112,7 @@ private:
 #### Sample result from header file information
 This sample shows how this starts to build up the structure and content of the C# result file.
 ```
-	public class CSample : ISample
+	internal class CSample : ISample
 	{
 		private agrint m_value1;
 		private CString cValue1;
@@ -179,7 +179,7 @@ void CSample::MethodTwo()
 ```
 CSample.cs
 ```
-public partial class CSample : ISample
+internal partial class CSample : ISample
 {
     public void MethodOne()
     {
@@ -189,7 +189,7 @@ public partial class CSample : ISample
 ```
 SampleMoreImpl.cs
 ```
-public partial class CSample : ISample
+internal partial class CSample : ISample
 {
     public void MethodTwo()
     {
@@ -209,13 +209,15 @@ private:
 	static agrint s_value;
 }
 ```
+
 CSample.cpp
 ```
 CSample::m_value = 42;
 ```
+
 CSample.cs
 ```
-public class CSample : ISample
+internal class CSample : ISample
 {
     private static agrint s_value = 42;
 }
@@ -239,9 +241,274 @@ CSample::m_value = 42;
 ```
 CSample.cs
 ```
-public class CSample : ISample
+internal class CSample : ISample
 {
     private static agrint s_value = 42;
+}
+```
+
+## Comments and regions
+We want to assure we don't loose comments or C++ regions when building the .cs equalent code. 
+
+### Comments
+A comment is a block of lines outside method bodies that we want to persist in the resulting .cs file. 
+With block of lines we mean:
+* One or multiple lines where first two printable characters are "//" 
+* One or multiple lines where first two printable characters are "/*" until end of comment "*/"
+* If a comment is followed with one or multiple empty lines and then another block of comments, we persist the empty lines and extend the comment with the new lines with comments.
+
+We have already defined that comments inside method bodies are handled by persisting method bodies as they are including comments. Here we care about comments outside method bodies describing a following type declarations (like interfaces, structs, classes) or class members like variables, methods, constructors, and destructors.
+
+#### Rules
+1) Comments are associated to the consecutive type or member and restored before their equivalent in the .cs file.
+2) If a method has a block of comments associated in both the .h file and the .cpp file, we persist boths and write the comment from the .h file first.
+3) There are cases where a comment follows a construct - see the rules for pragma region in .h files.
+4) We never add new comments or change the content of a existing comment, the goal is to persist the comments and write them to right location in the .cs file.
+
+### Samples:
+#### Comment block before class declaration
+```
+// This is a sample class
+class CSample : public ISample
+{
+private:
+	agrint m_value;
+}
+```
+
+C# result 
+```
+// This is a sample class
+internal class CSample : ISample
+{
+    private agrint m_value;
+}
+```
+
+#### Advanced comment block before class declaration
+```
+/* 
+ *  Some description goes here
+    And it ends like this */
+
+// We actually have more to comment
+
+/* And more */
+class CSample : public ISample
+{
+private:
+	agrint m_value;
+}
+```
+
+C# result 
+```
+/* 
+ *  Some description goes here
+    And it ends like this */
+
+// We actually have more to comment
+
+/* And more */
+internal class CSample : ISample
+{
+    private agrint m_value;
+}
+```
+
+#### Comment block before member variable
+
+```
+class CSample : public ISample
+{
+private:
+
+    // My value holder
+
+	agrint m_value;
+}
+```
+
+C# result 
+```
+internal class CSample : ISample
+{
+    // My value holder
+
+    private agrint m_value;
+}
+```
+
+#### Comment block before member definition in .h file
+CSample.h
+```
+class CSample : public ISample
+{
+private:
+
+	agrint m_value;
+
+    /* Here is a test method
+     * We describe stuff here
+       still inside comment
+    */ 
+    void MethodSample(const CString & cStr);
+}
+```
+
+CSample.cpp
+```
+void CSample::MethodSample(const CString & cStr)
+{
+    AGRWriteLog(cStr);
+}
+```
+
+C# result 
+```
+internal class CSample : ISample
+{
+    private agrint m_value;
+
+    /* Here is a test method
+     * We describe stuff here
+       still inside comment
+    */ 
+    private void MethodSample(const CString & cStr)
+    {
+        AGRWriteLog(cStr);
+    }
+}
+```
+
+#### Comment block before member definition in .h file and .cpp implementation
+CSample.h
+```
+class CSample : public ISample
+{
+private:
+
+	agrint m_value;
+
+    /* Here is a test method
+     * We describe stuff here
+       still inside comment
+    */ 
+    void MethodSample(const CString & cStr);
+}
+```
+
+CSample.cpp
+```
+// For now we just log
+void CSample::MethodSample(const CString & cStr)
+{
+    AGRWriteLog(cStr);
+}
+```
+
+C# result 
+```
+internal class CSample : ISample
+{
+    private agrint m_value;
+
+    /* Here is a test method
+     * We describe stuff here
+       still inside comment
+    */ 
+    // For now we just log
+    private void MethodSample(const CString & cStr)
+    {
+        AGRWriteLog(cStr);
+    }
+}
+```
+
+### Regions
+In C++ regions are defined by using #pragma region and #pragma endregion in both .h or .cpp file.
+* We only want to recreate regions from the .cpp files since the .cpp files defines the order the member methods appear in the .cs file. By trying to also recreate the regions defined in .h files we might end up with conflicting or incorrect regions in the .cs file.
+* Instead, we want to turn regions in the .h file into comments and handle them as ordenary comments where a) the region start comment is written before teh comments of the consecutive member variable or method and b) the region end comment is written after the preceding member variable or method. 
+* For .cpp files, the region start is associated with the consecutive member and is written before any comments for that member, and the region end is assosicated with the preceding member and is written after the member body with an empty line between.
+* Note that region start can be followed by description and we want to persist this. For intance ```#pragma region My Nice Region``` which is written as ```#region My Nice Region```. Region end can be followed by a comment on same line and we want to persist this as it is. For intance ```#pragma regionend // My Nice Region``` is persisted as ```#endregion // My Nice Regsion```.
+
+#### Samples
+CSample.h
+```
+class CSample : public ISample
+{
+private:
+#pragma region My Variables
+
+    // My comment
+	agrint m_value;
+
+#pragma endregion // My Variables
+
+public:
+    /* Some method */ 
+    void MethodSample(const CString & cStr);
+    /* Some method II */ 
+    void MethodSample2(const CString & cStr);
+    /* Some method III */ 
+    void MethodSample3(const CString & cStr);
+}
+```
+
+CSample.cpp
+```
+void CSample::MethodSample(const CString & cStr)
+{
+    AGRWriteLog(cStr);
+}
+
+#pragma region More Samples
+
+void CSample::MethodSample2(const CString & cStr)
+{
+    AGRWriteLog(cStr);
+}
+
+void CSample::MethodSample3(const CString & cStr)
+{
+    AGRWriteLog(cStr);
+}
+
+#pragma endregion
+```
+
+C# result 
+```
+internal class CSample : ISample
+{
+    //#region My Variables
+
+    // My comment
+    private agrint m_value;
+
+    //#endregion // My Variables
+
+    /* Some method */ 
+    public void MethodSample(const CString & cStr)
+    {
+        AGRWriteLog(cStr);
+    }
+
+    #region More Samples
+
+    /* Some method II */ 
+    public void MethodSample2(const CString & cStr)
+    {
+        AGRWriteLog(cStr);
+    }
+
+    /* Some method III */ 
+    public void MethodSample3(const CString & cStr)
+    {
+        AGRWriteLog(cStr);
+    }
+
+    #endregion
 }
 ```
 
@@ -254,6 +521,8 @@ Typical unit of code consist of:
     c) .h file with full inline implementation (no implementation in .cpp file)
 3. One or more .cpp files containing the member function implementations (prefixed with ClassName::)
 4. Classes where all members are static should be declared as static in .cs equalent.
+6. Comments should be persisted as is for their consecutive type of member definition.
+7. Pragma region and endregion should be persisted from .cpp file to the .cs file. Pragma region in .h files should be turned into comments and persisted as such. 
 
 When we construct the C# files we have the following rules:
 1. .h file defines the member variables and their access modifiers (private, protected, public)
