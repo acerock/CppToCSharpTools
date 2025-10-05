@@ -71,7 +71,7 @@ namespace CppToCsConverter
 
             try
             {
-                var converter = new CppToCsStructuralConverter();
+                var converter = new CppToCsConverterApi();
                 
                 if (specificFiles != null && specificFiles.Length > 0)
                 {

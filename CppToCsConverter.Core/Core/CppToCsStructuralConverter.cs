@@ -4,11 +4,11 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
-using CppToCsConverter.Models;
-using CppToCsConverter.Parsers;
-using CppToCsConverter.Generators;
+using CppToCsConverter.Core.Models;
+using CppToCsConverter.Core.Parsers;
+using CppToCsConverter.Core.Generators;
 
-namespace CppToCsConverter.Core
+namespace CppToCsConverter.Core.Core
 {
     public class CppToCsStructuralConverter
     {
@@ -86,7 +86,7 @@ namespace CppToCsConverter.Core
             ConvertFiles(headerFiles.ToArray(), sourceFiles.ToArray(), outputDirectory);
         }
 
-        private void ConvertFiles(string[] headerFiles, string[] sourceFiles, string outputDirectory)
+        public void ConvertFiles(string[] headerFiles, string[] sourceFiles, string outputDirectory)
         {
             Console.WriteLine($"Found {headerFiles.Length} header files and {sourceFiles.Length} source files");
             Console.WriteLine($"Output directory path: '{outputDirectory}'");

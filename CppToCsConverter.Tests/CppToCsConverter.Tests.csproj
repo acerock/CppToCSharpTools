@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CppToCsConverter\CppToCsConverter.csproj" />
+    <ProjectReference Include="..\CppToCsConverter.Core\CppToCsConverter.Core.csproj" />
   </ItemGroup>
 
 </Project>

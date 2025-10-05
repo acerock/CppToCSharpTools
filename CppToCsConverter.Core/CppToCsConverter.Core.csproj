@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>CppToCsConverter.Core</PackageId>
+    <PackageVersion>1.0.0</PackageVersion>
+    <Authors>CppToCsConverter</Authors>
+    <Description>Core library for converting C++ code structures to C# equivalents</Description>
+    <PackageTags>cpp;csharp;converter;code-generation</PackageTags>
+  </PropertyGroup>
+
+</Project>

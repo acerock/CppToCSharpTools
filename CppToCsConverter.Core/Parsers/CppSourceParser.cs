@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using CppToCsConverter.Models;
+using CppToCsConverter.Core.Models;
 
-namespace CppToCsConverter.Parsers
+namespace CppToCsConverter.Core.Parsers
 {
     public class CppSourceParser
     {

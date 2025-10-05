@@ -1,6 +1,6 @@
 using System.IO;
 using System.Linq;
-using CppToCsConverter.Parsers;
+using CppToCsConverter.Core.Parsers;
 using Xunit;
 
 namespace CppToCsConverter.Tests

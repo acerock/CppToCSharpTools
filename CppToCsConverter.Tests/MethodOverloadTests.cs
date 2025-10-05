@@ -1,7 +1,8 @@
 using System;
 using System.Reflection;
 using Xunit;
-using CppToCsConverter.Core;
+using CppToCsConverter.Core.Core;
+using CppToCsConverter.Core.Models;
 
 namespace CppToCsConverter.Tests
 {
@@ -46,12 +47,12 @@ namespace CppToCsConverter.Tests
         }
         
         // Helper methods
-        private static CppToCsConverter.Models.CppMethod CreateTestMethod(string name, string[] paramTypes)
+        private static CppMethod CreateTestMethod(string name, string[] paramTypes)
         {
-            var method = new CppToCsConverter.Models.CppMethod { Name = name };
+            var method = new CppMethod { Name = name };
             foreach (var paramType in paramTypes)
             {
-                method.Parameters.Add(new CppToCsConverter.Models.CppParameter 
+                method.Parameters.Add(new CppParameter 
                 { 
                     Type = paramType, 
                     Name = $"param{method.Parameters.Count + 1}" 
@@ -60,7 +61,7 @@ namespace CppToCsConverter.Tests
             return method;
         }
         
-        private static string InvokeGetMethodSignature(CppToCsStructuralConverter converter, CppToCsConverter.Models.CppMethod method)
+        private static string InvokeGetMethodSignature(CppToCsStructuralConverter converter, CppMethod method)
         {
             var methodInfo = typeof(CppToCsStructuralConverter).GetMethod("GetMethodSignature", BindingFlags.NonPublic | BindingFlags.Instance);
             return (string)methodInfo.Invoke(converter, new object[] { method });

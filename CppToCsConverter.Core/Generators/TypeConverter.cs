@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace CppToCsConverter.Generators
+namespace CppToCsConverter.Core.Generators
 {
     public class TypeConverter
     {

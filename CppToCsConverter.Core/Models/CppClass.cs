@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace CppToCsConverter.Models
+namespace CppToCsConverter.Core.Models
 {
     public class CppClass
     {

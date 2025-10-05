@@ -1,4 +1,4 @@
-using CppToCsConverter.Core;
+using CppToCsConverter.Core.Core;
 using System.Text;
 
 namespace CppToCsConverter.Tests;

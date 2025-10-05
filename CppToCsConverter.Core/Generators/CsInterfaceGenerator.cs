@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
 using System.Text;
-using CppToCsConverter.Models;
+using CppToCsConverter.Core.Models;
 
-namespace CppToCsConverter.Generators
+namespace CppToCsConverter.Core.Generators
 {
     public class CsInterfaceGenerator
     {

@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using CppToCsConverter.Models;
+using CppToCsConverter.Core.Models;
 
-namespace CppToCsConverter.Generators
+namespace CppToCsConverter.Core.Generators
 {
     public class CsClassGenerator
     {

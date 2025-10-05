@@ -1,4 +1,4 @@
-namespace CppToCsConverter.Models
+namespace CppToCsConverter.Core.Models
 {
     public class CppStaticMemberInit
     {
