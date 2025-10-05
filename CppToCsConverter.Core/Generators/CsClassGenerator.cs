@@ -78,7 +78,7 @@ namespace CppToCsConverter.Core.Generators
             
             foreach (var method in orderedMethods)
             {
-                GenerateMethod(sb, method, implementationMethods ?? new List<CppMethod>());
+                GenerateMethod(sb, method, implementationMethods ?? new List<CppMethod>(), cppClass);
                 sb.AppendLine();
             }
 
@@ -131,7 +131,7 @@ namespace CppToCsConverter.Core.Generators
             }
         }
 
-        private void GenerateMethod(StringBuilder sb, CppMethod method, List<CppMethod> implementationMethods)
+        private void GenerateMethod(StringBuilder sb, CppMethod method, List<CppMethod> implementationMethods, CppClass cppClass)
         {
             // Add source region start (from .cpp file - preserved as region)
             if (!string.IsNullOrEmpty(method.SourceRegionStart))
@@ -192,7 +192,7 @@ namespace CppToCsConverter.Core.Generators
             var parameters = string.Join(", ", mergedMethod.Parameters.Select(GenerateParameter));
 
             // Generate method signature
-            var methodName = method.IsConstructor ? method.ClassName : method.Name;
+            var methodName = method.IsConstructor ? cppClass.Name : method.Name;
             sb.AppendLine($"        {accessibility} {staticKeyword}{virtualKeyword}{returnType}{methodName}({parameters})");
             sb.AppendLine("        {");
 
