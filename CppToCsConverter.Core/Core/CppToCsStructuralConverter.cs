@@ -159,7 +159,9 @@ namespace CppToCsConverter.Core.Core
                 try
                 {
                     Console.WriteLine($"Writing C# file: {csFileName}");
-                    File.WriteAllText(csFileName, csFileContent);
+                    // Normalize line endings to platform-appropriate format (CRLF on Windows)
+                    var normalizedContent = csFileContent.Replace("\r\n", "\n").Replace("\n", Environment.NewLine);
+                    File.WriteAllText(csFileName, normalizedContent);
                     Console.WriteLine($"Generated C# file: {fileName}.cs (Size: {csFileContent.Length} chars)");
                     
                     // Verify file was written

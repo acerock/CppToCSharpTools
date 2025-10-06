@@ -79,12 +79,12 @@ namespace CppToCsConverter.Core.Utils
                 var line = lines[i];
                 
                 if (i > 0)
-                    result.Append('\n'); // Use consistent \n line endings
+                    result.Append("\n");
 
                 if (string.IsNullOrWhiteSpace(line))
                 {
-                    // Empty line - keep it truly empty (no indentation)
-                    // Don't add any characters for empty lines
+                    // Empty line - add target indentation 
+                    result.Append(GetIndentationForLevel(targetLevel));
                 }
                 else
                 {
