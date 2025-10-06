@@ -27,18 +27,25 @@ namespace CppToCsConverter.Core.Generators
 
         private string GenerateClassInternal(CppClass cppClass, List<CppMethod> implementationMethods, string fileName, bool isPartial)
         {
-            // Check if this is likely header-only generation (few or no implementation methods)
-            bool isHeaderOnlyGeneration = implementationMethods == null || 
-                                        implementationMethods.Count == 0 || 
-                                        (cppClass.Methods.Count > 0 && implementationMethods.Count < cppClass.Methods.Count / 2);
+            // Check if this is truly header-only generation (no implementations AND no inline methods)
+            var methodsNeedingImplementation = cppClass.Methods.Where(m => 
+                !m.HasInlineImplementation && 
+                !string.IsNullOrEmpty(m.Name) && 
+                !m.IsConstructor).Count();
+            
+            var availableImplementations = implementationMethods?.Count ?? 0;
+            bool hasAnyMethodBodies = cppClass.Methods.Any(m => m.HasInlineImplementation) || availableImplementations > 0;
+            
+            // Only warn if there are methods needing implementation but no bodies available anywhere
+            bool isHeaderOnlyGeneration = methodsNeedingImplementation > 0 && !hasAnyMethodBodies;
 
-            if (isHeaderOnlyGeneration && cppClass.Methods.Any())
+            if (isHeaderOnlyGeneration)
             {
                 // Write warning to console with yellow color
                 var currentColor = Console.ForegroundColor;
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine($"⚠️  WARNING: Generating '{fileName}' from header-only content. Methods will contain TODO implementations.");
-                Console.WriteLine($"    Class: {cppClass.Name} | Header methods: {cppClass.Methods.Count} | Implementation methods: {implementationMethods?.Count ?? 0}");
+                Console.WriteLine($"    Class: {cppClass.Name} | Header methods: {cppClass.Methods.Count} | Implementation methods: {availableImplementations}");
                 Console.ForegroundColor = currentColor;
             }
 

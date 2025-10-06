@@ -10,6 +10,87 @@ namespace CppToCsConverter.Tests
     public class IndentationDebugTests
     {
         [Fact]
+        public void TestWarningLogicFix()
+        {
+            // Test that warning does NOT appear when methods have implementations (inline or cpp)
+            var headerWithInlineImpl = @"class TestClass
+{
+public:
+    // Method with inline implementation - should NOT warn
+    int MethodWithInline() { return 42; }
+    
+    // Method without implementation - has TODO but should NOT warn if other methods have implementations
+    int MethodWithoutImpl();
+};";
+
+            var headerOnlyNoImpl = @"class TrulyHeaderOnly
+{
+public:
+    // Method without implementation and no inline - SHOULD warn
+    int MethodNoImpl();
+    void AnotherMethodNoImpl();
+};";
+
+            var tempHeaderWithInline = Path.GetTempFileName() + ".h";
+            var tempHeaderOnly = Path.GetTempFileName() + ".h";
+            
+            try
+            {
+                File.WriteAllText(tempHeaderWithInline, headerWithInlineImpl);
+                File.WriteAllText(tempHeaderOnly, headerOnlyNoImpl);
+
+                var headerParser = new CppHeaderParser();
+                
+                // Test 1: Class with inline implementation - should NOT trigger warning logic
+                var classesWithInline = headerParser.ParseHeaderFile(tempHeaderWithInline);
+                var classWithInline = classesWithInline.FirstOrDefault(c => c.Name == "TestClass");
+                
+                // Test 2: Class with no implementations - SHOULD trigger warning logic  
+                var classesHeaderOnly = headerParser.ParseHeaderFile(tempHeaderOnly);
+                var classHeaderOnly = classesHeaderOnly.FirstOrDefault(c => c.Name == "TrulyHeaderOnly");
+
+                Console.WriteLine("=== WARNING LOGIC TEST ===");
+                Console.WriteLine($"TestClass methods: {classWithInline?.Methods.Count}");
+                Console.WriteLine($"TestClass inline methods: {classWithInline?.Methods.Count(m => m.HasInlineImplementation)}");
+                
+                Console.WriteLine($"TrulyHeaderOnly methods: {classHeaderOnly?.Methods.Count}");
+                Console.WriteLine($"TrulyHeaderOnly inline methods: {classHeaderOnly?.Methods.Count(m => m.HasInlineImplementation)}");
+                
+                // Test the warning logic for both cases
+                if (classWithInline != null)
+                {
+                    var methodsNeedingImpl1 = classWithInline.Methods.Where(m => 
+                        !m.HasInlineImplementation && 
+                        !string.IsNullOrEmpty(m.Name) && 
+                        !m.IsConstructor).Count();
+                    
+                    bool hasAnyBodies1 = classWithInline.Methods.Any(m => m.HasInlineImplementation);
+                    bool shouldWarn1 = methodsNeedingImpl1 > 0 && !hasAnyBodies1;
+                    
+                    Console.WriteLine($"TestClass should warn: {shouldWarn1} (methods needing impl: {methodsNeedingImpl1}, has bodies: {hasAnyBodies1})");
+                }
+                
+                if (classHeaderOnly != null)
+                {
+                    var methodsNeedingImpl2 = classHeaderOnly.Methods.Where(m => 
+                        !m.HasInlineImplementation && 
+                        !string.IsNullOrEmpty(m.Name) && 
+                        !m.IsConstructor).Count();
+                    
+                    bool hasAnyBodies2 = classHeaderOnly.Methods.Any(m => m.HasInlineImplementation);
+                    bool shouldWarn2 = methodsNeedingImpl2 > 0 && !hasAnyBodies2;
+                    
+                    Console.WriteLine($"TrulyHeaderOnly should warn: {shouldWarn2} (methods needing impl: {methodsNeedingImpl2}, has bodies: {hasAnyBodies2})");
+                }
+            }
+            finally
+            {
+                if (File.Exists(tempHeaderWithInline)) File.Delete(tempHeaderWithInline);
+                if (File.Exists(tempHeaderOnly)) File.Delete(tempHeaderOnly);
+            }
+        }
+
+        [Fact]
         public void TestHeaderImplementationCombination()
         {
             // Test the specific header/implementation combination from user request
