@@ -152,7 +152,10 @@ namespace CppToCsConverter.Core.Parsers
                         if (method != null)
                         {
                             // Collect comments and region markers for method from .h file
-                            method.HeaderComments = CollectPrecedingComments(lines, originalIndex);
+                            var (headerComments, headerIndentation) = CollectPrecedingCommentsWithIndentation(lines, originalIndex);
+                            method.HeaderComments = headerComments;
+                            method.HeaderCommentIndentation = headerIndentation;
+                            
                             var (regionStart, regionEnd) = ParseRegionMarkers(lines, originalIndex, i);
                             method.HeaderRegionStart = regionStart;
                             method.HeaderRegionEnd = regionEnd;
@@ -701,9 +704,10 @@ namespace CppToCsConverter.Core.Parsers
         }
 
         // Comment and region parsing methods
-        private List<string> CollectPrecedingComments(string[] lines, int currentIndex)
+        private (List<string> comments, int indentation) CollectPrecedingCommentsWithIndentation(string[] lines, int currentIndex)
         {
             var comments = new List<string>();
+            int originalIndentation = 0;
             int lookbackIndex = currentIndex - 1;
             
             // Skip empty lines immediately before
@@ -793,6 +797,19 @@ namespace CppToCsConverter.Core.Parsers
             // Add the collected comment block to results if any
             comments.AddRange(commentBlock);
             
+            // Capture original indentation from first comment line
+            if (comments.Any())
+            {
+                var firstComment = comments[0];
+                originalIndentation = firstComment.Length - firstComment.TrimStart().Length;
+            }
+            
+            return (comments, originalIndentation);
+        }
+
+        private List<string> CollectPrecedingComments(string[] lines, int currentIndex)
+        {
+            var (comments, _) = CollectPrecedingCommentsWithIndentation(lines, currentIndex);
             return comments;
         }
 

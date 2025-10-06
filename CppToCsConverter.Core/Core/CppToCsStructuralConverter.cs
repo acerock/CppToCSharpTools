@@ -356,7 +356,7 @@ namespace CppToCsConverter.Core.Core
 
             // Add methods from header (declarations only) - preserve C++ syntax
             // Skip methods that have implementations in source files to avoid duplicates
-            foreach (var method in cppClass.Methods.Where(m => m.AccessSpecifier == AccessSpecifier.Public))
+            foreach (var method in cppClass.Methods)
             {
                 // Skip if this exact method signature has an implementation in source files (avoid duplicates)
                 if (!method.HasInlineImplementation && implementedMethodSignatures.Contains(GetMethodSignature(method)))

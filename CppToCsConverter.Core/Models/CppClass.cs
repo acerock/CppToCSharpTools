@@ -53,6 +53,11 @@ namespace CppToCsConverter.Core.Models
         public string HeaderRegionEnd { get; set; } = string.Empty; // Region end from .h file (converted to comment)  
         public string SourceRegionStart { get; set; } = string.Empty; // Region start from .cpp file (preserved as region)
         public string SourceRegionEnd { get; set; } = string.Empty; // Region end from .cpp file (preserved as region)
+        
+        // Indentation context properties for proper alignment
+        public int HeaderCommentIndentation { get; set; } = 0; // Original indentation level of header comments
+        public int SourceCommentIndentation { get; set; } = 0; // Original indentation level of source comments  
+        public int ImplementationIndentation { get; set; } = 0; // Original indentation level of method body
     }
 
     public class CppParameter

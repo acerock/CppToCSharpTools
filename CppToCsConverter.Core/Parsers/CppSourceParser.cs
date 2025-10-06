@@ -67,8 +67,16 @@ namespace CppToCsConverter.Core.Parsers
                     // Check if this line contains the method signature
                     if (line.Contains($"{method.ClassName}::{method.Name}") && line.Contains("("))
                     {
-                        // Collect comments before method
-                        method.SourceComments = CollectPrecedingComments(lines, i);
+                        // Collect comments before method with indentation
+                        var (sourceComments, sourceIndentation) = CollectPrecedingCommentsWithIndentation(lines, i);
+                        method.SourceComments = sourceComments;
+                        method.SourceCommentIndentation = sourceIndentation;
+                        
+                        // Capture implementation indentation from the method body
+                        if (!string.IsNullOrEmpty(method.ImplementationBody))
+                        {
+                            method.ImplementationIndentation = CppToCsConverter.Core.Utils.IndentationManager.DetectOriginalIndentation(method.ImplementationBody);
+                        }
                         
                         // Look for region markers around method
                         var (regionStart, regionEnd) = ParseSourceRegionMarkers(lines, i, methods, method.OrderIndex);
@@ -269,9 +277,10 @@ namespace CppToCsConverter.Core.Parsers
         }
 
         // Comment and region parsing methods for .cpp files
-        private List<string> CollectPrecedingComments(string[] lines, int currentIndex)
+        private (List<string> comments, int indentation) CollectPrecedingCommentsWithIndentation(string[] lines, int currentIndex)
         {
             var comments = new List<string>();
+            int originalIndentation = 0;
             int lookbackIndex = currentIndex - 1;
             
             // Skip empty lines immediately before
@@ -361,6 +370,19 @@ namespace CppToCsConverter.Core.Parsers
             // Add the collected comment block to results if any
             comments.AddRange(commentBlock);
             
+            // Capture original indentation from first comment line
+            if (comments.Any())
+            {
+                var firstComment = comments[0];
+                originalIndentation = firstComment.Length - firstComment.TrimStart().Length;
+            }
+            
+            return (comments, originalIndentation);
+        }
+
+        private List<string> CollectPrecedingComments(string[] lines, int currentIndex)
+        {
+            var (comments, _) = CollectPrecedingCommentsWithIndentation(lines, currentIndex);
             return comments;
         }
 

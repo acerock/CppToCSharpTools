@@ -149,21 +149,25 @@ namespace CppToCsConverter.Core.Generators
                 sb.AppendLine();
             }
 
-            // Add comments from .h file
+            // Add comments from .h file with proper indentation
             if (method.HeaderComments.Any())
             {
-                foreach (var comment in method.HeaderComments)
+                var indentedComments = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodComments(
+                    method.HeaderComments, method.HeaderCommentIndentation);
+                if (!string.IsNullOrEmpty(indentedComments))
                 {
-                    sb.AppendLine($"        {comment}");
+                    sb.AppendLine(indentedComments);
                 }
             }
 
-            // Add comments from .cpp file
+            // Add comments from .cpp file with proper indentation
             if (method.SourceComments.Any())
             {
-                foreach (var comment in method.SourceComments)
+                var indentedComments = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodComments(
+                    method.SourceComments, method.SourceCommentIndentation);
+                if (!string.IsNullOrEmpty(indentedComments))
                 {
-                    sb.AppendLine($"        {comment}");
+                    sb.AppendLine(indentedComments);
                 }
             }
 
@@ -213,7 +217,11 @@ namespace CppToCsConverter.Core.Generators
                 
                 // Use inline implementation from header
                 var convertedBody = ConvertCppToCsBody(method.InlineImplementation);
-                sb.AppendLine(AddIndentation(convertedBody, "            "));
+                // For inline implementations, detect indentation from the inline body
+                var originalIndentation = CppToCsConverter.Core.Utils.IndentationManager.DetectOriginalIndentation(method.InlineImplementation);
+                var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                    convertedBody, originalIndentation);
+                sb.AppendLine(indentedBody);
             }
             else
             {
@@ -224,7 +232,9 @@ namespace CppToCsConverter.Core.Generators
                 if (implMethod != null && !string.IsNullOrEmpty(implMethod.ImplementationBody))
                 {
                     var convertedBody = ConvertCppToCsBody(implMethod.ImplementationBody);
-                    sb.AppendLine(AddIndentation(convertedBody, "            "));
+                    var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                        convertedBody, implMethod.ImplementationIndentation);
+                    sb.AppendLine(indentedBody);
                 }
                 else
                 {
