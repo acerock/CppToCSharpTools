@@ -419,7 +419,12 @@ namespace CppToCsConverter.Core.Core
                         }
                     }
                     
-                    var indentedInlineBody = IndentMethodBody(method.InlineImplementation, "            ");
+                    // Use IndentationManager for proper context-aware indentation
+                    var originalIndentation = CppToCsConverter.Core.Utils.IndentationManager.DetectOriginalIndentation(method.InlineImplementation);
+                    var indentedInlineBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                        method.InlineImplementation, 
+                        originalIndentation
+                    );
                     sb.Append(indentedInlineBody);
                     sb.AppendLine(); // Ensure line break before closing brace
                     sb.AppendLine("        }");
@@ -488,7 +493,11 @@ namespace CppToCsConverter.Core.Core
                 {
                     // Include the original C++ implementation body with proper indentation
                     // Use 8 spaces since .cpp method bodies already have indentation
-                    var indentedBody = IndentMethodBody(method.ImplementationBody, "        ");
+                    // Use IndentationManager for proper context-aware indentation
+                    var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                        method.ImplementationBody, 
+                        method.ImplementationIndentation
+                    );
                     sb.Append(indentedBody);
                     sb.AppendLine(); // Ensure line break before closing brace
                 }
@@ -666,8 +675,11 @@ namespace CppToCsConverter.Core.Core
                 else if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
                 {
                     // Use actual implementation body for non-factory methods
-                    // Use 8 spaces since .cpp method bodies already have indentation
-                    var indentedBody = IndentMethodBody(implementation.ImplementationBody, "        ");
+                    // Use IndentationManager for proper context-aware indentation
+                    var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                        implementation.ImplementationBody, 
+                        implementation.ImplementationIndentation
+                    );
                     sb.Append(indentedBody);
                     sb.AppendLine(); // Ensure line break before closing brace
                 }

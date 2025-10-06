@@ -243,8 +243,11 @@ namespace CppToCsConverter.Core.Parsers
                 if (openBrace >= 0 && closeBrace > openBrace)
                 {
                     var methodBody = fullMethod.Substring(openBrace + 1, closeBrace - openBrace - 1);
-                    // Replace tab characters with four spaces and trim leading/trailing whitespace
-                    method.InlineImplementation = methodBody.Replace("\t", "    ").Trim();
+                    // Replace tab characters with four spaces
+                    methodBody = methodBody.Replace("\t", "    ");
+                    
+                    // Normalize indentation: find minimum indentation and remove it from all lines
+                    method.InlineImplementation = NormalizeIndentation(methodBody);
                 }
                 else
                 {
@@ -861,6 +864,65 @@ namespace CppToCsConverter.Core.Parsers
             }
             
             return (regionStart, regionEnd);
+        }
+        
+        /// <summary>
+        /// Normalizes the indentation of a method body by finding the minimum indentation
+        /// of all non-empty lines and removing that amount from all lines.
+        /// This ensures consistent relative indentation regardless of the original context.
+        /// </summary>
+        /// <param name="methodBody">The raw method body content</param>
+        /// <returns>The method body with normalized indentation</returns>
+        private string NormalizeIndentation(string methodBody)
+        {
+            if (string.IsNullOrWhiteSpace(methodBody))
+                return string.Empty;
+                
+            var lines = methodBody.Split(new[] { "\r\n", "\n", "\r" }, StringSplitOptions.None);
+            
+            // Find the minimum indentation among all non-empty lines
+            int minIndentation = int.MaxValue;
+            foreach (var line in lines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    int leadingSpaces = 0;
+                    foreach (char c in line)
+                    {
+                        if (c == ' ')
+                            leadingSpaces++;
+                        else
+                            break;
+                    }
+                    minIndentation = Math.Min(minIndentation, leadingSpaces);
+                }
+            }
+            
+            // If no non-empty lines found, return empty
+            if (minIndentation == int.MaxValue)
+                return string.Empty;
+                
+            // Remove the minimum indentation from all lines
+            var normalizedLines = new List<string>();
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    // Keep empty lines as empty
+                    normalizedLines.Add(string.Empty);
+                }
+                else
+                {
+                    // Remove the minimum indentation
+                    var normalizedLine = line.Length > minIndentation 
+                        ? line.Substring(minIndentation) 
+                        : line.TrimStart();
+                    normalizedLines.Add(normalizedLine);
+                }
+            }
+            
+            // Join lines and trim trailing whitespace
+            return string.Join("\n", normalizedLines).Trim();
         }
     }
 }

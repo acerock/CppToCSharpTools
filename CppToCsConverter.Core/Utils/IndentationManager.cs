@@ -83,8 +83,8 @@ namespace CppToCsConverter.Core.Utils
 
                 if (string.IsNullOrWhiteSpace(line))
                 {
-                    // Empty line - just add target indentation
-                    result.Append(targetIndentation);
+                    // Empty line - keep it truly empty (no indentation)
+                    // Don't add any characters for empty lines
                 }
                 else
                 {
@@ -138,7 +138,47 @@ namespace CppToCsConverter.Core.Utils
             if (string.IsNullOrEmpty(methodBody))
                 return string.Empty;
 
-            return ReindentBlock(methodBody, originalIndentation, Levels.MethodBody);
+            var reindented = ReindentBlock(methodBody, originalIndentation, Levels.MethodBody);
+            return CleanupMultipleEmptyLines(reindented);
+        }
+        
+        /// <summary>
+        /// Removes excessive consecutive empty lines, keeping only single empty lines for readability
+        /// </summary>
+        /// <param name="text">Text to clean up</param>
+        /// <returns>Cleaned up text with single empty lines</returns>
+        private static string CleanupMultipleEmptyLines(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return string.Empty;
+                
+            var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+            var cleanedLines = new List<string>();
+            var previousLineEmpty = false;
+            
+            foreach (var line in lines)
+            {
+                var isCurrentLineEmpty = string.IsNullOrWhiteSpace(line);
+                
+                if (isCurrentLineEmpty)
+                {
+                    // Only keep empty line if previous line wasn't empty
+                    if (!previousLineEmpty)
+                    {
+                        cleanedLines.Add(string.Empty); // Add truly empty line
+                    }
+                    // Skip multiple consecutive empty lines
+                }
+                else
+                {
+                    // Non-empty line, add it as is
+                    cleanedLines.Add(line);
+                }
+                
+                previousLineEmpty = isCurrentLineEmpty;
+            }
+            
+            return string.Join("\n", cleanedLines);
         }
 
         /// <summary>
