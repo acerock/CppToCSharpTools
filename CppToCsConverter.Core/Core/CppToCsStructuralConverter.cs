@@ -185,6 +185,9 @@ namespace CppToCsConverter.Core.Core
                     {
                         Console.WriteLine($"ERROR: File was not created: {csFileName}");
                     }
+                    
+                    // Generate additional partial class files for classes that need them
+                    GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, outputDirectory);
                 }
                 catch (Exception ex)
                 {
@@ -270,6 +273,16 @@ namespace CppToCsConverter.Core.Core
 
         private void GenerateClassWithCppBodies(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
         {
+            // First, enrich header methods with TargetFileName from source implementations
+            EnrichMethodsWithTargetFileNames(cppClass, parsedSources);
+            
+            // Check if this class needs partial generation based on TargetFileName distribution
+            if (cppClass.IsPartialClass())
+            {
+                GeneratePartialClass(sb, cppClass, parsedSources, staticMemberInits, fileName);
+                return;
+            }
+            
             // Check if this is header-only generation and show warning
             var implementationMethods = parsedSources.ContainsKey(cppClass.Name) ? parsedSources[cppClass.Name] : new List<CppMethod>();
             
@@ -948,6 +961,311 @@ namespace CppToCsConverter.Core.Core
             
             // Add blank line after struct
             sb.AppendLine();
+        }
+
+        private void GeneratePartialClass(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
+        {
+            // Generate the main partial class file content (header-based content)
+            GenerateMainPartialClass(sb, cppClass, staticMemberInits, fileName);
+        }
+
+        private void GenerateMainPartialClass(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
+        {
+            // Add comments before class declaration
+            if (cppClass.PrecedingComments.Any())
+            {
+                foreach (var comment in cppClass.PrecedingComments)
+                {
+                    sb.AppendLine($"    {comment}");
+                }
+            }
+
+            // Determine access modifier for the class
+            string classAccessModifier = cppClass.IsPublicExport ? "public" : "internal";
+            
+            sb.AppendLine($"    {classAccessModifier} partial class {cppClass.Name}");
+            sb.AppendLine("    {");
+
+            // Generate members (fields) - these go in the main partial class
+            foreach (var member in cppClass.Members)
+            {
+                GenerateMemberForPartialClass(sb, member, staticMemberInits, cppClass.Name);
+            }
+
+            // Generate static members 
+            foreach (var staticMember in cppClass.StaticMembers)
+            {
+                GenerateStaticMemberForPartialClass(sb, staticMember, staticMemberInits, cppClass.Name);
+            }
+
+            // Generate methods without target files (inline methods from header)
+            var methodsWithoutTargetFiles = cppClass.Methods.Where(m => string.IsNullOrEmpty(m.TargetFileName)).ToList();
+            if (methodsWithoutTargetFiles.Any())
+            {
+                sb.AppendLine();
+                sb.AppendLine("        // Header-only methods (inline implementations)");
+                foreach (var method in methodsWithoutTargetFiles)
+                {
+                    GenerateMethodForPartialClass(sb, method, cppClass.Name);
+                }
+            }
+
+            sb.AppendLine("    }");
+        }
+
+        private void GenerateMemberForPartialClass(StringBuilder sb, CppMember member, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string className)
+        {
+            // Add region start marker if present
+            if (!string.IsNullOrEmpty(member.RegionStart))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"        {member.RegionStart}");
+                sb.AppendLine();
+            }
+
+            // Add comments before member
+            if (member.PrecedingComments.Any())
+            {
+                foreach (var comment in member.PrecedingComments)
+                {
+                    sb.AppendLine($"        {comment}");
+                }
+            }
+
+            var accessModifier = ConvertAccessSpecifier(member.AccessSpecifier);
+            var staticModifier = member.IsStatic ? "static " : "";
+            
+            // Generate member with same logic as existing code
+            string initialization = "";
+            string memberType = member.Type;
+            string memberName = member.Name;
+            
+            if (member.IsStatic)
+            {
+                var staticInit = staticMemberInits.Values
+                    .SelectMany(inits => inits)
+                    .FirstOrDefault(init => init.ClassName == className && init.MemberName == member.Name);
+                
+                if (staticInit != null)
+                {
+                    initialization = $" = {staticInit.InitializationValue}";
+                    
+                    if (member.IsArray || staticInit.IsArray)
+                    {
+                        memberType = staticInit.Type + "[]";
+                    }
+                }
+            }
+
+            sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {memberName}{initialization};");
+
+            // Add region end marker if present
+            if (!string.IsNullOrEmpty(member.RegionEnd))
+            {
+                sb.AppendLine();
+                sb.AppendLine($"        {member.RegionEnd}");
+                sb.AppendLine();
+            }
+        }
+
+        private void GenerateStaticMemberForPartialClass(StringBuilder sb, CppStaticMember staticMember, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string className)
+        {
+            // Use same logic as existing static member generation
+            var staticInit = staticMemberInits.Values
+                .SelectMany(inits => inits)
+                .FirstOrDefault(init => init.ClassName == className && init.MemberName == staticMember.Name);
+            
+            string initialization = "";
+            string memberType = staticMember.Type;
+            
+            if (staticInit != null)
+            {
+                initialization = $" = {staticInit.InitializationValue}";
+                if (staticInit.IsArray)
+                {
+                    memberType = staticInit.Type + "[]";
+                }
+            }
+            
+            sb.AppendLine($"        public static {memberType} {staticMember.Name}{initialization};");
+        }
+
+        private void GenerateMethodForPartialClass(StringBuilder sb, CppMethod method, string className)
+        {
+            // Use existing method generation logic
+            string accessModifier = ConvertAccessSpecifier(method.AccessSpecifier);
+            string staticModifier = method.IsStatic ? "static " : "";
+            string virtualModifier = method.IsVirtual ? "virtual " : "";
+            string returnType = string.IsNullOrWhiteSpace(method.ReturnType) ? "void" : method.ReturnType;
+            
+            var parameters = string.Join(", ", method.Parameters.Select(p => FormatCppParameter(p)));
+            
+            sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType} {method.Name}({parameters})");
+            sb.AppendLine("        {");
+            
+            // Use implementation body if available
+            if (!string.IsNullOrEmpty(method.ImplementationBody))
+            {
+                var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                    method.ImplementationBody, 
+                    method.ImplementationIndentation
+                );
+                sb.Append(indentedBody);
+                sb.AppendLine();
+            }
+            else if (!string.IsNullOrEmpty(method.InlineImplementation))
+            {
+                var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                    method.InlineImplementation, 
+                    0
+                );
+                sb.Append(indentedBody);
+                sb.AppendLine();
+            }
+            else
+            {
+                sb.AppendLine("            // TODO: Implement method body");
+            }
+            
+            sb.AppendLine("        }");
+            sb.AppendLine();
+        }
+
+        private void EnrichMethodsWithTargetFileNames(CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources)
+        {
+            // Get all source methods from all parsed source files
+            var allSourceMethods = parsedSources.Values.SelectMany(methods => methods).ToList();
+            
+            foreach (var headerMethod in cppClass.Methods)
+            {
+                // Skip methods that already have a TargetFileName (e.g., inline methods)
+                if (!string.IsNullOrEmpty(headerMethod.TargetFileName))
+                    continue;
+                
+                // Find matching source method
+                var sourceMethod = allSourceMethods.FirstOrDefault(sm => 
+                    sm.ClassName == cppClass.Name && 
+                    sm.Name == headerMethod.Name &&
+                    ParametersMatch(headerMethod.Parameters, sm.Parameters));
+                
+                if (sourceMethod != null)
+                {
+                    // Copy TargetFileName and ImplementationBody from source method
+                    headerMethod.TargetFileName = sourceMethod.TargetFileName;
+                    if (string.IsNullOrEmpty(headerMethod.ImplementationBody))
+                    {
+                        headerMethod.ImplementationBody = sourceMethod.ImplementationBody;
+                        headerMethod.ImplementationIndentation = sourceMethod.ImplementationIndentation;
+                    }
+                }
+            }
+        }
+
+        private bool ParametersMatch(List<CppParameter> headerParams, List<CppParameter> sourceParams)
+        {
+            if (headerParams.Count != sourceParams.Count)
+                return false;
+            
+            for (int i = 0; i < headerParams.Count; i++)
+            {
+                // For a simple match, just compare parameter count
+                // More sophisticated matching could compare types, but parameter count is usually sufficient
+                // since method names + parameter count typically uniquely identify methods in C++
+            }
+            
+            return true;
+        }
+
+        private void GenerateAdditionalPartialFiles(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string outputDirectory)
+        {
+            foreach (var cppClass in classes)
+            {
+                // Skip interfaces - they should not be processed as partial classes
+                if (cppClass.IsInterface)
+                    continue;
+                    
+                // First, enrich header methods with TargetFileName from source implementations
+                EnrichMethodsWithTargetFileNames(cppClass, parsedSources);
+                
+                // Check if this class needs partial generation
+                if (cppClass.IsPartialClass())
+                {
+                    // Get methods grouped by target file
+                    var methodsByTargetFile = cppClass.GetMethodsByTargetFile();
+                    var targetFileNames = cppClass.GetTargetFileNames();
+                    
+                    // Generate a separate partial file for each target file that has methods
+                    foreach (var targetFile in targetFileNames)
+                    {
+                        var methodsForTarget = methodsByTargetFile[targetFile];
+                        if (methodsForTarget.Any())
+                        {
+                            GeneratePartialClassFile(cppClass, targetFile, methodsForTarget, outputDirectory);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, string outputDirectory)
+        {
+            var sb = new StringBuilder();
+            
+            // Add using statements (same as main file for consistency)
+            sb.AppendLine("using Agresso.Interface.CoreServices;");
+            sb.AppendLine("using Agresso.Types;");
+            sb.AppendLine("using BatchNet.Compatibility.Types;");
+            sb.AppendLine("using BatchNet.Fundamentals.Compatibility;");
+            sb.AppendLine("using U4.BatchNet.Common.Compatibility;");
+            sb.AppendLine("using static BatchNet.Compatibility.Level1;");
+            sb.AppendLine("using static BatchNet.Compatibility.BatchApi;");
+            sb.AppendLine();
+
+            // Add namespace (same as main file)
+            var originalFileName = cppClass.Methods.FirstOrDefault()?.TargetFileName ?? targetFileName;
+            sb.AppendLine($"namespace Generated_{originalFileName}");
+            sb.AppendLine("{");
+
+            // Generate partial class
+            string classAccessModifier = cppClass.IsPublicExport ? "public" : "internal";
+            sb.AppendLine($"    {classAccessModifier} partial class {cppClass.Name}");
+            sb.AppendLine("    {");
+
+            // Generate methods for this target file
+            foreach (var method in methods)
+            {
+                GenerateMethodForPartialClass(sb, method, cppClass.Name);
+            }
+
+            sb.AppendLine("    }");
+            sb.AppendLine("}");
+
+            // Write the partial file
+            var partialFileName = Path.Combine(outputDirectory, $"{targetFileName}.cs");
+            
+            try
+            {
+                Console.WriteLine($"Writing partial C# file: {partialFileName}");
+                var normalizedContent = sb.ToString().Replace("\r\n", "\n").Replace("\n", Environment.NewLine);
+                File.WriteAllText(partialFileName, normalizedContent);
+                Console.WriteLine($"Generated partial C# file: {targetFileName}.cs (Size: {sb.Length} chars)");
+                
+                // Verify file was written
+                if (File.Exists(partialFileName))
+                {
+                    var fileInfo = new FileInfo(partialFileName);
+                    Console.WriteLine($"Partial file verified: {partialFileName} (Size: {fileInfo.Length} bytes)");
+                }
+                else
+                {
+                    Console.WriteLine($"ERROR: Partial file was not created: {partialFileName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR writing partial C# file {partialFileName}: {ex.Message}");
+                throw;
+            }
         }
     }
 }

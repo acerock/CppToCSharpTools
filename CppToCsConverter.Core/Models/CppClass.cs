@@ -14,6 +14,54 @@ namespace CppToCsConverter.Core.Models
         public List<string> PrecedingComments { get; set; } = new List<string>(); // Comments before class declaration
         
         public AccessSpecifier DefaultAccessSpecifier => IsInterface ? AccessSpecifier.Public : AccessSpecifier.Private;
+        
+        /// <summary>
+        /// Determines if this class should be generated as partial classes based on TargetFileName distribution
+        /// </summary>
+        public bool IsPartialClass()
+        {
+            if (!Methods.Any()) return false;
+            
+            // Get all unique target file names from methods that have implementations or inline code
+            var targetFileNames = Methods
+                .Where(m => !string.IsNullOrEmpty(m.TargetFileName))
+                .Select(m => m.TargetFileName)
+                .Distinct()
+                .ToList();
+            
+            // If methods are distributed across multiple target files, it's a partial class
+            if (targetFileNames.Count > 1) return true;
+            
+            // Special case: If we have both inline (header) and non-inline (source) implementations
+            // even with the same base filename, treat as partial class
+            var hasInlineMethods = Methods.Any(m => m.HasInlineImplementation);
+            var hasSourceMethods = Methods.Any(m => !m.HasInlineImplementation && !string.IsNullOrEmpty(m.ImplementationBody));
+            
+            return hasInlineMethods && hasSourceMethods;
+        }
+        
+        /// <summary>
+        /// Gets all unique target file names where this class has method implementations
+        /// </summary>
+        public List<string> GetTargetFileNames()
+        {
+            return Methods
+                .Where(m => !string.IsNullOrEmpty(m.TargetFileName))
+                .Select(m => m.TargetFileName)
+                .Distinct()
+                .ToList();
+        }
+        
+        /// <summary>
+        /// Gets methods grouped by their target file names for partial class generation
+        /// </summary>
+        public Dictionary<string, List<CppMethod>> GetMethodsByTargetFile()
+        {
+            return Methods
+                .Where(m => !string.IsNullOrEmpty(m.TargetFileName))
+                .GroupBy(m => m.TargetFileName)
+                .ToDictionary(g => g.Key, g => g.ToList());
+        }
     }
 
     public class CppMember
@@ -46,6 +94,7 @@ namespace CppToCsConverter.Core.Models
         public string ImplementationBody { get; set; } = string.Empty;
         public string ClassName { get; set; } = string.Empty; // For source file parsing
         public int OrderIndex { get; set; } // For maintaining order from .cpp files
+        public string TargetFileName { get; set; } = string.Empty; // Target .cs file name (without extension) - .cpp file name for implementations, .h file name for inline methods
         public List<CppMemberInitializer> MemberInitializerList { get; set; } = new List<CppMemberInitializer>();
         public List<string> HeaderComments { get; set; } = new List<string>(); // Comments from .h file
         public List<string> SourceComments { get; set; } = new List<string>(); // Comments from .cpp file

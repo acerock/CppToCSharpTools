@@ -35,9 +35,10 @@ namespace CppToCsConverter.Core.Parsers
             {
                 var content = File.ReadAllText(filePath);
                 var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                var fileName = Path.GetFileNameWithoutExtension(filePath);
                 
                 // Parse method implementations using the original approach
-                methods.AddRange(ParseMethodImplementations(content));
+                methods.AddRange(ParseMethodImplementations(content, fileName));
                 
                 // Add comments and regions to the parsed methods
                 AddCommentsAndRegionsToMethods(lines, methods);
@@ -89,7 +90,7 @@ namespace CppToCsConverter.Core.Parsers
             }
         }
 
-        private List<CppMethod> ParseMethodImplementations(string content)
+        private List<CppMethod> ParseMethodImplementations(string content, string fileName)
         {
             var methods = new List<CppMethod>();
             var matches = _methodImplementationRegex.Matches(content);
@@ -116,6 +117,9 @@ namespace CppToCsConverter.Core.Parsers
 
                 // Extract method body
                 method.ImplementationBody = ExtractMethodBody(content, match.Index + match.Length);
+                
+                // Set TargetFileName for .cpp implementations
+                method.TargetFileName = fileName;
 
                 methods.Add(method);
             }

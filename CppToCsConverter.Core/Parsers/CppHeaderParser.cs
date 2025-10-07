@@ -52,7 +52,7 @@ namespace CppToCsConverter.Core.Parsers
             
             while (i < lines.Length)
             {
-                var foundClass = ParseNextClassFromLines(lines, ref i);
+                var foundClass = ParseNextClassFromLines(lines, ref i, fileName);
                 if (foundClass != null)
                 {
                     classes.Add(foundClass);
@@ -66,7 +66,7 @@ namespace CppToCsConverter.Core.Parsers
             return classes;
         }
 
-        private CppClass? ParseNextClassFromLines(string[] lines, ref int startIndex)
+        private CppClass? ParseNextClassFromLines(string[] lines, ref int startIndex, string fileName)
         {
             CppClass? currentClass = null;
             AccessSpecifier currentAccess = AccessSpecifier.Private;
@@ -154,7 +154,7 @@ namespace CppToCsConverter.Core.Parsers
                 {
                     try
                     {
-                        var method = ParseMethod(methodMatch, currentAccess, methodLine, currentClass.Name);
+                        var method = ParseMethod(methodMatch, currentAccess, methodLine, currentClass.Name, fileName);
                         if (method != null)
                         {
                             // Collect comments and region markers for method from .h file
@@ -210,7 +210,7 @@ namespace CppToCsConverter.Core.Parsers
             return currentClass;
         }
 
-        private CppMethod? ParseMethod(Match methodMatch, AccessSpecifier currentAccess, string collectedMethodLine, string className)
+        private CppMethod? ParseMethod(Match methodMatch, AccessSpecifier currentAccess, string collectedMethodLine, string className, string fileName)
         {
             var method = new CppMethod
             {
@@ -241,6 +241,9 @@ namespace CppToCsConverter.Core.Parsers
 
             if (method.HasInlineImplementation)
             {
+                // Set TargetFileName for inline implementations (from header file)
+                method.TargetFileName = fileName;
+                
                 // Extract just the method body content between braces
                 var fullMethod = collectedMethodLine;
                 var openBrace = fullMethod.IndexOf('{');
