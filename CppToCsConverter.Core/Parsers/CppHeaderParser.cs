@@ -17,6 +17,12 @@ namespace CppToCsConverter.Core.Parsers
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*(\d*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
         private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
+        
+        // Struct parsing regex patterns for the three types
+        private readonly Regex _simpleStructRegex = new Regex(@"^\s*struct\s+(\w+)\s*$", RegexOptions.Compiled);
+        private readonly Regex _typedefStructRegex = new Regex(@"^\s*typedef\s+struct\s*$", RegexOptions.Compiled);
+        private readonly Regex _typedefStructTagRegex = new Regex(@"^\s*typedef\s+struct\s+(\w+)\s*$", RegexOptions.Compiled);
+        private readonly Regex _typedefNameRegex = new Regex(@"^\s*}\s*(\w+)\s*;\s*$", RegexOptions.Compiled);
 
         public CppHeaderParser(ILogger? logger = null)
         {
@@ -85,9 +91,9 @@ namespace CppToCsConverter.Core.Parsers
                 if (line.StartsWith("#") && !line.Contains("pragma region"))
                     continue;
 
-                // Check for class declaration
+                // Check for class declaration (but skip struct declarations that should be handled as structs)
                 var classMatch = _classRegex.Match(line);
-                if (classMatch.Success && !inClass)
+                if (classMatch.Success && !inClass && !IsStructDeclaration(line))
                 {
                     // Collect comments before the class declaration
                     var precedingComments = CollectPrecedingComments(lines, i);
@@ -923,6 +929,253 @@ namespace CppToCsConverter.Core.Parsers
             
             // Join lines and trim trailing whitespace
             return string.Join("\n", normalizedLines).Trim();
+        }
+
+        /// <summary>
+        /// Parses structs from header file and returns them with original C++ syntax preserved
+        /// </summary>
+        public List<CppStruct> ParseStructsFromHeaderFile(string filePath)
+        {
+            try
+            {
+                var content = File.ReadAllText(filePath);
+                var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                
+                return ParseAllStructsFromLines(lines);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error parsing structs from header file {filePath}: {ex.Message}");
+                return new List<CppStruct>();
+            }
+        }
+
+        private List<CppStruct> ParseAllStructsFromLines(string[] lines)
+        {
+            var structs = new List<CppStruct>();
+            int i = 0;
+            
+            while (i < lines.Length)
+            {
+                var foundStruct = ParseNextStructFromLines(lines, ref i);
+                if (foundStruct != null)
+                {
+                    structs.Add(foundStruct);
+                }
+                else
+                {
+                    i++;
+                }
+            }
+            
+            return structs;
+        }
+
+        private CppStruct? ParseNextStructFromLines(string[] lines, ref int startIndex)
+        {
+            for (int i = startIndex; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                
+                // Skip empty lines and non-struct lines
+                if (string.IsNullOrEmpty(line) || line.StartsWith("//") || line.StartsWith("/*") || line.StartsWith("#"))
+                {
+                    continue;
+                }
+
+                // Check for struct patterns
+                CppStruct? structResult = null;
+                
+                // Pattern 1: struct MyStruct
+                var simpleMatch = _simpleStructRegex.Match(line);
+                if (simpleMatch.Success)
+                {
+                    structResult = ParseSimpleStruct(lines, ref i, simpleMatch.Groups[1].Value);
+                }
+                
+                // Pattern 2: typedef struct
+                var typedefMatch = _typedefStructRegex.Match(line);
+                if (typedefMatch.Success)
+                {
+                    structResult = ParseTypedefStruct(lines, ref i);
+                }
+                
+                // Pattern 3: typedef struct MyTag  
+                var typedefTagMatch = _typedefStructTagRegex.Match(line);
+                if (typedefTagMatch.Success)
+                {
+                    structResult = ParseTypedefStructTag(lines, ref i, typedefTagMatch.Groups[1].Value);
+                }
+
+                if (structResult != null)
+                {
+                    startIndex = i + 1;
+                    return structResult;
+                }
+            }
+            
+            startIndex = lines.Length;
+            return null;
+        }
+
+        private CppStruct ParseSimpleStruct(string[] lines, ref int startIndex, string structName)
+        {
+            var structLines = new List<string>();
+            var precedingComments = CollectPrecedingComments(lines, startIndex);
+            
+            // Collect the complete struct definition
+            int braceCount = 0;
+            bool foundOpenBrace = false;
+            
+            for (int i = startIndex; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                structLines.Add(line);
+                
+                // Count braces to find the end
+                foreach (char c in line)
+                {
+                    if (c == '{')
+                    {
+                        braceCount++;
+                        foundOpenBrace = true;
+                    }
+                    else if (c == '}')
+                    {
+                        braceCount--;
+                    }
+                }
+                
+                // Check for end of struct
+                if (foundOpenBrace && braceCount == 0 && line.TrimEnd().EndsWith(";"))
+                {
+                    startIndex = i;
+                    break;
+                }
+            }
+            
+            return new CppStruct
+            {
+                Name = structName,
+                Type = StructType.Simple,
+                OriginalDefinition = string.Join(Environment.NewLine, structLines).Trim(),
+                PrecedingComments = precedingComments
+            };
+        }
+
+        private CppStruct ParseTypedefStruct(string[] lines, ref int startIndex)
+        {
+            var structLines = new List<string>();
+            var precedingComments = CollectPrecedingComments(lines, startIndex);
+            
+            // Collect the complete typedef struct definition
+            int braceCount = 0;
+            bool foundOpenBrace = false;
+            string structName = "";
+            
+            for (int i = startIndex; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                structLines.Add(line);
+                
+                // Count braces
+                foreach (char c in line)
+                {
+                    if (c == '{')
+                    {
+                        braceCount++;
+                        foundOpenBrace = true;
+                    }
+                    else if (c == '}')
+                    {
+                        braceCount--;
+                    }
+                }
+                
+                // Check for end with struct name
+                if (foundOpenBrace && braceCount == 0)
+                {
+                    var nameMatch = _typedefNameRegex.Match(line);
+                    if (nameMatch.Success)
+                    {
+                        structName = nameMatch.Groups[1].Value;
+                        startIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            return new CppStruct
+            {
+                Name = structName,
+                Type = StructType.Typedef,
+                OriginalDefinition = string.Join(Environment.NewLine, structLines).Trim(),
+                PrecedingComments = precedingComments
+            };
+        }
+
+        private CppStruct ParseTypedefStructTag(string[] lines, ref int startIndex, string tagName)
+        {
+            var structLines = new List<string>();
+            var precedingComments = CollectPrecedingComments(lines, startIndex);
+            
+            // Collect the complete typedef struct tag definition
+            int braceCount = 0;
+            bool foundOpenBrace = false;
+            string structName = "";
+            
+            for (int i = startIndex; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                structLines.Add(line);
+                
+                // Count braces
+                foreach (char c in line)
+                {
+                    if (c == '{')
+                    {
+                        braceCount++;
+                        foundOpenBrace = true;
+                    }
+                    else if (c == '}')
+                    {
+                        braceCount--;
+                    }
+                }
+                
+                // Check for end with struct name
+                if (foundOpenBrace && braceCount == 0)
+                {
+                    var nameMatch = _typedefNameRegex.Match(line);
+                    if (nameMatch.Success)
+                    {
+                        structName = nameMatch.Groups[1].Value;
+                        startIndex = i;
+                        break;
+                    }
+                }
+            }
+            
+            return new CppStruct
+            {
+                Name = structName,
+                Type = StructType.TypedefTag,
+                OriginalDefinition = string.Join(Environment.NewLine, structLines).Trim(),
+                PrecedingComments = precedingComments
+            };
+        }
+
+        /// <summary>
+        /// Determines if a line is a struct declaration that should be handled as a struct, not a class
+        /// </summary>
+        private bool IsStructDeclaration(string line)
+        {
+            var trimmedLine = line.Trim();
+            
+            // Check for the three struct patterns
+            return _simpleStructRegex.IsMatch(trimmedLine) || 
+                   _typedefStructRegex.IsMatch(trimmedLine) || 
+                   _typedefStructTagRegex.IsMatch(trimmedLine);
         }
     }
 }

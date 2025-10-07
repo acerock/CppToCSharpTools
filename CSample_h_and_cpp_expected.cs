@@ -8,15 +8,15 @@ using static BatchNet.Compatibility.BatchApi;
 
 namespace Generated_CSample
 {
-    internal struct StructOne
+    struct StructOne
     {
-        internal agrint lTestType;
+        agrint lTestType;
 
         //#region Just a h-file pragma test
 
         // att-id memeber comment
-        internal TAttId attId;
-        internal TDimValue dimVal;
+        TAttId attId;
+        TDimValue dimVal;
 
         //#endregion  // Comment test
     }

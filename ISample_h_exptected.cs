@@ -1,3 +1,10 @@
+/* My struct */
+typedef struct
+{
+    bool MyBoolField;
+    agrint MyIntField;
+} MyStruct;
+
 /* The Interface */
 public interface ISample
 {

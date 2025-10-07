@@ -117,18 +117,28 @@ namespace CppToCsConverter.Core.Core
 
             // Parse header files
             var headerFileClasses = new Dictionary<string, List<CppClass>>();
+            var headerFileStructs = new Dictionary<string, List<CppStruct>>();
+            
             foreach (var headerFile in headerFiles)
             {
                 Console.WriteLine($"Parsing header: {Path.GetFileName(headerFile)}");
                 var classes = _headerParser.ParseHeaderFile(headerFile);
+                var structs = _headerParser.ParseStructsFromHeaderFile(headerFile);
                 var fileName = Path.GetFileNameWithoutExtension(headerFile);
+                
                 headerFileClasses[fileName] = classes;
+                headerFileStructs[fileName] = structs;
                 
                 // Also add to the main dictionary for backward compatibility
                 foreach (var cppClass in classes)
                 {
                     parsedHeaders[cppClass.Name] = cppClass;
-                    Console.WriteLine($"Found class/struct: {cppClass.Name} in {Path.GetFileName(headerFile)}");
+                    Console.WriteLine($"Found class: {cppClass.Name} in {Path.GetFileName(headerFile)}");
+                }
+                
+                foreach (var cppStruct in structs)
+                {
+                    Console.WriteLine($"Found struct: {cppStruct.Name} in {Path.GetFileName(headerFile)}");
                 }
             }
 
@@ -142,18 +152,19 @@ namespace CppToCsConverter.Core.Core
                 staticMemberInits[fileName] = staticInits;
             }
 
-            // Generate C# files - one per header file containing all its classes
+            // Generate C# files - one per header file containing all its classes and structs
             foreach (var headerFileKvp in headerFileClasses)
             {
                 var fileName = headerFileKvp.Key;
                 var classes = headerFileKvp.Value;
+                var structs = headerFileStructs.ContainsKey(fileName) ? headerFileStructs[fileName] : new List<CppStruct>();
                 
-                if (classes.Count == 0)
+                if (classes.Count == 0 && structs.Count == 0)
                     continue;
                     
-                Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} class(es)");
+                Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} class(es) and {structs.Count} struct(s)");
                 
-                var csFileContent = GenerateCsFileWithMultipleClasses(fileName, classes, parsedSources, staticMemberInits, outputDirectory);
+                var csFileContent = GenerateCsFileWithMultipleClasses(fileName, classes, structs, parsedSources, staticMemberInits, outputDirectory);
                 var csFileName = Path.Combine(outputDirectory, $"{fileName}.cs");
                 
                 try
@@ -187,7 +198,7 @@ namespace CppToCsConverter.Core.Core
             Console.WriteLine("Conversion completed!");
         }
 
-        private string GenerateCsFileWithMultipleClasses(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string outputDirectory)
+        private string GenerateCsFileWithMultipleClasses(string fileName, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string outputDirectory)
         {
             var sb = new StringBuilder();
             
@@ -218,6 +229,17 @@ namespace CppToCsConverter.Core.Core
             // Add namespace
             sb.AppendLine($"namespace Generated_{fileName}");
             sb.AppendLine("{");
+
+            // Generate structs first (maintain order from .h file)
+            for (int i = 0; i < structs.Count; i++)
+            {
+                var cppStruct = structs[i];
+                
+                if (i > 0 || classes.Count > 0)
+                    sb.AppendLine(); // Add blank line between items
+                
+                GenerateStructInline(sb, cppStruct);
+            }
 
             // Generate each class in the file
             for (int i = 0; i < classes.Count; i++)
@@ -895,6 +917,37 @@ namespace CppToCsConverter.Core.Core
             
             // Fallback: just prepend C
             return "C" + interfaceName;
+        }
+
+        /// <summary>
+        /// Generates a struct as-is from C++ without transformation
+        /// </summary>
+        private void GenerateStructInline(StringBuilder sb, CppStruct cppStruct)
+        {
+            // Add comments before struct declaration
+            if (cppStruct.PrecedingComments.Any())
+            {
+                foreach (var comment in cppStruct.PrecedingComments)
+                {
+                    sb.AppendLine($"    {comment}");
+                }
+            }
+
+            // Normalize line endings in the original definition first
+            var normalizedDefinition = cppStruct.OriginalDefinition.Replace("\r\n", "\n").Replace("\n", Environment.NewLine);
+            var lines = normalizedDefinition.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            
+            foreach (var line in lines)
+            {
+                if (!string.IsNullOrEmpty(line.Trim()))
+                {
+                    // Preserve original indentation and add base indentation for C# file
+                    sb.AppendLine($"    {line}");
+                }
+            }
+            
+            // Add blank line after struct
+            sb.AppendLine();
         }
     }
 }

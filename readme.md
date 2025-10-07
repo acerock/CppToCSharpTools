@@ -19,6 +19,7 @@ A C++ interface is a class defined with pure virtual methods.
 
 ## Public interfaces
 Public interface in C++ is specificed with the __declspec(dllexport) export definition.
+
 #### C++ sample
 ```
 class __declspec(dllexport) ISample
@@ -254,6 +255,164 @@ internal class CSample : ISample
 {
     private static agrint s_value = 42;
 }
+```
+
+## Struct type
+For structs the goal is to copy them as is with no changes to structure or type to the correct C# source file. This app should not transform structs into C# structs, change access modifiers or comments as this will be handled later downstream by another tool.
+
+### Identifying structs
+There are three differnt ways to define a struct in C++ and we need to identity all.
+
+#### struct
+```
+struct MyStruct
+{
+    bool MyBoolField;
+    agrint MyIntField;
+};
+```
+### typedef struct
+```
+typedef struct
+{
+    bool MyBoolField;
+    agrint MyIntField;
+} MyStruct;
+```
+### typedef struct tag
+```
+typedef struct MyTag
+{
+    bool MyBoolField;
+    agrint MyIntField;
+} MyStruct;
+```
+
+### Persisting structs in .cs files
+The app should identify correct .cs file home for the struct and keep it's order from the .h files.
+
+#### Struct type defined in a header file with pure virtual classes (interface)
+Header file containing pure virtual classes will not have a matching .cpp file. Consider a pure virtual class declaration ISample in ISample.h where there is no ISample.cpp. 
+In this case, the struct is copied to the ISample.cs file in the order they appear in the .h file
+
+##### Sample
+ISample.h
+```
+#pragma once
+
+/* My struct */
+typedef struct
+{
+    bool MyBoolField;
+    agrint MyIntField;
+} MyStruct;
+
+/* The Interface */
+class __declspec(dllexport) ISample
+{
+public:
+    virtual ~ISample(){};
+    static ISample* GetInstance();
+
+    virtual void MethodOne(const CString& cParam1,
+                           const bool &bParam2,
+                           CString *pcParam3) = 0;
+
+    virtual bool MethodTwo() = 0;
+};
+
+// This comment is for the other struct
+
+typedef struct MyTag
+{
+    // This struct has a comment copied as is
+    bool someBool;
+    agrint intValue;
+} MyOtherStruct;
+
+```
+ISample.cs
+```
+/* My struct */
+typedef struct
+{
+    bool MyBoolField;
+    agrint MyIntField;
+} MyStruct;
+
+/* The Interface */
+public interface ISample
+{
+    void MethodOne(CString cParam1,
+                   bool bParam2,
+                   out CString pcParam3);
+
+    bool MethodTwo();
+}
+
+// This comment is for the other struct
+
+typedef struct MyTag
+{
+    // This struct has a comment copied as is
+    bool someBool;
+    agrint intValue;
+} MyOtherStruct;
+
+internal static class ISampleExtensions
+{
+    public static ISample GetInstance(this ISample sample)
+    {
+        CSample* pSample = new CSample();
+        return pSample;
+    }
+}
+```
+
+#### Struct type defined in a header file together with a class with .cpp implementation
+In this case we copy the structs as it is in the same order 
+
+#### Struct type defined in a header file with no class
+In this case we create a .cs file with same name as the .h file where all structs are copied to this file.
+##### Sample
+MyStructs.h
+```
+#pragma once
+
+/* My struct */
+typedef struct
+{
+    bool MyBoolField;
+    agrint MyIntField;
+} MyStruct;
+
+// This comment is for the other struct
+
+typedef struct MyTag
+{
+    // This struct has a comment copied as is
+    bool someBool;
+    agrint intValue;
+} MyOtherStruct;
+
+```
+MyStructs.cs
+```
+/* My struct */
+typedef struct
+{
+    bool MyBoolField;
+    agrint MyIntField;
+} MyStruct;
+
+// This comment is for the other struct
+
+typedef struct MyTag
+{
+    // This struct has a comment copied as is
+    bool someBool;
+    agrint intValue;
+} MyOtherStruct;
 ```
 
 ## Comments and regions

@@ -4,7 +4,6 @@
 
 struct StructOne
 {
-public:
     agrint lTestType;
 
 #pragma region Just a h-file pragma test
