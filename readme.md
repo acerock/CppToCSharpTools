@@ -167,19 +167,23 @@ Also, the .cpp file defines the order of the method implementations in the .cs f
 
 In addition the C++ defines the parameter names. As we remember, the declaration in the header file defines the parameter defaulting (if any) but not the final parameter names (as this might not be given at all) so we applyes the defaulting to the .cpp method definition.
 
-## Classes with bodies in multiple .cpp files
+### Classes with bodies in multiple .cpp files
 There is no 1 to 1 relation with .h files and .cpp files. The body of a method can be in .cpp file with same name as the .h file, but in many cases this is not true, and the method bodies can be spread around multiple .cpp files.
 
 In these cases we make a partial C# class implemented in .cs file names as the original .cpp file. 
 
-#### Sample for multiple .cpp files with method bodies
+#### Sample for multiple .cpp files for method bodies
 CSample.h
 ```
 class CSample : public ISample
 {
+private:
+    agrint m_value1;
+
 public:
 	void MethodOne();
 	void MethodTwo();
+	void MethodThree();
 }
 ```
 CSample.cpp
@@ -195,11 +199,19 @@ void CSample::MethodTwo()
 {
     m_value1 = 2;
 }
+
+// Comment for method three
+void CSample::MethodThree()
+{
+    m_value1 = 3;
+}
 ```
 CSample.cs
 ```
 internal partial class CSample : ISample
 {
+    private agrint m_value1;
+
     public void MethodOne()
     {
         m_value1 = 1;
@@ -213,6 +225,12 @@ internal partial class CSample : ISample
     public void MethodTwo()
     {
         m_value1 = 2;
+    }
+
+    // Comment for method three
+    public void MethodThree()
+    {
+        m_value1 = 3;
     }
 }
 ```
