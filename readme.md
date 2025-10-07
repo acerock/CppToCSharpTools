@@ -173,6 +173,15 @@ There is no 1 to 1 relation with .h files and .cpp files. The body of a method c
 In these cases we make a partial C# class implemented in .cs file names as the original .cpp file. 
 
 #### Sample for multiple .cpp files with method bodies
+CSample.h
+```
+class CSample : public ISample
+{
+public:
+	void MethodOne();
+	void MethodTwo();
+}
+```
 CSample.cpp
 ```
 void CSample::MethodOne()
@@ -236,7 +245,7 @@ internal class CSample : ISample
 ## Classes with static members and intialization
 A C++ class can have a static member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
 
-#### Sample for multiple .cpp files with method bodies
+#### Sample static member initialization
 CSample.h
 ```
 class CSample : public ISample
@@ -255,6 +264,34 @@ internal class CSample : ISample
 {
     private static agrint s_value = 42;
 }
+```
+
+#### Sample static array initialization
+CStaticClass.h
+```
+#pragma once
+
+class CStaticClass
+{
+public:
+    static const CString ColFrom[4];
+    static const CString ColTo[4];
+};
+```
+CStaticClass.cpp
+```
+#include "StdAfx.h"
+
+const CString CStaticClass::ColFrom[] = { _T("from_1"), _T("from_2"), _T("from_3"), _T("from_4") };
+const CString CStaticClass::ColTo[] = { _T("to_1"), _T("to_2"), _T("to_3"), _T("to_4") };
+```
+Expected CStaticClass.cs
+```
+    internal static class CStaticClass
+    {
+        public static CString[] ColFrom = { _T("from_1"), _T("from_2"), _T("from_3"), _T("from_4") };
+        public static CString[] ColTo = { _T("to_1"), _T("to_2"), _T("to_3"), _T("to_4") };
+    }
 ```
 
 ## Struct type

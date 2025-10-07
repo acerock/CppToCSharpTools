@@ -1,6 +1,6 @@
 #pragma once
 
-class CMXDEFS
+class CStaticClass
 {
 public:
     static const CString ColFrom[4];
