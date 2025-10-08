@@ -143,13 +143,15 @@ namespace CppToCsConverter.Core.Core
             }
 
             // Parse source files
+            var sourceDefines = new Dictionary<string, List<CppDefine>>();
             foreach (var sourceFile in sourceFiles)
             {
                 Console.WriteLine($"Parsing source: {Path.GetFileName(sourceFile)}");
-                var (methods, staticInits) = _sourceParser.ParseSourceFile(sourceFile);
+                var (methods, staticInits, defines) = _sourceParser.ParseSourceFileWithDefines(sourceFile);
                 var fileName = Path.GetFileNameWithoutExtension(sourceFile);
                 parsedSources[fileName] = methods;
                 staticMemberInits[fileName] = staticInits;
+                sourceDefines[fileName] = defines;
             }
 
             // Generate C# files - one per header file containing all its classes and structs
@@ -165,7 +167,7 @@ namespace CppToCsConverter.Core.Core
                 Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} class(es) and {structs.Count} struct(s)");
                 
                 // Generate main C# file
-                GenerateAndWriteFile(fileName, outputDirectory, classes, structs, parsedSources, staticMemberInits);
+                GenerateAndWriteFile(fileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDefines);
                 
                 // Generate additional partial class files for classes that need them
                 GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, outputDirectory);
@@ -207,7 +209,7 @@ namespace CppToCsConverter.Core.Core
             sb.AppendLine("{");
         }
 
-        private void GenerateFileContent(StringBuilder sb, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName, bool isPartialFile, List<CppMethod>? partialMethods = null)
+        private void GenerateFileContent(StringBuilder sb, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines, string fileName, bool isPartialFile, List<CppMethod>? partialMethods = null)
         {
             if (isPartialFile)
             {
@@ -244,6 +246,9 @@ namespace CppToCsConverter.Core.Core
                     GenerateStructInline(sb, cppStruct);
                 }
 
+                // Associate source defines with classes before generation
+                AssociateSourceDefinesWithClasses(classes, parsedSources, sourceDefines);
+
                 // Generate each class in the file
                 for (int i = 0; i < classes.Count; i++)
                 {
@@ -269,7 +274,40 @@ namespace CppToCsConverter.Core.Core
             }
         }
 
-        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
+        private void AssociateSourceDefinesWithClasses(List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppDefine>>? sourceDefines)
+        {
+            if (sourceDefines == null || !sourceDefines.Any())
+                return;
+
+            foreach (var cppClass in classes)
+            {
+                // Find all source files that contain methods for this class
+                var sourceFilesForClass = new HashSet<string>();
+                
+                foreach (var sourceEntry in parsedSources)
+                {
+                    var sourceFileName = sourceEntry.Key;
+                    var methods = sourceEntry.Value;
+                    
+                    // Check if any method in this source file belongs to this class
+                    if (methods.Any(m => m.ClassName == cppClass.Name))
+                    {
+                        sourceFilesForClass.Add(sourceFileName);
+                    }
+                }
+
+                // Collect defines from all source files that contain methods for this class
+                foreach (var sourceFileName in sourceFilesForClass)
+                {
+                    if (sourceDefines.ContainsKey(sourceFileName))
+                    {
+                        cppClass.SourceDefines.AddRange(sourceDefines[sourceFileName]);
+                    }
+                }
+            }
+        }
+
+        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
         {
             var sb = new StringBuilder();
             
@@ -278,13 +316,46 @@ namespace CppToCsConverter.Core.Core
             
             AddUsingStatements(sb, containsOnlyInterfaces);
             AddNamespace(sb, fileName);
-            GenerateFileContent(sb, classes, structs, parsedSources, staticMemberInits, fileName, isPartialFile, partialMethods);
+            GenerateFileContent(sb, classes, structs, parsedSources, staticMemberInits, sourceDefines, fileName, isPartialFile, partialMethods);
             
             sb.AppendLine("}");
             
             // Write the file
             var csFileName = Path.Combine(outputDirectory, $"{fileName}.cs");
             WriteFileToDirectory(csFileName, sb.ToString(), fileName);
+        }
+
+        private void WriteDefineStatementsInline(StringBuilder sb, CppClass cppClass)
+        {
+            // Write header defines first
+            foreach (var define in cppClass.HeaderDefines)
+            {
+                WriteCommentsAndDefineInline(sb, define);
+            }
+            
+            // Then source defines (ordered by source file)
+            foreach (var define in cppClass.SourceDefines.OrderBy(d => d.SourceFileName))
+            {
+                WriteCommentsAndDefineInline(sb, define);
+            }
+            
+            // Add a blank line after defines if any were written
+            if (cppClass.HeaderDefines.Any() || cppClass.SourceDefines.Any())
+            {
+                sb.AppendLine();
+            }
+        }
+
+        private void WriteCommentsAndDefineInline(StringBuilder sb, CppDefine define)
+        {
+            // Write preceding comments with proper indentation
+            foreach (var comment in define.PrecedingComments)
+            {
+                sb.AppendLine($"        {comment}");
+            }
+            
+            // Write the define statement itself with proper indentation
+            sb.AppendLine($"        {define.FullDefinition}");
         }
 
         private void WriteFileToDirectory(string filePath, string content, string fileName)
@@ -364,6 +435,9 @@ namespace CppToCsConverter.Core.Core
             var classStaticModifier = ShouldBeStaticClass(cppClass, parsedSources) ? "static " : "";
             sb.AppendLine($"    {accessibility} {classStaticModifier}class {cppClass.Name}");
             sb.AppendLine("    {");
+
+            // Add define statements first
+            WriteDefineStatementsInline(sb, cppClass);
 
             // Add members - preserve original C++ types and add static initializations
             foreach (var member in cppClass.Members)
@@ -1258,7 +1332,7 @@ namespace CppToCsConverter.Core.Core
             var parsedSources = new Dictionary<string, List<CppMethod>>();
             var staticMemberInits = new Dictionary<string, List<CppStaticMemberInit>>();
             
-            GenerateAndWriteFile(targetFileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, isPartialFile: true, partialMethods: methods);
+            GenerateAndWriteFile(targetFileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDefines: null, isPartialFile: true, partialMethods: methods);
         }
     }
 }

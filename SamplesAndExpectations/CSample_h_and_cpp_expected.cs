@@ -8,6 +8,16 @@ using static BatchNet.Compatibility.BatchApi;
 
 namespace Generated_CSample
 {
+// Top defines
+#define MY_DEFINE 1
+#define MY_DEFINE2 2
+// Comment for define 3
+#define MY_DEFINE3 3
+
+// Some more defines
+#define MY_DEFINE4 4
+#define MY_DEFINE5 5
+
     struct StructOne
     {
         agrint lTestType;

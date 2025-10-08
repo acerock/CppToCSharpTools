@@ -12,6 +12,8 @@ namespace CppToCsConverter.Core.Models
         public List<CppMethod> Methods { get; set; } = new List<CppMethod>();
         public List<CppStaticMember> StaticMembers { get; set; } = new List<CppStaticMember>();
         public List<string> PrecedingComments { get; set; } = new List<string>(); // Comments before class declaration
+        public List<CppDefine> HeaderDefines { get; set; } = new List<CppDefine>(); // Define statements from header file
+        public List<CppDefine> SourceDefines { get; set; } = new List<CppDefine>(); // Define statements from source files
         
         public AccessSpecifier DefaultAccessSpecifier => IsInterface ? AccessSpecifier.Public : AccessSpecifier.Private;
         
@@ -155,6 +157,15 @@ namespace CppToCsConverter.Core.Models
     {
         SingleLine,   // //
         MultiLine     // /* */
+    }
+
+    public class CppDefine
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Value { get; set; } = string.Empty;
+        public string FullDefinition { get; set; } = string.Empty; // "#define NAME value"
+        public List<string> PrecedingComments { get; set; } = new List<string>();
+        public string SourceFileName { get; set; } = string.Empty; // Track which file it came from
     }
 
     public enum AccessSpecifier

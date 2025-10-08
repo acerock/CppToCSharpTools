@@ -17,6 +17,7 @@ namespace CppToCsConverter.Core.Parsers
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*(\d*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
         private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
+        private readonly Regex _defineRegex = new Regex(@"^\s*#define\s+(\w+)(?:\s+(.*))?$", RegexOptions.Compiled);
         
         // Struct parsing regex patterns for the three types
         private readonly Regex _simpleStructRegex = new Regex(@"^\s*struct\s+(\w+)\s*$", RegexOptions.Compiled);
@@ -48,13 +49,18 @@ namespace CppToCsConverter.Core.Parsers
         private List<CppClass> ParseAllClassesFromLines(string[] lines, string fileName)
         {
             var classes = new List<CppClass>();
-            int i = 0;
             
+            // First pass: collect all define statements outside of class definitions
+            var headerDefines = ParseDefineStatementsFromLines(lines, fileName);
+            
+            int i = 0;
             while (i < lines.Length)
             {
                 var foundClass = ParseNextClassFromLines(lines, ref i, fileName);
                 if (foundClass != null)
                 {
+                    // Associate collected defines with this class
+                    foundClass.HeaderDefines.AddRange(headerDefines);
                     classes.Add(foundClass);
                 }
                 else
@@ -64,6 +70,37 @@ namespace CppToCsConverter.Core.Parsers
             }
             
             return classes;
+        }
+
+        private List<CppDefine> ParseDefineStatementsFromLines(string[] lines, string fileName)
+        {
+            var defines = new List<CppDefine>();
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                
+                // Check if this is a define statement
+                var defineMatch = _defineRegex.Match(line);
+                if (defineMatch.Success)
+                {
+                    // Collect comments before the define
+                    var precedingComments = CollectPrecedingComments(lines, i);
+                    
+                    var define = new CppDefine
+                    {
+                        Name = defineMatch.Groups[1].Value,
+                        Value = defineMatch.Groups[2].Success ? defineMatch.Groups[2].Value.Trim() : string.Empty,
+                        FullDefinition = line,
+                        PrecedingComments = precedingComments,
+                        SourceFileName = fileName
+                    };
+                    
+                    defines.Add(define);
+                }
+            }
+            
+            return defines;
         }
 
         private CppClass? ParseNextClassFromLines(string[] lines, ref int startIndex, string fileName)

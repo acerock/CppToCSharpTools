@@ -425,7 +425,7 @@ internal static class ISampleExtensions
 ```
 
 #### Struct type defined in a header file together with a class with .cpp implementation
-In this case we copy the structs as it is in the same order 
+In this case we copy the structs as is in the same order they appear in the header/source file.
 
 #### Struct type defined in a header file with no class
 In this case we create a .cs file with same name as the .h file where all structs are copied to this file.
@@ -468,6 +468,107 @@ typedef struct MyTag
     bool someBool;
     agrint intValue;
 } MyOtherStruct;
+```
+
+## Define statements
+Both C++ header (.h) and source files (.cpp) can hold #define statements for constants. 
+In .h files these appears outside class and struct definitions, and in .cpp files they appear outside methods.
+
+There will be another tool run later that will do the translation of the define statements to true C# syntax. For this application the task is to assure we collect them from the header and .cpp source files as is and with preceding comments and write them to the the .cs file.
+
+Collecting defines from C++ files:
+1. Defines can be found in both the header (.h) and source files (.cpp) for a class.
+2. There might be more defines found in multi-file C++ class source files.
+
+Constructing C# class with defines
+1. Defines collected from both header file and source files are written as is and with comments at the very start of the class as the next line after the class opening bracket. 
+2. In case it is a partial class scenario, the defines are written to the main .cs file.
+3. Defines are written in a specific order
+  1. Defines from the header file
+  2. Defines from the cpp files
+
+### Sample with defines in both header and source files
+CSample.h
+```
+#pragma once
+
+// Here are some defines
+
+// Comment for warning
+#define WARNING 1
+// Comment for stop
+#define STOP 2
+#define STOP_ALL 4
+
+class CSample : public ISample
+{
+private:
+    agrint m_value1;
+
+public:
+    void MethodOne(const CString& cParam1,
+                   const bool &bParam2,
+                   CString *pcParam3);    
+}
+
+// Some more defines
+#define MY_DEFINE4 4
+#define MY_DEFINE5 5
+```
+
+CSample.cpp
+```
+/* DEFINES IN CPP*/
+// Also cpp files can have defines
+#define CPP_DEFINE 10
+#define CPP_DEFINE2 20 
+// Comment for cpp define 3
+#define CPP_DEFINE3 30 
+
+void CSample::MethodOne(const CString& cParam1,
+                   const bool &bParam2,
+                   CString *pcParam3)
+{
+    // Implementation of MethodOne
+}
+
+#define CPP_DEFINE4 40
+```
+
+Expected generated CSample.cs
+```
+namespace Generated_CSample
+{
+// Here are some defines
+
+// Comment for warning
+#define WARNING 1
+// Comment for stop
+#define STOP 2
+#define STOP_ALL 4
+
+/* DEFINES IN CPP*/
+// Also cpp files can have defines
+#define CPP_DEFINE 10
+#define CPP_DEFINE2 20 
+// Comment for cpp define 3
+#define CPP_DEFINE3 30 
+
+#define CPP_DEFINE4 40
+
+    // Comment for class
+    internal class CSample : ISample
+    {
+        private agrint m_value1;
+
+        public void MethodOne(CString cParam1,
+                bool bParam2,
+                out CString pcParam3)
+        {
+            // Implementation of MethodOne
+        }
+    }
+}
 ```
 
 ## Comments and regions

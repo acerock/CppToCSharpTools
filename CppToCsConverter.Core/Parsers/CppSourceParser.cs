@@ -20,6 +20,7 @@ namespace CppToCsConverter.Core.Parsers
             RegexOptions.Compiled);
 
         private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
+        private readonly Regex _defineRegex = new Regex(@"^\s*#define\s+(\w+)(?:\s+(.*))?$", RegexOptions.Compiled);
 
         public CppSourceParser(ILogger? logger = null)
         {
@@ -28,8 +29,15 @@ namespace CppToCsConverter.Core.Parsers
 
         public (List<CppMethod> Methods, List<CppStaticMemberInit> StaticInits) ParseSourceFile(string filePath)
         {
+            var (methods, staticInits, _) = ParseSourceFileWithDefines(filePath);
+            return (methods, staticInits);
+        }
+
+        public (List<CppMethod> Methods, List<CppStaticMemberInit> StaticInits, List<CppDefine> Defines) ParseSourceFileWithDefines(string filePath)
+        {
             var methods = new List<CppMethod>();
             var staticInits = new List<CppStaticMemberInit>();
+            var defines = new List<CppDefine>();
             
             try
             {
@@ -46,13 +54,47 @@ namespace CppToCsConverter.Core.Parsers
                 // Parse static member initializations
                 staticInits.AddRange(ParseStaticMemberInitializations(content));
                 
-                return (methods, staticInits);
+                // Parse define statements
+                defines.AddRange(ParseDefineStatementsFromLines(lines, fileName));
+                
+                return (methods, staticInits, defines);
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Error parsing source file {filePath}: {ex.Message}");
-                return (methods, staticInits);
+                return (methods, staticInits, defines);
             }
+        }
+
+        private List<CppDefine> ParseDefineStatementsFromLines(string[] lines, string fileName)
+        {
+            var defines = new List<CppDefine>();
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                
+                // Check if this is a define statement
+                var defineMatch = _defineRegex.Match(line);
+                if (defineMatch.Success)
+                {
+                    // Collect comments before the define
+                    var precedingComments = CollectPrecedingComments(lines, i);
+                    
+                    var define = new CppDefine
+                    {
+                        Name = defineMatch.Groups[1].Value,
+                        Value = defineMatch.Groups[2].Success ? defineMatch.Groups[2].Value.Trim() : string.Empty,
+                        FullDefinition = line,
+                        PrecedingComments = precedingComments,
+                        SourceFileName = fileName
+                    };
+                    
+                    defines.Add(define);
+                }
+            }
+            
+            return defines;
         }
 
         private void AddCommentsAndRegionsToMethods(string[] lines, List<CppMethod> methods)

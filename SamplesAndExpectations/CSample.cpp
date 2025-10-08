@@ -1,6 +1,12 @@
 #include "StdAfx.h"
 #include "CSample.h"
 
+/* DEFINES IN CPP*/
+// Also cpp files can have defines
+#define CPP_DEFINE 10
+#define CPP_DEFINE2 20 
+// Comment for cpp define 3
+#define CPP_DEFINE3 30 
 
 ISample* ISample::GetInstance()
 {
@@ -24,6 +30,8 @@ CSample::CSample()
     cValue2 = _T("DEF");
     cValue3 = _T("GHI");
 };
+
+#define CPP_DEFINE4 40
 
 CSample::~CSample()
 {

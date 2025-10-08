@@ -74,6 +74,12 @@ namespace CppToCsConverter.Core.Generators
             sb.AppendLine($"    public {partialKeyword}class {cppClass.Name}{inheritance}");
             sb.AppendLine("    {");
 
+            // Add define statements (only in non-partial classes or main class file)
+            if (!isPartial || fileName == cppClass.Name)
+            {
+                WriteDefineStatements(sb, cppClass);
+            }
+
             // Add members (only in non-partial classes or main class file)
             if (!isPartial || fileName == cppClass.Name)
             {
@@ -93,6 +99,39 @@ namespace CppToCsConverter.Core.Generators
             sb.AppendLine("}");
 
             return sb.ToString();
+        }
+
+        private void WriteDefineStatements(StringBuilder sb, CppClass cppClass)
+        {
+            // Write header defines first
+            foreach (var define in cppClass.HeaderDefines)
+            {
+                WriteCommentsAndDefine(sb, define);
+            }
+            
+            // Then source defines (ordered by source file)
+            foreach (var define in cppClass.SourceDefines.OrderBy(d => d.SourceFileName))
+            {
+                WriteCommentsAndDefine(sb, define);
+            }
+            
+            // Add a blank line after defines if any were written
+            if (cppClass.HeaderDefines.Any() || cppClass.SourceDefines.Any())
+            {
+                sb.AppendLine();
+            }
+        }
+
+        private void WriteCommentsAndDefine(StringBuilder sb, CppDefine define)
+        {
+            // Write preceding comments
+            foreach (var comment in define.PrecedingComments)
+            {
+                sb.AppendLine(comment);
+            }
+            
+            // Write the define statement itself
+            sb.AppendLine(define.FullDefinition);
         }
 
         private void GenerateMembers(StringBuilder sb, CppClass cppClass)

@@ -2,6 +2,12 @@
 
 #include "ISample.h"
 
+// Top defines
+#define MY_DEFINE 1
+#define MY_DEFINE2 2
+// Comment for define 3
+#define MY_DEFINE3 3
+
 struct StructOne
 {
     agrint lTestType;
@@ -12,6 +18,10 @@ struct StructOne
     TDimValue dimVal;
 #pragma endregion // Comment test
 };
+
+// Some more defines
+#define MY_DEFINE4 4
+#define MY_DEFINE5 5
 
 class CSomeClass
 {
