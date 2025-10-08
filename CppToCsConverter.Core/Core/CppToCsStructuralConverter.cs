@@ -279,32 +279,56 @@ namespace CppToCsConverter.Core.Core
             if (sourceDefines == null || !sourceDefines.Any())
                 return;
 
-            foreach (var cppClass in classes)
+            // Process each source file and determine which class should get its defines
+            foreach (var sourceEntry in parsedSources)
             {
-                // Find all source files that contain methods for this class
-                var sourceFilesForClass = new HashSet<string>();
+                var sourceFileName = sourceEntry.Key;
+                var methods = sourceEntry.Value;
                 
-                foreach (var sourceEntry in parsedSources)
-                {
-                    var sourceFileName = sourceEntry.Key;
-                    var methods = sourceEntry.Value;
+                if (!sourceDefines.ContainsKey(sourceFileName))
+                    continue;
                     
-                    // Check if any method in this source file belongs to this class
-                    if (methods.Any(m => m.ClassName == cppClass.Name))
-                    {
-                        sourceFilesForClass.Add(sourceFileName);
-                    }
-                }
-
-                // Collect defines from all source files that contain methods for this class
-                foreach (var sourceFileName in sourceFilesForClass)
+                var definesForThisFile = sourceDefines[sourceFileName];
+                if (!definesForThisFile.Any())
+                    continue;
+                
+                // Find which class should get the defines from this source file
+                var targetClass = DetermineTargetClassForSourceDefines(classes, methods, sourceFileName);
+                
+                if (targetClass != null)
                 {
-                    if (sourceDefines.ContainsKey(sourceFileName))
-                    {
-                        cppClass.SourceDefines.AddRange(sourceDefines[sourceFileName]);
-                    }
+                    targetClass.SourceDefines.AddRange(definesForThisFile);
                 }
             }
+        }
+
+        private CppClass? DetermineTargetClassForSourceDefines(List<CppClass> classes, List<CppMethod> methods, string sourceFileName)
+        {
+            // Get classes that have methods in this source file
+            var classesWithMethods = classes
+                .Where(c => methods.Any(m => m.ClassName == c.Name))
+                .ToList();
+                
+            if (!classesWithMethods.Any())
+                return null;
+                
+            // Strategy 1: If there's a class whose name matches the source filename, use that
+            var matchingClass = classesWithMethods
+                .FirstOrDefault(c => c.Name.Equals(sourceFileName, StringComparison.OrdinalIgnoreCase));
+            if (matchingClass != null)
+                return matchingClass;
+            
+            // Strategy 2: If there's only one class with methods in this file, use that
+            if (classesWithMethods.Count == 1)
+                return classesWithMethods[0];
+            
+            // Strategy 3: Use the class with the most methods in this source file
+            var classMethodCounts = classesWithMethods
+                .Select(c => new { Class = c, MethodCount = methods.Count(m => m.ClassName == c.Name) })
+                .OrderByDescending(x => x.MethodCount)
+                .ToList();
+                
+            return classMethodCounts.First().Class;
         }
 
         private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null)

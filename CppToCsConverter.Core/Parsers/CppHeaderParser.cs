@@ -59,8 +59,6 @@ namespace CppToCsConverter.Core.Parsers
                 var foundClass = ParseNextClassFromLines(lines, ref i, fileName);
                 if (foundClass != null)
                 {
-                    // Associate collected defines with this class
-                    foundClass.HeaderDefines.AddRange(headerDefines);
                     classes.Add(foundClass);
                 }
                 else
@@ -69,7 +67,45 @@ namespace CppToCsConverter.Core.Parsers
                 }
             }
             
+            // Associate header defines with the appropriate class
+            AssociateHeaderDefinesWithClasses(classes, headerDefines, fileName);
+            
             return classes;
+        }
+
+        private void AssociateHeaderDefinesWithClasses(List<CppClass> classes, List<CppDefine> headerDefines, string fileName)
+        {
+            if (!headerDefines.Any() || !classes.Any())
+                return;
+                
+            // Find the main class that should get the defines:
+            // 1. If there's a class whose name matches the filename, use that
+            // 2. Otherwise, if there's only one class, use that
+            // 3. Otherwise, use the first non-interface class
+            // 4. Otherwise, use the first class
+            
+            CppClass? targetClass = null;
+            
+            // Try to find class matching filename
+            targetClass = classes.FirstOrDefault(c => c.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+            
+            // If no filename match, try single class
+            if (targetClass == null && classes.Count == 1)
+            {
+                targetClass = classes[0];
+            }
+            
+            // If multiple classes, prefer non-interface classes
+            if (targetClass == null)
+            {
+                targetClass = classes.FirstOrDefault(c => !c.IsInterface) ?? classes[0];
+            }
+            
+            // Associate defines with the target class
+            if (targetClass != null)
+            {
+                targetClass.HeaderDefines.AddRange(headerDefines);
+            }
         }
 
         private List<CppDefine> ParseDefineStatementsFromLines(string[] lines, string fileName)
