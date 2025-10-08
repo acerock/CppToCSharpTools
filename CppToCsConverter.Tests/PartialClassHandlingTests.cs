@@ -295,7 +295,7 @@ void MultiFileClass::MethodFromFile2()
             Directory.CreateDirectory(tempDir);
 
             var headerFile = Path.Combine(tempDir, "MultiFileClass.h");
-            var source1File = Path.Combine(tempDir, "MultiFileClass_File1.cpp");
+            var source1File = Path.Combine(tempDir, "MultiFileClass.cpp");
             var source2File = Path.Combine(tempDir, "MultiFileClass_File2.cpp");
 
             File.WriteAllText(headerFile, headerContent);
@@ -307,29 +307,35 @@ void MultiFileClass::MethodFromFile2()
                 // Act
                 _converter.ConvertDirectory(tempDir, tempDir);
 
-                // Assert - No exceptions thrown means success
+                // Assert - Check main partial class file
+                var mainOutputFile = Path.Combine(tempDir, "MultiFileClass.cs");
+                Assert.True(File.Exists(mainOutputFile));
                 
-                var outputFile = Path.Combine(tempDir, "MultiFileClass.cs");
-                Assert.True(File.Exists(outputFile));
-                
-                var generatedContent = File.ReadAllText(outputFile);
+                var mainGeneratedContent = File.ReadAllText(mainOutputFile);
                 
                 // Should contain partial keyword
-                Assert.Contains("partial class MultiFileClass", generatedContent);
+                Assert.Contains("partial class MultiFileClass", mainGeneratedContent);
                 
-                // Should contain comments indicating partial structure
-                Assert.Contains("Methods from MultiFileClass_File1", generatedContent);
-                Assert.Contains("Methods from MultiFileClass_File2", generatedContent);
+                // Should contain inline method in main file
+                Assert.Contains("GetSum()", mainGeneratedContent);
+                Assert.Contains("return m_value1 + m_value2", mainGeneratedContent);
                 
-                // Should contain inline method
-                Assert.Contains("GetSum()", generatedContent);
-                Assert.Contains("return m_value1 + m_value2", generatedContent);
+                // Should contain method from main source file (MultiFileClass.cpp)
+                Assert.Contains("MethodFromFile1()", mainGeneratedContent);
+                Assert.Contains("m_value1 = 100", mainGeneratedContent);
                 
-                // Should contain implemented methods
-                Assert.Contains("MethodFromFile1()", generatedContent);
-                Assert.Contains("MethodFromFile2()", generatedContent);
-                Assert.Contains("m_value1 = 100", generatedContent);
-                Assert.Contains("m_value2 = 200", generatedContent);
+                // Assert - Check separate partial class file for File2
+                var file2OutputFile = Path.Combine(tempDir, "MultiFileClass_File2.cs");
+                Assert.True(File.Exists(file2OutputFile));
+                
+                var file2GeneratedContent = File.ReadAllText(file2OutputFile);
+                
+                // Should contain partial keyword in separate file
+                Assert.Contains("partial class MultiFileClass", file2GeneratedContent);
+                
+                // Should contain method from MultiFileClass_File2.cpp
+                Assert.Contains("MethodFromFile2()", file2GeneratedContent);
+                Assert.Contains("m_value2 = 200", file2GeneratedContent);
             }
             finally
             {
@@ -469,11 +475,11 @@ public:
         }
 
         [Fact]
-        public void StructuralConverter_HandlesPartialClassWithStaticMembers()
+        public void StructuralConverter_HandlesNonPartialClassWithStaticMembers()
         {
-            // Arrange - Partial class with static member initialization
+            // Arrange - Non-partial class with static member initialization (methods from same source file)
             var headerContent = @"
-class PartialWithStatic
+class NonPartialWithStatic
 {
 private:
     int m_instance;
@@ -485,9 +491,9 @@ public:
 };";
 
             var sourceContent = @"
-const CString PartialWithStatic::StaticArray[] = { ""value1"", ""value2"" };
+const CString NonPartialWithStatic::StaticArray[] = { ""value1"", ""value2"" };
 
-void PartialWithStatic::SourceMethod()
+void NonPartialWithStatic::SourceMethod()
 {
     m_instance = 2;
 }";
@@ -495,8 +501,8 @@ void PartialWithStatic::SourceMethod()
             var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
             Directory.CreateDirectory(tempDir);
 
-            var headerFile = Path.Combine(tempDir, "PartialWithStatic.h");
-            var sourceFile = Path.Combine(tempDir, "PartialWithStatic.cpp");
+            var headerFile = Path.Combine(tempDir, "NonPartialWithStatic.h");
+            var sourceFile = Path.Combine(tempDir, "NonPartialWithStatic.cpp");
 
             File.WriteAllText(headerFile, headerContent);
             File.WriteAllText(sourceFile, sourceContent);
@@ -508,13 +514,16 @@ void PartialWithStatic::SourceMethod()
 
                 // Assert - No exceptions thrown means success
                 
-                var outputFile = Path.Combine(tempDir, "PartialWithStatic.cs");
+                var outputFile = Path.Combine(tempDir, "NonPartialWithStatic.cs");
                 Assert.True(File.Exists(outputFile));
                 
                 var generatedContent = File.ReadAllText(outputFile);
                 
-                // Should contain partial keyword (methods from header and source)
-                Assert.Contains("partial class PartialWithStatic", generatedContent);
+                // Should NOT contain partial keyword (methods from same source file)
+                Assert.DoesNotContain("partial class NonPartialWithStatic", generatedContent);
+                
+                // Should contain regular class declaration
+                Assert.Contains("class NonPartialWithStatic", generatedContent);
                 
                 // Should contain static array initialization
                 Assert.Contains("CString[] StaticArray = {", generatedContent);

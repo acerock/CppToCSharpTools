@@ -164,36 +164,11 @@ namespace CppToCsConverter.Core.Core
                     
                 Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} class(es) and {structs.Count} struct(s)");
                 
-                var csFileContent = GenerateCsFileWithMultipleClasses(fileName, classes, structs, parsedSources, staticMemberInits, outputDirectory);
-                var csFileName = Path.Combine(outputDirectory, $"{fileName}.cs");
+                // Generate main C# file
+                GenerateAndWriteFile(fileName, outputDirectory, classes, structs, parsedSources, staticMemberInits);
                 
-                try
-                {
-                    Console.WriteLine($"Writing C# file: {csFileName}");
-                    // Normalize line endings to platform-appropriate format (CRLF on Windows)
-                    var normalizedContent = csFileContent.Replace("\r\n", "\n").Replace("\n", Environment.NewLine);
-                    File.WriteAllText(csFileName, normalizedContent);
-                    Console.WriteLine($"Generated C# file: {fileName}.cs (Size: {csFileContent.Length} chars)");
-                    
-                    // Verify file was written
-                    if (File.Exists(csFileName))
-                    {
-                        var fileInfo = new FileInfo(csFileName);
-                        Console.WriteLine($"File verified: {csFileName} (Size: {fileInfo.Length} bytes)");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"ERROR: File was not created: {csFileName}");
-                    }
-                    
-                    // Generate additional partial class files for classes that need them
-                    GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, outputDirectory);
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"ERROR writing C# file {csFileName}: {ex.Message}");
-                    throw;
-                }
+                // Generate additional partial class files for classes that need them
+                GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, outputDirectory);
             }
             
             // Old individual class generation logic has been replaced with file-based generation above
@@ -201,15 +176,11 @@ namespace CppToCsConverter.Core.Core
             Console.WriteLine("Conversion completed!");
         }
 
-        private string GenerateCsFileWithMultipleClasses(string fileName, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string outputDirectory)
+
+
+        private void AddUsingStatements(StringBuilder sb, bool interfaceOnly)
         {
-            var sb = new StringBuilder();
-            
-            // Check if this file contains only interfaces
-            bool containsOnlyInterfaces = classes.All(c => c.IsInterface);
-            
-            // Add appropriate using statements based on content type
-            if (containsOnlyInterfaces)
+            if (interfaceOnly)
             {
                 // Interface-only files get specific using statements
                 sb.AppendLine("using Agresso.Types;");
@@ -228,47 +199,119 @@ namespace CppToCsConverter.Core.Core
                 sb.AppendLine("using static BatchNet.Compatibility.BatchApi;");
             }
             sb.AppendLine();
+        }
 
-            // Add namespace
+        private void AddNamespace(StringBuilder sb, string fileName)
+        {
             sb.AppendLine($"namespace Generated_{fileName}");
             sb.AppendLine("{");
+        }
 
-            // Generate structs first (maintain order from .h file)
-            for (int i = 0; i < structs.Count; i++)
+        private void GenerateFileContent(StringBuilder sb, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName, bool isPartialFile, List<CppMethod>? partialMethods = null)
+        {
+            if (isPartialFile)
             {
-                var cppStruct = structs[i];
-                
-                if (i > 0 || classes.Count > 0)
-                    sb.AppendLine(); // Add blank line between items
-                
-                GenerateStructInline(sb, cppStruct);
-            }
-
-            // Generate each class in the file
-            for (int i = 0; i < classes.Count; i++)
-            {
-                var cppClass = classes[i];
-                
-                if (i > 0)
-                    sb.AppendLine(); // Add blank line between classes
-                
-                if (cppClass.IsInterface)
+                // For partial files, generate only the specified class with specific methods
+                if (classes.Count > 0)
                 {
-                    // Generate interface without extension methods first
-                    GenerateInterfaceInline(sb, cppClass);
+                    var cppClass = classes[0];
+                    string classAccessModifier = cppClass.IsPublicExport ? "public" : "internal";
+                    sb.AppendLine($"    {classAccessModifier} partial class {cppClass.Name}");
+                    sb.AppendLine("    {");
+
+                    // Generate methods for this partial file
+                    if (partialMethods != null)
+                    {
+                        foreach (var method in partialMethods)
+                        {
+                            GenerateMethodForPartialClass(sb, method, cppClass.Name);
+                        }
+                    }
+
+                    sb.AppendLine("    }");
+                }
+            }
+            else
+            {
+                // Generate structs first (maintain order from .h file)
+                for (int i = 0; i < structs.Count; i++)
+                {
+                    var cppStruct = structs[i];
                     
-                    // Generate extension class for static methods if any exist
-                    GenerateExtensionClassIfNeeded(sb, cppClass, parsedSources);
+                    if (i > 0 || classes.Count > 0)
+                        sb.AppendLine(); // Add blank line between items
+                    
+                    GenerateStructInline(sb, cppStruct);
+                }
+
+                // Generate each class in the file
+                for (int i = 0; i < classes.Count; i++)
+                {
+                    var cppClass = classes[i];
+                    
+                    if (i > 0)
+                        sb.AppendLine(); // Add blank line between classes
+                    
+                    if (cppClass.IsInterface)
+                    {
+                        // Generate interface without extension methods first
+                        GenerateInterfaceInline(sb, cppClass);
+                        
+                        // Generate extension class for static methods if any exist
+                        GenerateExtensionClassIfNeeded(sb, cppClass, parsedSources);
+                    }
+                    else
+                    {
+                        // Generate class inline with preserved C++ method bodies
+                        GenerateClassWithCppBodies(sb, cppClass, parsedSources, staticMemberInits, fileName);
+                    }
+                }
+            }
+        }
+
+        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
+        {
+            var sb = new StringBuilder();
+            
+            // Determine if interface-only for using statements
+            bool containsOnlyInterfaces = classes.All(c => c.IsInterface);
+            
+            AddUsingStatements(sb, containsOnlyInterfaces);
+            AddNamespace(sb, fileName);
+            GenerateFileContent(sb, classes, structs, parsedSources, staticMemberInits, fileName, isPartialFile, partialMethods);
+            
+            sb.AppendLine("}");
+            
+            // Write the file
+            var csFileName = Path.Combine(outputDirectory, $"{fileName}.cs");
+            WriteFileToDirectory(csFileName, sb.ToString(), fileName);
+        }
+
+        private void WriteFileToDirectory(string filePath, string content, string fileName)
+        {
+            try
+            {
+                Console.WriteLine($"Writing C# file: {filePath}");
+                var normalizedContent = content.Replace("\r\n", "\n").Replace("\n", Environment.NewLine);
+                File.WriteAllText(filePath, normalizedContent);
+                Console.WriteLine($"Generated C# file: {fileName}.cs (Size: {content.Length} chars)");
+                
+                // Verify file was written
+                if (File.Exists(filePath))
+                {
+                    var fileInfo = new FileInfo(filePath);
+                    Console.WriteLine($"File verified: {filePath} (Size: {fileInfo.Length} bytes)");
                 }
                 else
                 {
-                    // Generate class inline with preserved C++ method bodies
-                    GenerateClassWithCppBodies(sb, cppClass, parsedSources, staticMemberInits, fileName);
+                    Console.WriteLine($"ERROR: File was not created: {filePath}");
                 }
             }
-
-            sb.AppendLine("}");
-            return sb.ToString();
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR writing C# file {filePath}: {ex.Message}");
+                throw;
+            }
         }
 
         private void GenerateClassWithCppBodies(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
@@ -1209,63 +1252,13 @@ namespace CppToCsConverter.Core.Core
 
         private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, string outputDirectory)
         {
-            var sb = new StringBuilder();
+            // Use the refactored method to generate and write the partial file
+            var classes = new List<CppClass> { cppClass };
+            var structs = new List<CppStruct>(); // Partial files don't include structs
+            var parsedSources = new Dictionary<string, List<CppMethod>>();
+            var staticMemberInits = new Dictionary<string, List<CppStaticMemberInit>>();
             
-            // Add using statements (same as main file for consistency)
-            sb.AppendLine("using Agresso.Interface.CoreServices;");
-            sb.AppendLine("using Agresso.Types;");
-            sb.AppendLine("using BatchNet.Compatibility.Types;");
-            sb.AppendLine("using BatchNet.Fundamentals.Compatibility;");
-            sb.AppendLine("using U4.BatchNet.Common.Compatibility;");
-            sb.AppendLine("using static BatchNet.Compatibility.Level1;");
-            sb.AppendLine("using static BatchNet.Compatibility.BatchApi;");
-            sb.AppendLine();
-
-            // Add namespace (same as main file)
-            var originalFileName = cppClass.Methods.FirstOrDefault()?.TargetFileName ?? targetFileName;
-            sb.AppendLine($"namespace Generated_{originalFileName}");
-            sb.AppendLine("{");
-
-            // Generate partial class
-            string classAccessModifier = cppClass.IsPublicExport ? "public" : "internal";
-            sb.AppendLine($"    {classAccessModifier} partial class {cppClass.Name}");
-            sb.AppendLine("    {");
-
-            // Generate methods for this target file
-            foreach (var method in methods)
-            {
-                GenerateMethodForPartialClass(sb, method, cppClass.Name);
-            }
-
-            sb.AppendLine("    }");
-            sb.AppendLine("}");
-
-            // Write the partial file
-            var partialFileName = Path.Combine(outputDirectory, $"{targetFileName}.cs");
-            
-            try
-            {
-                Console.WriteLine($"Writing partial C# file: {partialFileName}");
-                var normalizedContent = sb.ToString().Replace("\r\n", "\n").Replace("\n", Environment.NewLine);
-                File.WriteAllText(partialFileName, normalizedContent);
-                Console.WriteLine($"Generated partial C# file: {targetFileName}.cs (Size: {sb.Length} chars)");
-                
-                // Verify file was written
-                if (File.Exists(partialFileName))
-                {
-                    var fileInfo = new FileInfo(partialFileName);
-                    Console.WriteLine($"Partial file verified: {partialFileName} (Size: {fileInfo.Length} bytes)");
-                }
-                else
-                {
-                    Console.WriteLine($"ERROR: Partial file was not created: {partialFileName}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"ERROR writing partial C# file {partialFileName}: {ex.Message}");
-                throw;
-            }
+            GenerateAndWriteFile(targetFileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, isPartialFile: true, partialMethods: methods);
         }
     }
 }

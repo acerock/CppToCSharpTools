@@ -29,15 +29,8 @@ namespace CppToCsConverter.Core.Models
                 .Distinct()
                 .ToList();
             
-            // If methods are distributed across multiple target files, it's a partial class
-            if (targetFileNames.Count > 1) return true;
-            
-            // Special case: If we have both inline (header) and non-inline (source) implementations
-            // even with the same base filename, treat as partial class
-            var hasInlineMethods = Methods.Any(m => m.HasInlineImplementation);
-            var hasSourceMethods = Methods.Any(m => !m.HasInlineImplementation && !string.IsNullOrEmpty(m.ImplementationBody));
-            
-            return hasInlineMethods && hasSourceMethods;
+            // A class is partial ONLY if methods are distributed across multiple target files
+            return targetFileNames.Count > 1;
         }
         
         /// <summary>
