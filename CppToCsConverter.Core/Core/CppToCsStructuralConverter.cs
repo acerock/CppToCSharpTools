@@ -780,8 +780,40 @@ namespace CppToCsConverter.Core.Core
             if (!string.IsNullOrEmpty(param.DefaultValue))
                 result += " = " + param.DefaultValue;
             
-            // Add inline comments if present
-            if (param.InlineComments != null && param.InlineComments.Any())
+            // Add positioned comments if present
+            if (param.PositionedComments != null && param.PositionedComments.Any())
+            {
+                var prefixComments = param.PositionedComments.Where(pc => pc.Position == CommentPosition.Prefix).ToList();
+                var suffixComments = param.PositionedComments.Where(pc => pc.Position == CommentPosition.Suffix).ToList();
+                
+                // Build result with positioned comments
+                var finalResult = "";
+                
+                // Add prefix comments
+                if (prefixComments.Any())
+                {
+                    foreach (var comment in prefixComments)
+                    {
+                        finalResult += comment.CommentText + " ";
+                    }
+                }
+                
+                // Add the parameter
+                finalResult += result;
+                
+                // Add suffix comments
+                if (suffixComments.Any())
+                {
+                    foreach (var comment in suffixComments)
+                    {
+                        finalResult += " " + comment.CommentText;
+                    }
+                }
+                
+                return finalResult;
+            }
+            // Fallback to legacy inline comments if positioned comments not available
+            else if (param.InlineComments != null && param.InlineComments.Any())
             {
                 foreach (var comment in param.InlineComments)
                 {
@@ -810,7 +842,8 @@ namespace CppToCsConverter.Core.Core
                     IsReference = implParam.IsReference,
                     IsPointer = implParam.IsPointer,
                     DefaultValue = "", // Will be set below
-                    InlineComments = implParam.InlineComments, // Use source comments for implemented methods
+                    InlineComments = implParam.InlineComments, // Use source comments for implemented methods (legacy)
+                    PositionedComments = implParam.PositionedComments, // Use source positioned comments for implemented methods
                     OriginalText = implParam.OriginalText
                 };
 

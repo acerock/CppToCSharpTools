@@ -384,9 +384,12 @@ namespace CppToCsConverter.Core.Parsers
                 var parameter = new CppParameter();
                 parameter.OriginalText = part.Trim(); // Store original for reconstruction
                 
-                // Extract inline comments while preserving their positions
-                var (cleanText, comments) = ExtractInlineCommentsFromParameter(part);
-                parameter.InlineComments = comments;
+                // Extract positioned comments while preserving their positions
+                var (cleanText, positionedComments) = ExtractPositionedCommentsFromParameter(part);
+                parameter.PositionedComments = positionedComments;
+                
+                // Also populate legacy InlineComments for backward compatibility
+                parameter.InlineComments = positionedComments.Select(pc => pc.CommentText).ToList();
                 
                 var cleanTrimmed = cleanText.Trim();
                 
@@ -1320,13 +1323,18 @@ namespace CppToCsConverter.Core.Parsers
         }
 
         /// <summary>
-        /// Extracts inline comments from parameter text while preserving the clean parameter declaration
+        /// Extracts positioned comments from parameter text while preserving the clean parameter declaration
         /// </summary>
-        private (string cleanText, List<string> comments) ExtractInlineCommentsFromParameter(string parameterText)
+        private (string cleanText, List<ParameterComment> positionedComments) ExtractPositionedCommentsFromParameter(string parameterText)
         {
-            var comments = new List<string>();
+            var positionedComments = new List<ParameterComment>();
             var cleanText = new StringBuilder();
             var i = 0;
+            
+            // Track if we've seen the parameter name to determine prefix vs suffix
+            // We'll consider comments prefix until we see both type and name parts
+            var hasSeenParameterName = false;
+            var cleanContentSoFar = new StringBuilder();
             
             while (i < parameterText.Length)
             {
@@ -1339,7 +1347,8 @@ namespace CppToCsConverter.Core.Parsers
                         i++;
                     
                     var comment = parameterText.Substring(commentStart, i - commentStart).Trim();
-                    comments.Add(comment);
+                    var position = hasSeenParameterName ? CommentPosition.Suffix : CommentPosition.Prefix;
+                    positionedComments.Add(new ParameterComment { CommentText = comment, Position = position });
                     
                     // Add newline if present
                     if (i < parameterText.Length && parameterText[i] == '\n')
@@ -1366,16 +1375,52 @@ namespace CppToCsConverter.Core.Parsers
                     }
                     
                     var comment = parameterText.Substring(commentStart, i - commentStart).Trim();
-                    comments.Add(comment);
+                    var position = hasSeenParameterName ? CommentPosition.Suffix : CommentPosition.Prefix;
+                    positionedComments.Add(new ParameterComment { CommentText = comment, Position = position });
                 }
                 else
                 {
-                    cleanText.Append(parameterText[i]);
+                    var ch = parameterText[i];
+                    cleanText.Append(ch);
+                    
+                    // Add to clean content for parameter name detection
+                    if (!char.IsWhiteSpace(ch))
+                    {
+                        cleanContentSoFar.Append(ch);
+                    }
+                    
+                    // Try to detect if we've seen a parameter name
+                    // A parameter typically has format: [const] Type[*|&] paramName
+                    // We'll check if we have at least one word that could be a type and another that could be a name
+                    if (!hasSeenParameterName && !char.IsWhiteSpace(ch))
+                    {
+                        var cleanSoFar = cleanContentSoFar.ToString().Trim();
+                        // Simple heuristic: if we have multiple words and the current clean content ends with identifier characters
+                        if (cleanSoFar.Contains(' ') || cleanSoFar.Contains('&') || cleanSoFar.Contains('*'))
+                        {
+                            var words = cleanSoFar.Split(new[] { ' ', '*', '&', '<', '>', ':' }, StringSplitOptions.RemoveEmptyEntries);
+                            if (words.Length >= 2) // We have type and possibly name
+                            {
+                                hasSeenParameterName = true;
+                            }
+                        }
+                    }
+                    
                     i++;
                 }
             }
             
-            return (cleanText.ToString(), comments);
+            return (cleanText.ToString(), positionedComments);
+        }
+
+        /// <summary>
+        /// Extracts inline comments from parameter text while preserving the clean parameter declaration (legacy method)
+        /// </summary>
+        private (string cleanText, List<string> comments) ExtractInlineCommentsFromParameter(string parameterText)
+        {
+            var (cleanText, positionedComments) = ExtractPositionedCommentsFromParameter(parameterText);
+            var comments = positionedComments.Select(pc => pc.CommentText).ToList();
+            return (cleanText, comments);
         }
     }
 }

@@ -383,6 +383,7 @@ namespace CppToCsConverter.Core.Generators
                     // (per readme.md: "For methods with implementation we need ignore any comments from the header 
                     // and persist the source (.cpp) method argument list comments")
                     mergedParam.InlineComments = implParam.InlineComments;
+                    mergedParam.PositionedComments = implParam.PositionedComments;
                     mergedParam.OriginalText = implParam.OriginalText;
                 }
                 else if (headerParam != null)
@@ -431,6 +432,48 @@ namespace CppToCsConverter.Core.Generators
             }
 
             return paramDecl;
+        }
+
+        private string GenerateParameterWithPositionedComments(CppParameter param)
+        {
+            // Generate base parameter
+            var baseParam = GenerateParameter(param);
+            
+            // If no positioned comments, fall back to legacy behavior
+            if (param.PositionedComments == null || !param.PositionedComments.Any())
+            {
+                return baseParam;
+            }
+            
+            var prefixComments = param.PositionedComments.Where(pc => pc.Position == CommentPosition.Prefix).ToList();
+            var suffixComments = param.PositionedComments.Where(pc => pc.Position == CommentPosition.Suffix).ToList();
+            
+
+            
+            var result = new StringBuilder();
+            
+            // Add prefix comments
+            if (prefixComments.Any())
+            {
+                foreach (var comment in prefixComments)
+                {
+                    result.Append(comment.CommentText + " ");
+                }
+            }
+            
+            // Add the parameter
+            result.Append(baseParam);
+            
+            // Add suffix comments
+            if (suffixComments.Any())
+            {
+                foreach (var comment in suffixComments)
+                {
+                    result.Append(" " + comment.CommentText);
+                }
+            }
+            
+            return result.ToString();
         }
 
         private List<CppMethod> GetOrderedMethods(CppClass cppClass, List<CppMethod> implementationMethods)
@@ -575,7 +618,9 @@ namespace CppToCsConverter.Core.Generators
             string virtualKeyword, string returnType, string methodName, List<CppParameter> parameters)
         {
             // Check if any parameter has comments - if not, use simple single-line format
-            bool hasParameterComments = parameters.Any(p => p.InlineComments.Any());
+            bool hasParameterComments = parameters.Any(p => (p.PositionedComments?.Any() ?? false) || p.InlineComments.Any());
+            
+
             
             if (!hasParameterComments || parameters.Count == 0)
             {
@@ -586,20 +631,16 @@ namespace CppToCsConverter.Core.Generators
             }
             else
             {
-                // Multi-line format with comments
+                // Multi-line format with positioned comments
                 sb.AppendLine($"        {accessibility} {staticKeyword}{virtualKeyword}{returnType}{methodName}(");
                 
                 for (int i = 0; i < parameters.Count; i++)
                 {
                     var param = parameters[i];
-                    var paramString = GenerateParameter(param);
                     var isLast = i == parameters.Count - 1;
                     
-                    // Add parameter comments before the parameter
-                    foreach (var comment in param.InlineComments)
-                    {
-                        sb.AppendLine($"                {comment}");
-                    }
+                    // Generate parameter with positioned comments
+                    var paramString = GenerateParameterWithPositionedComments(param);
                     
                     // Add the parameter with proper comma
                     if (isLast)
