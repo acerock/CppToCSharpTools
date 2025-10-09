@@ -57,6 +57,9 @@ private:
         return cValue1;
     }
 
+    void TrickyToMatch(const CString& cResTab, 
+        const bool& bGetAgeAndTaxNumberFromResTab, /* agrint &oldParameter,*/ CAgrMT* pmtTable);
+
 public:
     CSample();
     ~CSample();

@@ -378,17 +378,24 @@ namespace CppToCsConverter.Core.Parsers
                     continue;
 
                 var parameter = new CppParameter();
+                parameter.OriginalText = part.Trim(); // Store original for reconstruction
+                
+                // Extract inline comments while preserving their positions
+                var (cleanText, comments) = ExtractInlineCommentsFromParameter(part);
+                parameter.InlineComments = comments;
+                
+                var cleanTrimmed = cleanText.Trim();
                 
                 // Check for default value
-                var defaultIndex = trimmed.LastIndexOf('=');
+                var defaultIndex = cleanTrimmed.LastIndexOf('=');
                 if (defaultIndex > 0)
                 {
-                    parameter.DefaultValue = trimmed.Substring(defaultIndex + 1).Trim();
-                    trimmed = trimmed.Substring(0, defaultIndex).Trim();
+                    parameter.DefaultValue = cleanTrimmed.Substring(defaultIndex + 1).Trim();
+                    cleanTrimmed = cleanTrimmed.Substring(0, defaultIndex).Trim();
                 }
 
                 // Parse const, type, reference/pointer, and name
-                var constMatch = Regex.Match(trimmed, @"^(const\s+)?(.+?)\s*([&*]*)\s+(\w+)$");
+                var constMatch = Regex.Match(cleanTrimmed, @"^(const\s+)?(.+?)\s*([&*]*)\s+(\w+)$");
                 if (constMatch.Success)
                 {
                     parameter.IsConst = constMatch.Groups[1].Success;
@@ -401,11 +408,17 @@ namespace CppToCsConverter.Core.Parsers
                 else
                 {
                     // Fallback parsing
-                    var words = trimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    var words = cleanTrimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                     if (words.Length >= 2)
                     {
                         parameter.Type = string.Join(" ", words.Take(words.Length - 1));
                         parameter.Name = words.Last();
+                    }
+                    else if (words.Length == 1)
+                    {
+                        // Just a type, no parameter name (valid in header declarations)
+                        parameter.Type = words[0];
+                        parameter.Name = "";
                     }
                 }
 
@@ -1256,6 +1269,65 @@ namespace CppToCsConverter.Core.Parsers
             return _simpleStructRegex.IsMatch(trimmedLine) || 
                    _typedefStructRegex.IsMatch(trimmedLine) || 
                    _typedefStructTagRegex.IsMatch(trimmedLine);
+        }
+        
+        /// <summary>
+        /// Extracts inline comments from parameter text while preserving the clean parameter declaration
+        /// </summary>
+        private (string cleanText, List<string> comments) ExtractInlineCommentsFromParameter(string parameterText)
+        {
+            var comments = new List<string>();
+            var cleanText = new StringBuilder();
+            var i = 0;
+            
+            while (i < parameterText.Length)
+            {
+                // Check for single-line comment
+                if (i < parameterText.Length - 1 && parameterText[i] == '/' && parameterText[i + 1] == '/')
+                {
+                    var commentStart = i;
+                    // Find end of line or end of string
+                    while (i < parameterText.Length && parameterText[i] != '\n')
+                        i++;
+                    
+                    var comment = parameterText.Substring(commentStart, i - commentStart).Trim();
+                    comments.Add(comment);
+                    
+                    // Add newline if present
+                    if (i < parameterText.Length && parameterText[i] == '\n')
+                    {
+                        cleanText.Append('\n');
+                        i++;
+                    }
+                }
+                // Check for multi-line comment
+                else if (i < parameterText.Length - 1 && parameterText[i] == '/' && parameterText[i + 1] == '*')
+                {
+                    var commentStart = i;
+                    i += 2; // Skip /*
+                    
+                    // Find end of comment
+                    while (i < parameterText.Length - 1)
+                    {
+                        if (parameterText[i] == '*' && parameterText[i + 1] == '/')
+                        {
+                            i += 2; // Skip */
+                            break;
+                        }
+                        i++;
+                    }
+                    
+                    var comment = parameterText.Substring(commentStart, i - commentStart).Trim();
+                    comments.Add(comment);
+                }
+                else
+                {
+                    cleanText.Append(parameterText[i]);
+                    i++;
+                }
+            }
+            
+            return (cleanText.ToString(), comments);
         }
     }
 }

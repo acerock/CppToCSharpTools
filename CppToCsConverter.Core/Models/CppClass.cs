@@ -112,6 +112,8 @@ namespace CppToCsConverter.Core.Models
         public bool IsReference { get; set; }
         public bool IsPointer { get; set; }
         public bool IsConst { get; set; }
+        public List<string> InlineComments { get; set; } = new List<string>(); // Comments within the parameter list
+        public string OriginalText { get; set; } = string.Empty; // Original parameter text with comments for reconstruction
     }
 
     public class CppStaticMember

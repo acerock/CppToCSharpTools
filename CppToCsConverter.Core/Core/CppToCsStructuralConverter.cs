@@ -755,6 +755,15 @@ namespace CppToCsConverter.Core.Core
             
             if (!string.IsNullOrEmpty(param.DefaultValue))
                 result += " = " + param.DefaultValue;
+            
+            // Add inline comments if present
+            if (param.InlineComments != null && param.InlineComments.Any())
+            {
+                foreach (var comment in param.InlineComments)
+                {
+                    result += " " + comment;
+                }
+            }
                 
             return result;
         }
@@ -776,7 +785,9 @@ namespace CppToCsConverter.Core.Core
                     IsConst = implParam.IsConst,
                     IsReference = implParam.IsReference,
                     IsPointer = implParam.IsPointer,
-                    DefaultValue = "" // Will be set below
+                    DefaultValue = "", // Will be set below
+                    InlineComments = implParam.InlineComments, // Use source comments for implemented methods
+                    OriginalText = implParam.OriginalText
                 };
 
                 // If there's a corresponding header parameter at the same position, use its default value

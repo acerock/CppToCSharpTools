@@ -159,6 +159,23 @@ namespace Generated_CSample
             return !dim1.IsEmpty() && int1 > 0;
         }
 
+        private void TrickyToMatch(
+            /* IN*/const CString& cResTab, 
+            /* IN */ const bool& bGetAgeAndTaxNumberFromResTab, 
+            /* OUT */ CAgrMT* pmtTable)
+        {
+            // Implementation of TrickyToMatch
+            if (cResTab.IsEmpty() || pmtTable == NULL) {
+                return;
+            }
+
+            if (bGetAgeAndTaxNumberFromResTab) {
+                // Some logic here
+            }
+
+            return false;
+        }
+        
         private int m_iAnotherPrivateInteger;
     }    
 }

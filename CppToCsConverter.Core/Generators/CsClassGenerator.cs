@@ -239,11 +239,10 @@ namespace CppToCsConverter.Core.Generators
             
             // Merge header declaration with implementation parameters
             var mergedMethod = MergeMethodWithImplementation(method, implementationMethods);
-            var parameters = string.Join(", ", mergedMethod.Parameters.Select(GenerateParameter));
-
-            // Generate method signature
+            
+            // Generate method signature with parameter comments
             var methodName = method.IsConstructor ? cppClass.Name : method.Name;
-            sb.AppendLine($"        {accessibility} {staticKeyword}{virtualKeyword}{returnType}{methodName}({parameters})");
+            GenerateMethodSignatureWithComments(sb, accessibility, staticKeyword, virtualKeyword, returnType, methodName, mergedMethod.Parameters);
             sb.AppendLine("        {");
 
             // Generate method body
@@ -379,6 +378,12 @@ namespace CppToCsConverter.Core.Generators
                     mergedParam.IsConst = headerParam.IsConst;
                     mergedParam.IsPointer = headerParam.IsPointer;
                     mergedParam.IsReference = headerParam.IsReference;
+                    
+                    // For parameter comments: use implementation comments since this method has an implementation
+                    // (per readme.md: "For methods with implementation we need ignore any comments from the header 
+                    // and persist the source (.cpp) method argument list comments")
+                    mergedParam.InlineComments = implParam.InlineComments;
+                    mergedParam.OriginalText = implParam.OriginalText;
                 }
                 else if (headerParam != null)
                 {
@@ -564,6 +569,55 @@ namespace CppToCsConverter.Core.Generators
 
             // For other values, return as-is (might be constants, enums, etc.)
             return trimmed;
+        }
+        
+        private void GenerateMethodSignatureWithComments(StringBuilder sb, string accessibility, string staticKeyword, 
+            string virtualKeyword, string returnType, string methodName, List<CppParameter> parameters)
+        {
+            // Check if any parameter has comments - if not, use simple single-line format
+            bool hasParameterComments = parameters.Any(p => p.InlineComments.Any());
+            
+            if (!hasParameterComments || parameters.Count == 0)
+            {
+                // Simple single-line format
+                var parameterStrings = parameters.Select(GenerateParameter);
+                var parametersString = string.Join(", ", parameterStrings);
+                sb.AppendLine($"        {accessibility} {staticKeyword}{virtualKeyword}{returnType}{methodName}({parametersString})");
+            }
+            else
+            {
+                // Multi-line format with comments
+                sb.AppendLine($"        {accessibility} {staticKeyword}{virtualKeyword}{returnType}{methodName}(");
+                
+                for (int i = 0; i < parameters.Count; i++)
+                {
+                    var param = parameters[i];
+                    var paramString = GenerateParameter(param);
+                    var isLast = i == parameters.Count - 1;
+                    
+                    // Add parameter comments before the parameter
+                    foreach (var comment in param.InlineComments)
+                    {
+                        sb.AppendLine($"                {comment}");
+                    }
+                    
+                    // Add the parameter with proper comma
+                    if (isLast)
+                    {
+                        sb.AppendLine($"                {paramString})");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"                {paramString},");
+                    }
+                }
+                
+                // If we didn't add the closing paren (no parameters), add it
+                if (parameters.Count == 0)
+                {
+                    sb.AppendLine("        )");
+                }
+            }
         }
     }
 }

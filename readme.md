@@ -591,7 +591,77 @@ With block of lines we mean:
 
 We have already defined that comments inside method bodies are handled by persisting method bodies as they are including comments. Here we care about comments outside method bodies describing a following type declarations (like interfaces, structs, classes) or class members like variables, methods, constructors, and destructors.
 
-### File top comments
+#### Comments in method arguments list
+Method arguments can have comments in any order and any position both in the header declaration and source file implementation. The arguments should be ignored when matching declaration with implementation.
+For inline methods we persist the comments from the argument list to write them to the .cs method argument list.
+For methods with implementation we need ignore any comments from the header and persist the source (.cpp) method argument list comments this is the same for single class implementation as for partial class implementations.
+
+##### Samples for comments in method parameter list
+The following samples show that comments in parameter list is valid at any point both in header and source files.
+
+We need to assure method signatures still match by ignoring the comments but persist the comments for the inline method parameter list as well as the source (.cpp) parameter list. For methods with implementation in the source file, we persit the comments from the source file.
+
+Note, the sample also shows that a valid C++ the header do not have to specify names for the parameters. We expect method to body matching to succeed as this is the same case as if the parameter names differs between the header declaration and the source implementation.
+
+CSample.h
+```
+#pragma once
+
+class CSample : public ISample
+{
+private:
+    agrint m_value1;
+
+public:
+    void MethodOne(const CString&, // comment
+                   const bool &, CString *);
+
+    bool InlineMethod(/*void*/)
+    { 
+        return m_value1 > 3 && m_value1 < 33; 
+    }    
+}
+```
+
+CSample.cpp
+```
+void CSample::MethodOne(
+    /* IN */ const CString& cParam1,
+    /* IN */ const bool &bParam2,
+    // somebody comment something here
+    /* OUT */ CString *pcParam3)
+{
+    // Implementation of MethodOne
+}
+```
+
+Expected CSample.cs
+```
+namespace Generated_CSample
+{
+    // Comment for class
+    internal class CSample : ISample
+    {
+        private agrint m_value1;
+
+        bool InlineMethod(/*void*/)
+        { 
+            return m_value1 > 3 && m_value1 < 33; 
+        }    
+
+        public void MethodOne(
+                /* IN */ const CString& cParam1,
+                /* IN */ const bool &bParam2,
+                // somebody comment something here
+                /* OUT */ CString *pcParam3)
+        {
+            // Implementation of MethodOne
+        }
+    }
+}
+```
+
+#### File top comments
 Source files (.cpp) can start with a block of comments at the very top that is not mapped to a consecutive element (class, struct, or define). This block of comment typically appear before any #include statement and we consider this a file top comment. Top file comments should be persisted and written to the top of the .cs file before any using statement.
 
 This is general for the source file (.cpp) independent of the content otherwise (multiple classes, partial classes, or single classes). Top file comments sticks to the file.

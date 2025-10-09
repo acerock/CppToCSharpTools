@@ -92,3 +92,20 @@ bool CSample::MethodWithOverloads(const TDimValue& dim1, const agrint& int1)
     // Implementation of the second overload
     return !dim1.IsEmpty() && int1 > 0;
 }
+
+ void  CSample::TrickyToMatch(
+    /* IN*/const CString& cResTab, 
+    /* IN */ const bool& bGetAgeAndTaxNumberFromResTab, 
+    /* OUT */ CAgrMT* pmtTable
+) {
+    // Implementation of TrickyToMatch
+    if (cResTab.IsEmpty() || pmtTable == NULL) {
+        return;
+    }
+
+    if (bGetAgeAndTaxNumberFromResTab) {
+        // Some logic here
+    }
+
+    return false;
+}
