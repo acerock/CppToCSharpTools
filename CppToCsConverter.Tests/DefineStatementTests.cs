@@ -101,12 +101,13 @@ public:
         }
 
         [Fact]
-        public void ParseHeaderFile_DefineWithoutValue_ShouldParseCorrectly()
+        public void ParseHeaderFile_DefineWithoutValue_ShouldIgnoreValuelessDefines()
         {
             // Arrange
             var headerContent = @"
 #define FEATURE_ENABLED
 #define DEBUG_MODE 1
+#define HEADER_GUARD_H_
 
 class TestClass
 {
@@ -126,13 +127,17 @@ public:
                 // Assert
                 Assert.Single(classes);
                 var cppClass = classes[0];
-                Assert.Equal(2, cppClass.HeaderDefines.Count);
+                // Only defines with values should be collected (per readme.md specification)
+                Assert.Single(cppClass.HeaderDefines);
                 
+                // Valueless defines should be ignored
                 var featureDefine = cppClass.HeaderDefines.FirstOrDefault(d => d.Name == "FEATURE_ENABLED");
-                Assert.NotNull(featureDefine);
-                Assert.Equal(string.Empty, featureDefine.Value);
-                Assert.Equal("#define FEATURE_ENABLED", featureDefine.FullDefinition);
+                Assert.Null(featureDefine);
                 
+                var headerGuardDefine = cppClass.HeaderDefines.FirstOrDefault(d => d.Name == "HEADER_GUARD_H_");
+                Assert.Null(headerGuardDefine);
+                
+                // Only defines with values should be present
                 var debugDefine = cppClass.HeaderDefines.FirstOrDefault(d => d.Name == "DEBUG_MODE");
                 Assert.NotNull(debugDefine);
                 Assert.Equal("1", debugDefine.Value);

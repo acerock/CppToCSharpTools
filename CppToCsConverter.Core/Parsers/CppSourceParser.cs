@@ -87,19 +87,23 @@ namespace CppToCsConverter.Core.Parsers
                 var defineMatch = _defineRegex.Match(line);
                 if (defineMatch.Success)
                 {
-                    // Collect comments before the define
-                    var precedingComments = CollectPrecedingComments(lines, i);
-                    
-                    var define = new CppDefine
+                    // Only collect defines that have a value (ignore defines with no value like #define ARCHIVER_H_)
+                    if (defineMatch.Groups[2].Success && !string.IsNullOrWhiteSpace(defineMatch.Groups[2].Value))
                     {
-                        Name = defineMatch.Groups[1].Value,
-                        Value = defineMatch.Groups[2].Success ? defineMatch.Groups[2].Value.Trim() : string.Empty,
-                        FullDefinition = line,
-                        PrecedingComments = precedingComments,
-                        SourceFileName = fileName
-                    };
-                    
-                    defines.Add(define);
+                        // Collect comments before the define
+                        var precedingComments = CollectPrecedingComments(lines, i);
+                        
+                        var define = new CppDefine
+                        {
+                            Name = defineMatch.Groups[1].Value,
+                            Value = defineMatch.Groups[2].Value.Trim(),
+                            FullDefinition = line,
+                            PrecedingComments = precedingComments,
+                            SourceFileName = fileName
+                        };
+                        
+                        defines.Add(define);
+                    }
                 }
             }
             

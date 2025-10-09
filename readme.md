@@ -90,7 +90,7 @@ In C++, pure virtual classes (or interfaces) can contain static methods - typica
 
 ## C++ header files (.h)
 A C++ header file can hold one or more type definitions like structs, classes, defines, etc. 
-For a class it defines the public, protected, or private access specifiers and the default values of the parameters and these are important to bring to the C# code. If a method is defined without access specifier it is considered private.
+For a class it holds the public, protected, or private access specifiers and the default values of the parameters and these are important to bring to the C# code. If a method is defined without access specifier it is considered private.
 
 #### Sample class definition in header file with member access specifiers
 From the header file we the most important information to bring to the C# sceleton is the member access specifiers and the defaulting of the parameters. 
@@ -165,7 +165,7 @@ private:
 To complete the .cs file with method bodies we have to look at the .cpp file for the implementations.
 Also, the .cpp file defines the order of the method implementations in the .cs file, so when the order is different as in the .h file, we will move the method to match the ordering in the .cpp file. This will allow us to do a side-by-side compare of the C++ file and the C# file.
 
-In addition the C++ defines the parameter names. As we remember, the declaration in the header file defines the parameter defaulting (if any) but not the final parameter names (as this might not be given at all) so we applyes the defaulting to the .cpp method definition.
+In addition the C++ controls the parameter names for the methods. As we remember, the declaration in the header file defines the parameter defaulting (if any) but not the final parameter names (as this might not be given at all) so we applyes the defaulting to the .cpp method definition.
 
 ### Classes with bodies in multiple .cpp files
 There is no 1 to 1 relation with .h files and .cpp files. The body of a method can be in .cpp file with same name as the .h file, but in many cases this is not true, and the method bodies can be spread around multiple .cpp files.
@@ -472,10 +472,10 @@ typedef struct MyTag
 ```
 
 ## Define statements
-Both C++ header (.h) and source files (.cpp) can hold #define statements for constants. 
-In .h files these appears outside class and struct definitions, and in .cpp files they appear outside methods.
+Both C++ header (.h) and source files (.cpp) can hold #define statements and we need to assure these are collected and persisted in the model, and then written to correct location when we assemble the .cs files. 
+In .h files, #define statements will appears outside class and struct definitions, and in .cpp files they appear outside the methods.
 
-There will be another tool run later that will do the translation of the define statements to true C# syntax. For this application the task is to assure we collect them from the header and .cpp source files as is and with preceding comments and write them to the the .cs file.
+There will be another tool run later that will do the translation of the define statements to the correct C# syntax. For this application the task is to assure we collect them from the header and .cpp source files, as they are with preceding comments and write them to the the .cs file.
 
 Collecting defines from C++ files:
 1. Defines can be found in both the header (.h) and source files (.cpp) for a class.
@@ -487,6 +487,13 @@ Constructing C# class with defines
 3. Defines are written in a specific order
   1. Defines from the header file
   2. Defines from the cpp files
+
+### Defines with no value
+We only collect define statements that followed with a value or expression and ignore those without.
+For instance, we ignore defines like:
+```
+#define ARCHIVER_H_
+```
 
 ### Sample with defines in both header and source files
 CSample.h
