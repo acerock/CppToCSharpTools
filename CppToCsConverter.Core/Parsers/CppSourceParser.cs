@@ -35,34 +35,43 @@ namespace CppToCsConverter.Core.Parsers
 
         public (List<CppMethod> Methods, List<CppStaticMemberInit> StaticInits, List<CppDefine> Defines) ParseSourceFileWithDefines(string filePath)
         {
-            var methods = new List<CppMethod>();
-            var staticInits = new List<CppStaticMemberInit>();
-            var defines = new List<CppDefine>();
+            var sourceFile = ParseSourceFileComplete(filePath);
+            return (sourceFile.Methods, sourceFile.StaticMemberInits, sourceFile.Defines);
+        }
+
+        public CppSourceFile ParseSourceFileComplete(string filePath)
+        {
+            var sourceFile = new CppSourceFile
+            {
+                FileName = Path.GetFileNameWithoutExtension(filePath)
+            };
             
             try
             {
                 var content = File.ReadAllText(filePath);
                 var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-                var fileName = Path.GetFileNameWithoutExtension(filePath);
+                
+                // Parse file top comments first
+                sourceFile.FileTopComments.AddRange(ParseFileTopComments(lines));
                 
                 // Parse method implementations using the original approach
-                methods.AddRange(ParseMethodImplementations(content, fileName));
+                sourceFile.Methods.AddRange(ParseMethodImplementations(content, sourceFile.FileName));
                 
                 // Add comments and regions to the parsed methods
-                AddCommentsAndRegionsToMethods(lines, methods);
+                AddCommentsAndRegionsToMethods(lines, sourceFile.Methods);
                 
                 // Parse static member initializations
-                staticInits.AddRange(ParseStaticMemberInitializations(content));
+                sourceFile.StaticMemberInits.AddRange(ParseStaticMemberInitializations(content));
                 
                 // Parse define statements
-                defines.AddRange(ParseDefineStatementsFromLines(lines, fileName));
+                sourceFile.Defines.AddRange(ParseDefineStatementsFromLines(lines, sourceFile.FileName));
                 
-                return (methods, staticInits, defines);
+                return sourceFile;
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Error parsing source file {filePath}: {ex.Message}");
-                return (methods, staticInits, defines);
+                return sourceFile;
             }
         }
 
@@ -573,6 +582,74 @@ namespace CppToCsConverter.Core.Parsers
             
             // Join lines and trim trailing whitespace
             return string.Join("\n", normalizedLines).Trim();
+        }
+
+        private List<string> ParseFileTopComments(string[] lines)
+        {
+            var fileTopComments = new List<string>();
+            bool insideMultiLineComment = false;
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                
+                // Skip empty lines at the beginning
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+                
+                // Check if we're entering a multi-line comment
+                if (line.StartsWith("/*"))
+                {
+                    insideMultiLineComment = true;
+                    fileTopComments.Add(lines[i]); // Use original line with whitespace
+                    
+                    // Check if the comment ends on the same line
+                    if (line.Contains("*/"))
+                    {
+                        insideMultiLineComment = false;
+                    }
+                    continue;
+                }
+                
+                // Check if we're inside a multi-line comment
+                if (insideMultiLineComment)
+                {
+                    fileTopComments.Add(lines[i]); // Use original line with whitespace
+                    
+                    // Check if this line ends the multi-line comment
+                    if (line.Contains("*/"))
+                    {
+                        insideMultiLineComment = false;
+                    }
+                    continue;
+                }
+                
+                // Check for single-line comments
+                if (line.StartsWith("//"))
+                {
+                    fileTopComments.Add(lines[i]); // Use original line with whitespace
+                    continue;
+                }
+                
+                // If we hit an #include, #define, or any non-comment line, stop
+                if (line.StartsWith("#include", StringComparison.OrdinalIgnoreCase) ||
+                    line.StartsWith("#define", StringComparison.OrdinalIgnoreCase) ||
+                    line.StartsWith("#pragma", StringComparison.OrdinalIgnoreCase) ||
+                    line.StartsWith("#if", StringComparison.OrdinalIgnoreCase) ||
+                    line.StartsWith("#endif", StringComparison.OrdinalIgnoreCase) ||
+                    line.StartsWith("#ifndef", StringComparison.OrdinalIgnoreCase) ||
+                    line.StartsWith("#ifdef", StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+                
+                // Any other non-comment line means we're done with file top comments
+                break;
+            }
+            
+            return fileTopComments;
         }
     }
 }

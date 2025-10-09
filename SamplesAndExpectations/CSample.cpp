@@ -1,3 +1,6 @@
+/* Top comment for CSample file
+ * We expect this comment on the top of the CSample.cs file before the using statements.  
+ */
 #include "StdAfx.h"
 #include "CSample.h"
 

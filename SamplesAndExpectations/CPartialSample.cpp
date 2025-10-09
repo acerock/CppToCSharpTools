@@ -1,3 +1,6 @@
+/* Top comment for CPartialSample file
+ * We expect this comment on the top of the CPartialSample.cs file before the using statements.  
+ */
 #include "StdAfx.h"
 #include "CSample.h"
 

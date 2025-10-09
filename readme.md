@@ -234,6 +234,7 @@ internal partial class CSample : ISample
     }
 }
 ```
+
 ## Classes with static member and intialization
 A C++ class can have a static member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
 
@@ -582,6 +583,121 @@ With block of lines we mean:
 * If a comment is followed with one or multiple empty lines and then another block of comments, we persist the empty lines and extend the comment with the new lines with comments.
 
 We have already defined that comments inside method bodies are handled by persisting method bodies as they are including comments. Here we care about comments outside method bodies describing a following type declarations (like interfaces, structs, classes) or class members like variables, methods, constructors, and destructors.
+
+### File top comments
+Source files (.cpp) can start with a block of comments at the very top that is not mapped to a consecutive element (class, struct, or define). This block of comment typically appear before any #include statement and we consider this a file top comment. Top file comments should be persisted and written to the top of the .cs file before any using statement.
+
+This is general for the source file (.cpp) independent of the content otherwise (multiple classes, partial classes, or single classes). Top file comments sticks to the file.
+
+#### Sample for multiple .cpp files for method bodies
+CSample.h
+```
+#pragma once
+// This is a class comment and maps to the class
+class CSample : public ISample
+{
+private:
+    agrint m_value1;
+
+public:
+	void MethodOne();
+	void MethodTwo();
+	void MethodThree();
+}
+```
+CSample.cpp
+```
+// This is a file comment as it starts before the #include statement
+/* This is a multi-line comments that is consider a continuation of the single-line comment
+ * above. All comments, single lines, and multi-lines are together considered a block and handled by
+ * our general rules for comments but sticks to the file
+ */ 
+#include "stdafx.h"
+#include "CSample.h"
+
+// This is a method comment and maps to the method
+void CSample::MethodOne()
+{
+    m_value1 = 1;
+}
+```
+SampleMoreImpl.cpp
+```
+/* 
+ * SampleMoreImpl.cpp contains MethodTwo() and this block of comments should be
+ * persisted to the top of SampleMoreImpl.cs - before the using statements 
+ */ 
+#include "stdafx.h"
+#include "CSample.h"
+
+// Method comments
+void CSample::MethodTwo()
+{
+    m_value1 = 2;
+}
+
+// Comment for method three
+void CSample::MethodThree()
+{
+    m_value1 = 3;
+}
+```
+CSample.cs
+```
+// This is a file comment as it starts before the #include statement
+/* This is a multi-line comments that is consider a continuation of the single-line comment
+ * above. All comments, single lines, and multi-lines are together considered a block and handled by
+ * our general rules for comments but sticks to the file
+ */ 
+using Agresso.Interface.CoreServices;
+using Agresso.Types;
+using BatchNet.Compatibility.Types;
+using BatchNet.Fundamentals.Compatibility;
+using U4.BatchNet.Common.Compatibility;
+using static BatchNet.Compatibility.Level1;
+using static BatchNet.Compatibility.BatchApi;
+
+internal partial class CSample : ISample
+{
+    private agrint m_value1;
+
+    // This is a method comment and maps to the method
+    public void MethodOne()
+    {
+        m_value1 = 1;
+    }
+}
+```
+SampleMoreImpl.cs
+```
+/* 
+ * SampleMoreImpl.cpp contains MethodTwo() and this block of comments should be
+ * persisted to the top of SampleMoreImpl.cs - before the using statements 
+ */ 
+
+using Agresso.Interface.CoreServices;
+using Agresso.Types;
+using BatchNet.Compatibility.Types;
+using BatchNet.Fundamentals.Compatibility;
+using U4.BatchNet.Common.Compatibility;
+using static BatchNet.Compatibility.Level1;
+using static BatchNet.Compatibility.BatchApi;
+
+internal partial class CSample : ISample
+{
+    // Method comments
+    public void MethodTwo()
+    {
+        m_value1 = 2;
+    }
+
+    // Comment for method three
+    public void MethodThree()
+    {
+        m_value1 = 3;
+    }
+}
+```
 
 #### Rules
 1) Comments are associated to the consecutive type or member and restored before their equivalent in the .cs file.

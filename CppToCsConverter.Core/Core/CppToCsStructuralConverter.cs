@@ -142,16 +142,18 @@ namespace CppToCsConverter.Core.Core
                 }
             }
 
-            // Parse source files
+            // Parse source files with complete file data including top comments
             var sourceDefines = new Dictionary<string, List<CppDefine>>();
+            var sourceFileTopComments = new Dictionary<string, List<string>>();
             foreach (var sourceFile in sourceFiles)
             {
                 Console.WriteLine($"Parsing source: {Path.GetFileName(sourceFile)}");
-                var (methods, staticInits, defines) = _sourceParser.ParseSourceFileWithDefines(sourceFile);
+                var sourceFileData = _sourceParser.ParseSourceFileComplete(sourceFile);
                 var fileName = Path.GetFileNameWithoutExtension(sourceFile);
-                parsedSources[fileName] = methods;
-                staticMemberInits[fileName] = staticInits;
-                sourceDefines[fileName] = defines;
+                parsedSources[fileName] = sourceFileData.Methods;
+                staticMemberInits[fileName] = sourceFileData.StaticMemberInits;
+                sourceDefines[fileName] = sourceFileData.Defines;
+                sourceFileTopComments[fileName] = sourceFileData.FileTopComments;
             }
 
             // Generate C# files - one per header file containing all its classes and structs
@@ -167,10 +169,10 @@ namespace CppToCsConverter.Core.Core
                 Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} class(es) and {structs.Count} struct(s)");
                 
                 // Generate main C# file
-                GenerateAndWriteFile(fileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDefines);
+                GenerateAndWriteFile(fileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDefines, sourceFileTopComments);
                 
                 // Generate additional partial class files for classes that need them
-                GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, outputDirectory);
+                GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, sourceFileTopComments, outputDirectory);
             }
             
             // Old individual class generation logic has been replaced with file-based generation above
@@ -201,6 +203,31 @@ namespace CppToCsConverter.Core.Core
                 sb.AppendLine("using static BatchNet.Compatibility.BatchApi;");
             }
             sb.AppendLine();
+        }
+
+        private void AddFileTopComments(StringBuilder sb, string fileName, Dictionary<string, List<string>>? sourceFileTopComments)
+        {
+            if (sourceFileTopComments == null)
+                return;
+                
+            // Look for file top comments from the specific source file that matches this output file
+            var relevantComments = new List<string>();
+            
+            // Check for exact filename match
+            if (sourceFileTopComments.ContainsKey(fileName))
+            {
+                relevantComments.AddRange(sourceFileTopComments[fileName]);
+            }
+            
+            // Write comments if any found
+            if (relevantComments.Any())
+            {
+                foreach (var comment in relevantComments)
+                {
+                    sb.AppendLine(comment);
+                }
+                sb.AppendLine(); // Add blank line after file top comments
+            }
         }
 
         private void AddNamespace(StringBuilder sb, string fileName)
@@ -331,13 +358,14 @@ namespace CppToCsConverter.Core.Core
             return classMethodCounts.First().Class;
         }
 
-        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
+        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines = null, Dictionary<string, List<string>>? sourceFileTopComments = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
         {
             var sb = new StringBuilder();
             
             // Determine if interface-only for using statements
             bool containsOnlyInterfaces = classes.All(c => c.IsInterface);
             
+            AddFileTopComments(sb, fileName, sourceFileTopComments);
             AddUsingStatements(sb, containsOnlyInterfaces);
             AddNamespace(sb, fileName);
             GenerateFileContent(sb, classes, structs, parsedSources, staticMemberInits, sourceDefines, fileName, isPartialFile, partialMethods);
@@ -1317,7 +1345,7 @@ namespace CppToCsConverter.Core.Core
             return true;
         }
 
-        private void GenerateAdditionalPartialFiles(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string outputDirectory)
+        private void GenerateAdditionalPartialFiles(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory)
         {
             foreach (var cppClass in classes)
             {
@@ -1341,14 +1369,14 @@ namespace CppToCsConverter.Core.Core
                         var methodsForTarget = methodsByTargetFile[targetFile];
                         if (methodsForTarget.Any())
                         {
-                            GeneratePartialClassFile(cppClass, targetFile, methodsForTarget, outputDirectory);
+                            GeneratePartialClassFile(cppClass, targetFile, methodsForTarget, sourceFileTopComments, outputDirectory);
                         }
                     }
                 }
             }
         }
 
-        private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, string outputDirectory)
+        private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory)
         {
             // Use the refactored method to generate and write the partial file
             var classes = new List<CppClass> { cppClass };
@@ -1356,7 +1384,7 @@ namespace CppToCsConverter.Core.Core
             var parsedSources = new Dictionary<string, List<CppMethod>>();
             var staticMemberInits = new Dictionary<string, List<CppStaticMemberInit>>();
             
-            GenerateAndWriteFile(targetFileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDefines: null, isPartialFile: true, partialMethods: methods);
+            GenerateAndWriteFile(targetFileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDefines: null, sourceFileTopComments: sourceFileTopComments, isPartialFile: true, partialMethods: methods);
         }
     }
 }
