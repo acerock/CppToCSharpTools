@@ -1167,13 +1167,14 @@ namespace CppToCsConverter.Core.Core
                 GenerateStaticMemberForPartialClass(sb, staticMember, staticMemberInits, cppClass.Name);
             }
 
-            // Generate methods without target files (inline methods from header)
-            var methodsWithoutTargetFiles = cppClass.Methods.Where(m => string.IsNullOrEmpty(m.TargetFileName)).ToList();
-            if (methodsWithoutTargetFiles.Any())
+            // Generate methods for main file (inline methods from header + methods from same-named source file)
+            var methodsForMainFile = cppClass.Methods.Where(m => 
+                string.IsNullOrEmpty(m.TargetFileName) || m.TargetFileName == fileName).ToList();
+            if (methodsForMainFile.Any())
             {
                 sb.AppendLine();
-                sb.AppendLine("        // Header-only methods (inline implementations)");
-                foreach (var method in methodsWithoutTargetFiles)
+                sb.AppendLine("        // Methods for main file (inline + same-named source)");
+                foreach (var method in methodsForMainFile)
                 {
                     GenerateMethodForPartialClass(sb, method, cppClass.Name);
                 }
@@ -1366,6 +1367,10 @@ namespace CppToCsConverter.Core.Core
                     // Generate a separate partial file for each target file that has methods
                     foreach (var targetFile in targetFileNames)
                     {
+                        // Skip generating partial file if it has the same name as the main file (to avoid overwriting)
+                        if (targetFile == fileName)
+                            continue;
+                            
                         var methodsForTarget = methodsByTargetFile[targetFile];
                         if (methodsForTarget.Any())
                         {
