@@ -569,11 +569,15 @@ namespace CppToCsConverter.Core.Core
 
             // Create signature-based matching for overloaded methods
             var implementedMethodSignatures = relatedMethods.Select(m => GetMethodSignature(m)).ToHashSet();
+            
+
 
             // Add methods from header (declarations only) - preserve C++ syntax
             // Skip methods that have implementations in source files to avoid duplicates
             foreach (var method in cppClass.Methods)
             {
+
+
                 // Skip if this exact method signature has an implementation in source files (avoid duplicates)
                 if (!method.HasInlineImplementation && implementedMethodSignatures.Contains(GetMethodSignature(method)))
                     continue;
@@ -658,6 +662,12 @@ namespace CppToCsConverter.Core.Core
 
             foreach (var method in relatedMethods)
             {
+                // Debug for TrickyToMatch
+                if (method.Name == "TrickyToMatch")
+                {
+
+                }
+
                 // Add source region start (from .cpp file - preserved as region)
                 if (!string.IsNullOrEmpty(method.SourceRegionStart))
                 {
@@ -702,8 +712,20 @@ namespace CppToCsConverter.Core.Core
                 var parametersWithDefaults = MergeParametersWithDefaults(method.Parameters, headerMethod?.Parameters);
                 var parameters = string.Join(", ", parametersWithDefaults.Select(p => FormatCppParameter(p)));
                 
+                // Debug for TrickyToMatch
+                if (method.Name == "TrickyToMatch")
+                {
+
+                }
+                
                 sb.AppendLine($"        {accessModifier} {staticModifier}{returnType}{method.Name}({parameters})");
                 sb.AppendLine("        {");
+                
+                // Debug for TrickyToMatch
+                if (method.Name == "TrickyToMatch")
+                {
+
+                }
                 
                 if (!string.IsNullOrEmpty(method.ImplementationBody))
                 {
@@ -720,6 +742,8 @@ namespace CppToCsConverter.Core.Core
                 
                 sb.AppendLine("        }");
                 sb.AppendLine();
+                
+
             }
 
             sb.AppendLine("    }");
@@ -1037,8 +1061,16 @@ namespace CppToCsConverter.Core.Core
 
         private CppMethod? FindMatchingHeaderMethod(List<CppMethod> headerMethods, CppMethod sourceMethod)
         {
+            // Debug output for TrickyToMatch
+            if (sourceMethod.Name == "TrickyToMatch")
+            {
+
+            }
+
             // First try to find exact match by name and parameter count
             var candidates = headerMethods.Where(h => h.Name == sourceMethod.Name && h.Parameters.Count == sourceMethod.Parameters.Count).ToList();
+            
+
             
             if (candidates.Count == 1)
             {

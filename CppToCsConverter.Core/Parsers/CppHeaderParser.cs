@@ -369,6 +369,10 @@ namespace CppToCsConverter.Core.Parsers
             if (string.IsNullOrWhiteSpace(parametersString))
                 return parameters;
 
+            // Pre-process to remove completely commented-out parameters (like /* agrint &oldParameter,*/)
+            // This handles cases where entire parameters are commented out, not just parameter comments
+            parametersString = RemoveCommentedOutParameters(parametersString);
+
             var paramParts = SplitParametersRespectingParentheses(parametersString);
             
             foreach (var part in paramParts)
@@ -1271,6 +1275,50 @@ namespace CppToCsConverter.Core.Parsers
                    _typedefStructTagRegex.IsMatch(trimmedLine);
         }
         
+        /// <summary>
+        /// Removes completely commented-out parameters from the parameter string
+        /// Handles cases like "param1, /* oldParam, */ param2" -> "param1, param2"
+        /// </summary>
+        private string RemoveCommentedOutParameters(string parametersString)
+        {
+            var result = new StringBuilder();
+            var i = 0;
+            
+            while (i < parametersString.Length)
+            {
+                // Check for start of multi-line comment
+                if (i < parametersString.Length - 1 && parametersString[i] == '/' && parametersString[i + 1] == '*')
+                {
+                    // Skip the entire comment block
+                    i += 2; // Skip /*
+                    
+                    // Find the end of the comment
+                    while (i < parametersString.Length - 1)
+                    {
+                        if (parametersString[i] == '*' && parametersString[i + 1] == '/')
+                        {
+                            i += 2; // Skip */
+                            break;
+                        }
+                        i++;
+                    }
+                    
+                    // Skip any trailing comma and whitespace after the commented-out parameter
+                    while (i < parametersString.Length && (parametersString[i] == ',' || char.IsWhiteSpace(parametersString[i])))
+                    {
+                        i++;
+                    }
+                }
+                else
+                {
+                    result.Append(parametersString[i]);
+                    i++;
+                }
+            }
+            
+            return result.ToString().Trim();
+        }
+
         /// <summary>
         /// Extracts inline comments from parameter text while preserving the clean parameter declaration
         /// </summary>
