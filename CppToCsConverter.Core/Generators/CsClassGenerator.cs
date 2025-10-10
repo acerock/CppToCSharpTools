@@ -145,38 +145,11 @@ namespace CppToCsConverter.Core.Generators
 
         private void GenerateMember(StringBuilder sb, CppMember member)
         {
-            // Add region start marker (from .h file, converted to comment)
-            if (!string.IsNullOrEmpty(member.RegionStart))
-            {
-                sb.AppendLine();
-                sb.AppendLine($"        {member.RegionStart}");
-                sb.AppendLine();
-            }
-
-            // Add comments before member
-            if (member.PrecedingComments.Any())
-            {
-                foreach (var comment in member.PrecedingComments)
-                {
-                    sb.AppendLine($"        {comment}");
-                }
-            }
-
-            var accessibility = GetAccessSpecifierName(member.AccessSpecifier).ToLower();
-            var staticKeyword = member.IsStatic ? "static " : "";
-            // Preserve original C++ type for downstream processing
-            var csType = member.Type;
-            
-            // Include postfix comment if present
-            var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
-            sb.AppendLine($"        {accessibility} {staticKeyword}{csType} {member.Name};{postfixComment}");
-
-            // Add region end marker (from .h file, converted to comment)  
-            if (!string.IsNullOrEmpty(member.RegionEnd))
-            {
-                sb.AppendLine();
-                sb.AppendLine($"        {member.RegionEnd}");
-            }
+            // Use the shared utility method for consistent member generation
+            CppToCsConverter.Core.Utils.MemberGenerationHelper.GenerateMember(
+                sb, 
+                member, 
+                accessSpecifier => GetAccessSpecifierName(accessSpecifier).ToLower());
         }
 
         private void GenerateMethod(StringBuilder sb, CppMethod method, List<CppMethod> implementationMethods, CppClass cppClass)

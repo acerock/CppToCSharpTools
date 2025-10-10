@@ -1263,59 +1263,13 @@ namespace CppToCsConverter.Core.Core
 
         private void GenerateMemberForPartialClass(StringBuilder sb, CppMember member, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string className)
         {
-            // Add region start marker if present
-            if (!string.IsNullOrEmpty(member.RegionStart))
-            {
-                sb.AppendLine();
-                sb.AppendLine($"        {member.RegionStart}");
-                sb.AppendLine();
-            }
-
-            // Add comments before member
-            if (member.PrecedingComments.Any())
-            {
-                foreach (var comment in member.PrecedingComments)
-                {
-                    sb.AppendLine($"        {comment}");
-                }
-            }
-
-            var accessModifier = ConvertAccessSpecifier(member.AccessSpecifier);
-            var staticModifier = member.IsStatic ? "static " : "";
-            
-            // Generate member with same logic as existing code
-            string initialization = "";
-            string memberType = member.Type;
-            string memberName = member.Name;
-            
-            if (member.IsStatic)
-            {
-                var staticInit = staticMemberInits.Values
-                    .SelectMany(inits => inits)
-                    .FirstOrDefault(init => init.ClassName == className && init.MemberName == member.Name);
-                
-                if (staticInit != null)
-                {
-                    initialization = $" = {staticInit.InitializationValue}";
-                    
-                    if (member.IsArray || staticInit.IsArray)
-                    {
-                        memberType = staticInit.Type + "[]";
-                    }
-                }
-            }
-
-            // Include postfix comment if present
-            var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
-            sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {memberName}{initialization};{postfixComment}");
-
-            // Add region end marker if present
-            if (!string.IsNullOrEmpty(member.RegionEnd))
-            {
-                sb.AppendLine();
-                sb.AppendLine($"        {member.RegionEnd}");
-                sb.AppendLine();
-            }
+            // Use the shared utility method for consistent member generation
+            CppToCsConverter.Core.Utils.MemberGenerationHelper.GenerateMember(
+                sb, 
+                member, 
+                ConvertAccessSpecifier,
+                staticMemberInits,
+                className);
         }
 
         private void GenerateStaticMemberForPartialClass(StringBuilder sb, CppStaticMember staticMember, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string className)
