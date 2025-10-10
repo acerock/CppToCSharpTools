@@ -223,7 +223,7 @@ namespace CppToCsConverter.Core.Parsers
                     while (currentLine < lines.Length && parenCount > 0)
                     {
                         var paramLine = lines[currentLine];
-                        parametersString += paramLine;
+                        parametersString += paramLine + "\n"; // Add newline to preserve line structure
                         
                         // Count parentheses to handle nested comments with parens
                         foreach (char c in paramLine)
@@ -431,7 +431,88 @@ namespace CppToCsConverter.Core.Parsers
             if (current.Length > 0)
                 parameters.Add(current.ToString());
             
-            return parameters.ToArray();
+            // Fix misassigned suffix comments: move leading comments from parameters to suffix of previous parameter
+            return FixSuffixCommentAssignment(parameters.ToArray());
+        }
+
+        private string[] FixSuffixCommentAssignment(string[] parameters)
+        {
+            var fixedParameters = new List<string>();
+            
+            for (int i = 0; i < parameters.Length; i++)
+            {
+                var param = parameters[i].Trim();
+                
+                // Check if this parameter starts with a comment that might be a misplaced suffix comment
+                if (i > 0 && (param.StartsWith("/*") || param.StartsWith("//")))
+                {
+                    // Extract the comment and remainder
+                    string comment = "";
+                    string remainder = param;
+                    
+                    if (param.StartsWith("/*"))
+                    {
+                        var endIndex = param.IndexOf("*/");
+                        if (endIndex >= 0)
+                        {
+                            comment = param.Substring(0, endIndex + 2);
+                            remainder = param.Substring(endIndex + 2).Trim();
+                        }
+                    }
+                    else if (param.StartsWith("//"))
+                    {
+                        var newlineIndex = param.IndexOf('\n');
+                        if (newlineIndex >= 0)
+                        {
+                            comment = param.Substring(0, newlineIndex);
+                            remainder = param.Substring(newlineIndex + 1).Trim();
+                        }
+                        else
+                        {
+                            comment = param;
+                            remainder = "";
+                        }
+                    }
+                    
+                    // Only move the comment if it looks like a misplaced suffix comment
+                    // Heuristics to distinguish:
+                    // - "/* IN */ const CString& param1" (don't move - legitimate short prefix)
+                    // - "/*IN/OUT: Memory table with open cursor pointing to specific row*/ double &dValue" (move - long misplaced suffix)
+                    var isLikelyMisplacedSuffix = !string.IsNullOrWhiteSpace(remainder) && 
+                                           comment.Length > 20 && // Long comments are likely documentation (suffix)
+                                           (comment.Contains(":") || comment.Contains("to ") || 
+                                            comment.Contains("for ") || comment.Contains("with ") ||
+                                            comment.Contains("Return") || comment.Contains("Set ")) && // Documentation keywords
+                                           remainder.Length > 10 && // Substantial parameter content
+                                           (remainder.Contains("&") || remainder.Contains("*") || 
+                                            remainder.Split(' ', '\t').Length >= 2); // Looks like type + name
+                    
+                    var shouldMoveComment = isLikelyMisplacedSuffix;
+                    
+                    if (shouldMoveComment && !string.IsNullOrEmpty(comment) && fixedParameters.Count > 0)
+                    {
+                        // Move comment to previous parameter as suffix
+                        fixedParameters[fixedParameters.Count - 1] += " " + comment;
+                        
+                        // Add remainder as current parameter
+                        if (!string.IsNullOrWhiteSpace(remainder))
+                        {
+                            fixedParameters.Add(remainder);
+                        }
+                    }
+                    else
+                    {
+                        // Don't move - keep as is (legitimate prefix comment)
+                        fixedParameters.Add(param);
+                    }
+                }
+                else
+                {
+                    fixedParameters.Add(param);
+                }
+            }
+            
+            return fixedParameters.ToArray();
         }
 
         private string ExtractMethodBody(string content, int startIndex)
