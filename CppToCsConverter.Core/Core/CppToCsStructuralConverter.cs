@@ -853,7 +853,7 @@ namespace CppToCsConverter.Core.Core
             }
         }
         
-        private string FormatCppParameterWithPositionedComments(CppParameter param)
+        public string FormatCppParameterWithPositionedComments(CppParameter param)
         {
             // Generate base parameter WITHOUT positioned comments (to avoid duplication)
             var baseParam = FormatCppParameterClean(param);
@@ -893,7 +893,7 @@ namespace CppToCsConverter.Core.Core
             return result.ToString();
         }
 
-        private string FormatCppParameterClean(CppParameter param)
+        public string FormatCppParameterClean(CppParameter param)
         {
             // Format parameter without any comments (to avoid duplication)
             var result = "";

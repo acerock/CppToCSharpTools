@@ -285,14 +285,9 @@ void TestClass::TestMethod(/* IN */ const CString& param1 /* OUT */)
                 }
             };
 
-            // Act - Use reflection to call the private method
+            // Act - Call the now-public method directly
             var converter = new CppToCsConverter.Core.Core.CppToCsStructuralConverter();
-            var method = typeof(CppToCsConverter.Core.Core.CppToCsStructuralConverter)
-                .GetMethod("FormatCppParameterWithPositionedComments", 
-                          System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-            
-            Assert.NotNull(method);
-            var result = (string?)method.Invoke(converter, new object[] { param });
+            var result = converter.FormatCppParameterWithPositionedComments(param);
             Assert.NotNull(result);
 
             // Assert - Should have comment only once
@@ -356,14 +351,9 @@ void TestClass::MixedCommentMethod(
                 DefaultValue = "0"
             };
 
-            // Act - Use reflection to test the clean parameter formatting
+            // Act - Call the now-public method directly
             var converter = new CppToCsConverter.Core.Core.CppToCsStructuralConverter();
-            var method = typeof(CppToCsConverter.Core.Core.CppToCsStructuralConverter)
-                .GetMethod("FormatCppParameterWithPositionedComments",
-                          System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-            Assert.NotNull(method);
-            var result = (string?)method.Invoke(converter, new object[] { param });
+            var result = converter.FormatCppParameterWithPositionedComments(param);
             Assert.NotNull(result);
 
             // Assert - Should be clean parameter format
