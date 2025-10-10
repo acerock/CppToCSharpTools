@@ -1409,11 +1409,31 @@ namespace CppToCsConverter.Core.Core
             // Generate methods for main file (inline methods from header + methods from same-named source file)
             var methodsForMainFile = cppClass.Methods.Where(m => 
                 string.IsNullOrEmpty(m.TargetFileName) || m.TargetFileName == fileName).ToList();
+            
             if (methodsForMainFile.Any())
             {
                 sb.AppendLine();
                 sb.AppendLine("        // Methods for main file (inline + same-named source)");
-                foreach (var method in methodsForMainFile)
+                
+                // First: Generate inline methods in header declaration order (methods without implementation or inline methods)
+                var inlineMethods = methodsForMainFile.Where(m => 
+                    string.IsNullOrEmpty(m.TargetFileName) || 
+                    (m.TargetFileName == fileName && m.HasInlineImplementation))
+                    .OrderBy(m => cppClass.Methods.IndexOf(m)) // Maintain header order for inline methods
+                    .ToList();
+                
+                foreach (var method in inlineMethods)
+                {
+                    GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources);
+                }
+                
+                // Second: Generate methods with source implementation in source file order
+                var sourceMethods = methodsForMainFile.Where(m => 
+                    m.TargetFileName == fileName && !m.HasInlineImplementation)
+                    .OrderBy(m => m.OrderIndex) // Order by source file order
+                    .ToList();
+                
+                foreach (var method in sourceMethods)
                 {
                     GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources);
                 }
@@ -1591,8 +1611,9 @@ namespace CppToCsConverter.Core.Core
                 
                 if (sourceMethod != null)
                 {
-                    // Copy TargetFileName and ImplementationBody from source method
+                    // Copy TargetFileName, ImplementationBody, and OrderIndex from source method
                     headerMethod.TargetFileName = sourceMethod.TargetFileName;
+                    headerMethod.OrderIndex = sourceMethod.OrderIndex; // Copy order index for proper method ordering
                     if (string.IsNullOrEmpty(headerMethod.ImplementationBody))
                     {
                         headerMethod.ImplementationBody = sourceMethod.ImplementationBody;

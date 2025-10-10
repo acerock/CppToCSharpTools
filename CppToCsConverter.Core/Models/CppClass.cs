@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace CppToCsConverter.Core.Models
 {
@@ -55,7 +56,7 @@ namespace CppToCsConverter.Core.Models
             return Methods
                 .Where(m => !string.IsNullOrEmpty(m.TargetFileName))
                 .GroupBy(m => m.TargetFileName)
-                .ToDictionary(g => g.Key, g => g.ToList());
+                .ToDictionary(g => g.Key, g => g.OrderBy(m => m.OrderIndex).ToList());
         }
     }
 
