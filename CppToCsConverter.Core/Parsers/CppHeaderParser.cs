@@ -1415,24 +1415,37 @@ namespace CppToCsConverter.Core.Parsers
                 // Check for start of multi-line comment
                 if (i < parametersString.Length - 1 && parametersString[i] == '/' && parametersString[i + 1] == '*')
                 {
-                    // Skip the entire comment block
+                    var commentStart = i;
                     i += 2; // Skip /*
                     
-                    // Find the end of the comment
-                    while (i < parametersString.Length - 1)
+                    // Find the end of the comment and capture its content
+                    var commentContent = new StringBuilder();
+                    while (i <= parametersString.Length - 2)
                     {
                         if (parametersString[i] == '*' && parametersString[i + 1] == '/')
                         {
                             i += 2; // Skip */
                             break;
                         }
+                        commentContent.Append(parametersString[i]);
                         i++;
                     }
                     
-                    // Skip any trailing comma and whitespace after the commented-out parameter
-                    while (i < parametersString.Length && (parametersString[i] == ',' || char.IsWhiteSpace(parametersString[i])))
+                    // Only remove the comment if it contains a comma (indicating it's a commented-out parameter)
+                    if (commentContent.ToString().Contains(','))
                     {
-                        i++;
+                        // This is likely a commented-out parameter, skip it entirely
+                        // Also skip any trailing comma and whitespace after the commented-out parameter
+                        while (i < parametersString.Length && (parametersString[i] == ',' || char.IsWhiteSpace(parametersString[i])))
+                        {
+                            i++;
+                        }
+                    }
+                    else
+                    {
+                        // This is a parameter comment (no comma), preserve it
+                        var commentLength = i - commentStart;
+                        result.Append(parametersString.Substring(commentStart, commentLength));
                     }
                 }
                 else
@@ -1487,7 +1500,7 @@ namespace CppToCsConverter.Core.Parsers
                     i += 2; // Skip /*
                     
                     // Find end of comment
-                    while (i < parameterText.Length - 1)
+                    while (i <= parameterText.Length - 2)
                     {
                         if (parameterText[i] == '*' && parameterText[i + 1] == '/')
                         {
@@ -1506,11 +1519,8 @@ namespace CppToCsConverter.Core.Parsers
                     var ch = parameterText[i];
                     cleanText.Append(ch);
                     
-                    // Add to clean content for parameter name detection
-                    if (!char.IsWhiteSpace(ch))
-                    {
-                        cleanContentSoFar.Append(ch);
-                    }
+                    // Add to clean content for parameter name detection (preserve spaces for word counting)
+                    cleanContentSoFar.Append(ch);
                     
                     // Try to detect if we've seen a parameter name
                     // A parameter typically has format: [const] Type[*|&] paramName
