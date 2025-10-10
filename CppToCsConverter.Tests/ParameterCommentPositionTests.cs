@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using CppToCsConverter.Core.Models;
@@ -329,9 +330,11 @@ public:
     void TestMethod(const CString& param1, CAgrMT* param2);
 };";
 
-            var tempSourceFile = Path.GetTempFileName();
-            var tempHeaderFile = Path.GetTempFileName();
-            var outputDir = Path.GetTempPath();
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            Directory.CreateDirectory(tempDir);
+            var tempSourceFile = Path.Combine(tempDir, "TestClass.cpp");
+            var tempHeaderFile = Path.Combine(tempDir, "TestClass.h");
+            var outputDir = tempDir;
 
             try
             {
@@ -355,8 +358,10 @@ public:
             }
             finally
             {
-                File.Delete(tempSourceFile);
-                File.Delete(tempHeaderFile);
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
             }
         }
 
@@ -379,9 +384,11 @@ public:
     void TestMethod(const CString& param1, CAgrMT* param2);
 };";
 
-            var tempSourceFile = Path.GetTempFileName();
-            var tempHeaderFile = Path.GetTempFileName();
-            var outputDir = Path.GetTempPath();
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            Directory.CreateDirectory(tempDir);
+            var tempSourceFile = Path.Combine(tempDir, "TestClass.cpp");
+            var tempHeaderFile = Path.Combine(tempDir, "TestClass.h");
+            var outputDir = tempDir;
 
             try
             {
@@ -405,8 +412,10 @@ public:
             }
             finally
             {
-                File.Delete(tempSourceFile);
-                File.Delete(tempHeaderFile);
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
             }
         }
 
@@ -433,9 +442,11 @@ public:
     void TestMethod(const CString& param1, const bool& param2, CAgrMT* param3);
 };";
 
-            var tempSourceFile = Path.GetTempFileName();
-            var tempHeaderFile = Path.GetTempFileName();
-            var outputDir = Path.GetTempPath();
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+            Directory.CreateDirectory(tempDir);
+            var tempSourceFile = Path.Combine(tempDir, "TestClass.cpp");
+            var tempHeaderFile = Path.Combine(tempDir, "TestClass.h");
+            var outputDir = tempDir;
 
             try
             {
@@ -464,8 +475,10 @@ public:
             }
             finally
             {
-                File.Delete(tempSourceFile);
-                File.Delete(tempHeaderFile);
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
             }
         }
 

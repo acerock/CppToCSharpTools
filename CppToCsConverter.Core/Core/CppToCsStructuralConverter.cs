@@ -1305,7 +1305,9 @@ namespace CppToCsConverter.Core.Core
                 }
             }
 
-            sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {memberName}{initialization};");
+            // Include postfix comment if present
+            var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
+            sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {memberName}{initialization};{postfixComment}");
 
             // Add region end marker if present
             if (!string.IsNullOrEmpty(member.RegionEnd))
