@@ -591,10 +591,12 @@ With block of lines we mean:
 
 We have already defined that comments inside method bodies are handled by persisting method bodies as they are including comments. Here we care about comments outside method bodies describing a following type declarations (like interfaces, structs, classes) or class members like variables, methods, constructors, and destructors.
 
-#### Comments in method arguments list
-Method arguments can have comments in any order and any position both in the header declaration and source file implementation. The arguments should be ignored when matching declaration with implementation.
-For inline methods we persist the comments from the argument list to write them to the .cs method argument list.
-For methods with implementation we need ignore any comments from the header and persist the source (.cpp) method argument list comments this is the same for single class implementation as for partial class implementations.
+#### Comments in method parameter list
+Method parameter lists can have comments in any order and any position both in the header declaration and source file implementation. The comments should be ignored when matching declaration with implementation.
+For inline methods we persist the comments from the parameter list and write them to the .cs method parameter list.
+For methods with implementation we need ignore any comments from the header and persist the source (.cpp) method parameter list comments this is the same for single class implementation as for partial class implementations.
+
+Parameter comments are posional as they can be considered prefixing a parameter or postfixing a parameter.
 
 ##### Samples for comments in method parameter list
 The following samples show that comments in parameter list is valid at any point both in header and source files.
@@ -779,7 +781,7 @@ internal partial class CSample : ISample
 #### Rules
 1) Comments are associated to the consecutive type or member and restored before their equivalent in the .cs file.
 2) If a method has a block of comments associated in both the .h file and the .cpp file, we persist boths and write the comment from the .h file first.
-3) There are cases where a comment follows a construct - see the rules for pragma region in .h files.
+3) There are cases where a comment follows a construct. For instance a member variable can have a comment on the same line following its declaration. Also, see the rules for pragma region in .h files.
 4) We never add new comments or change the content of a existing comment, the goal is to persist the comments and write them to right location in the .cs file.
 
 ### Samples:
@@ -834,7 +836,7 @@ internal class CSample : ISample
 ```
 
 #### Comment block before member variable
-
+CSample.h
 ```
 class CSample : public ISample
 {
@@ -846,13 +848,40 @@ private:
 }
 ```
 
-C# result 
+Expected C# result 
 ```
 internal class CSample : ISample
 {
     // My value holder
 
     private agrint m_value;
+}
+```
+
+#### Optional comment block after member variable
+CSample.h
+```
+class CSample : public ISample
+{
+private:
+
+    // My value holder
+
+	agrint m_value; /* This is a comment for the m_value member and
+                     * it might span multiple lines 
+                     */
+}
+```
+
+Expected C# result 
+```
+internal class CSample : ISample
+{
+    // My value holder
+
+    private agrint m_value; /* This is a comment for the m_value member and
+                             * it might span multiple lines 
+                             */
 }
 ```
 

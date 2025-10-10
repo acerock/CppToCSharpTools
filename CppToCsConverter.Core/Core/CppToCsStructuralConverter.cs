@@ -548,7 +548,9 @@ namespace CppToCsConverter.Core.Core
                     memberType = $"{member.Type}[]";
                 }
                 
-                sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {memberName}{initialization};");
+                // Include postfix comment if present
+                var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
+                sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {memberName}{initialization};{postfixComment}");
 
                 // Add region end marker (from .h file, converted to comment)  
                 if (!string.IsNullOrEmpty(member.RegionEnd))

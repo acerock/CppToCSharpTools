@@ -14,7 +14,7 @@ namespace CppToCsConverter.Core.Parsers
         private readonly ILogger _logger;
         private readonly Regex _classRegex = new Regex(@"(?:class|struct)\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
         private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(.*?\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{.*?\})?", RegexOptions.Compiled | RegexOptions.Singleline);
-        private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*(\d*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(?://.*)?$", RegexOptions.Compiled);
+        private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*(\d*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(.*)$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
         private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
         private readonly Regex _defineRegex = new Regex(@"^\s*#define\s+(\w+)(?:\s+(.*))?$", RegexOptions.Compiled);
@@ -154,6 +154,8 @@ namespace CppToCsConverter.Core.Parsers
             {
                 var line = lines[i].Trim();
                 
+
+                
                 // Skip empty lines but NOT comments (we need to collect them)
                 if (string.IsNullOrEmpty(line))
                     continue;
@@ -223,57 +225,105 @@ namespace CppToCsConverter.Core.Parsers
                     (line.Contains("{") && !line.Contains("}") && !line.Contains("(") && !line.Trim().StartsWith("~")))
                     continue;
 
-                // Parse methods (handle multi-line declarations)
-                var originalIndex = i;
-                var methodLine = CollectMultiLineMethodDeclaration(lines, ref i);
-                var methodMatch = _methodRegex.Match(methodLine);
-                if (methodMatch.Success)
+                // Check if this line has parentheses only in comments (skip method parsing for such lines)
+                bool hasCommentOnlyParentheses = false;
+                if (line.Contains("(") && (line.Contains("//") || line.Contains("/*")))
                 {
-                    try
+                    var commentIndex = Math.Min(
+                        line.IndexOf("//") >= 0 ? line.IndexOf("//") : int.MaxValue,
+                        line.IndexOf("/*") >= 0 ? line.IndexOf("/*") : int.MaxValue
+                    );
+                    
+                    if (commentIndex < int.MaxValue)
                     {
-                        var method = ParseMethod(methodMatch, currentAccess, methodLine, currentClass.Name, fileName);
-                        if (method != null)
+                        var codeBeforeComment = line.Substring(0, commentIndex);
+                        if (!codeBeforeComment.Contains("("))
                         {
-                            // Collect comments and region markers for method from .h file
-                            var (headerComments, headerIndentation) = CollectPrecedingCommentsWithIndentation(lines, originalIndex);
-                            method.HeaderComments = headerComments;
-                            method.HeaderCommentIndentation = headerIndentation;
-                            
-                            var (regionStart, regionEnd) = ParseRegionMarkers(lines, originalIndex, i);
-                            method.HeaderRegionStart = regionStart;
-                            method.HeaderRegionEnd = regionEnd;
-
-                            currentClass.Methods.Add(method);
+                            hasCommentOnlyParentheses = true;
                         }
                     }
-                    catch (Exception ex)
+                }
+
+                // Parse methods (handle multi-line declarations) - but skip if parentheses are only in comments
+                if (!hasCommentOnlyParentheses)
+                {
+                    var originalIndex = i;
+                    var methodLine = CollectMultiLineMethodDeclaration(lines, ref i);
+                    var methodMatch = _methodRegex.Match(methodLine);
+                    
+
+                    
+                    if (methodMatch.Success)
                     {
-                        Console.WriteLine($"Error parsing method '{methodMatch.Groups[4].Value}': {ex.Message}");
+                        try
+                        {
+                            var method = ParseMethod(methodMatch, currentAccess, methodLine, currentClass.Name, fileName);
+                            if (method != null)
+                            {
+                                // Collect comments and region markers for method from .h file
+                                var (headerComments, headerIndentation) = CollectPrecedingCommentsWithIndentation(lines, originalIndex);
+                                method.HeaderComments = headerComments;
+                                method.HeaderCommentIndentation = headerIndentation;
+                                
+                                var (regionStart, regionEnd) = ParseRegionMarkers(lines, originalIndex, i);
+                                method.HeaderRegionStart = regionStart;
+                                method.HeaderRegionEnd = regionEnd;
+
+                                currentClass.Methods.Add(method);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error parsing method '{methodMatch.Groups[4].Value}': {ex.Message}");
+                        }
+                        continue;
                     }
-                    continue;
                 }
 
                 // Parse members - only if it looks like a proper member declaration
                 var memberMatch = _memberRegex.Match(line);
-                if (memberMatch.Success && !line.TrimStart().StartsWith("return ") && !line.TrimStart().StartsWith("if ") && !line.TrimStart().StartsWith("for ") && !line.TrimStart().StartsWith("while "))
+                
+
+                
+                if (memberMatch.Success)
                 {
-                    // Collect comments and region markers for member
-                    var precedingComments = CollectPrecedingComments(lines, i);
-                    var (regionStart, regionEnd) = ParseRegionMarkers(lines, i, i);
-                    
-                    var member = new CppMember
+                    if (!line.TrimStart().StartsWith("return ") && !line.TrimStart().StartsWith("if ") && !line.TrimStart().StartsWith("for ") && !line.TrimStart().StartsWith("while "))
                     {
-                        Type = memberMatch.Groups[3].Value.Trim(),
-                        Name = memberMatch.Groups[4].Value,
-                        AccessSpecifier = currentAccess,
-                        IsStatic = memberMatch.Groups[1].Success,
-                        IsArray = memberMatch.Groups[5].Success,
-                        ArraySize = memberMatch.Groups[5].Success ? memberMatch.Groups[5].Value : string.Empty,
-                        PrecedingComments = precedingComments,
-                        RegionStart = regionStart,
-                        RegionEnd = regionEnd
-                    };
-                    currentClass.Members.Add(member);
+                        // Collect comments and region markers for member
+                        var precedingComments = CollectPrecedingComments(lines, i);
+                        var (regionStart, regionEnd) = ParseRegionMarkers(lines, i, i);
+                        
+                        // Extract postfix comment from the member line
+                        var postfixComment = string.Empty;
+                        var initialPostfixText = memberMatch.Groups[7].Value;
+                        
+                        // Check if this is a multi-line comment that spans multiple lines
+                        if (initialPostfixText.Trim().StartsWith("/*") && !initialPostfixText.Contains("*/"))
+                        {
+                            // Collect the complete multi-line comment
+                            postfixComment = CollectMultiLineComment(lines, i, initialPostfixText);
+                        }
+                        else
+                        {
+                            postfixComment = ExtractPostfixComment(initialPostfixText);
+                        }
+                        
+                        var member = new CppMember
+                        {
+                            Type = memberMatch.Groups[3].Value.Trim(),
+                            Name = memberMatch.Groups[4].Value,
+                            AccessSpecifier = currentAccess,
+                            IsStatic = memberMatch.Groups[1].Success,
+                            IsArray = memberMatch.Groups[5].Success,
+                            ArraySize = memberMatch.Groups[5].Success ? memberMatch.Groups[5].Value : string.Empty,
+                            PrecedingComments = precedingComments,
+                            PostfixComment = postfixComment,
+                            RegionStart = regionStart,
+                            RegionEnd = regionEnd
+                        };
+
+                        currentClass.Members.Add(member);
+                    }
                 }
             }
 
@@ -439,10 +489,32 @@ namespace CppToCsConverter.Core.Parsers
         {
             var currentLine = lines[lineIndex];
             
+
+            
             // If the line doesn't look like the start of a method, return it as-is
-            if (!currentLine.Trim().Contains("virtual") && !currentLine.Trim().Contains("static") && !currentLine.Trim().Contains("("))
+            var trimmedLine = currentLine.Trim();
+            if (!trimmedLine.Contains("virtual") && !trimmedLine.Contains("static") && !trimmedLine.Contains("("))
             {
                 return currentLine;
+            }
+            
+            // Special case: If line has parentheses but they appear to be in comments (after // or /*), treat as member
+            if (trimmedLine.Contains("//") || trimmedLine.Contains("/*"))
+            {
+                var commentIndex = Math.Min(
+                    trimmedLine.IndexOf("//") >= 0 ? trimmedLine.IndexOf("//") : int.MaxValue,
+                    trimmedLine.IndexOf("/*") >= 0 ? trimmedLine.IndexOf("/*") : int.MaxValue
+                );
+                
+                if (commentIndex < int.MaxValue)
+                {
+                    var codeBeforeComment = trimmedLine.Substring(0, commentIndex);
+                    if (!codeBeforeComment.Contains("("))
+                    {
+                        // Parentheses are only in comments, not a method
+                        return currentLine;
+                    }
+                }
             }
             
             var methodBuilder = new StringBuilder();
@@ -920,6 +992,57 @@ namespace CppToCsConverter.Core.Parsers
         {
             var (comments, _) = CollectPrecedingCommentsWithIndentation(lines, currentIndex);
             return comments;
+        }
+
+        private string CollectMultiLineComment(string[] lines, int startLineIndex, string initialCommentText)
+        {
+            var commentBuilder = new StringBuilder();
+            commentBuilder.Append(initialCommentText);
+
+            // Look for the closing */ in subsequent lines
+            for (int i = startLineIndex + 1; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                commentBuilder.Append(" " + line.Trim());
+                
+                if (line.Contains("*/"))
+                {
+                    // Found the end of the comment
+                    break;
+                }
+            }
+            
+            return commentBuilder.ToString();
+        }
+
+        private string ExtractPostfixComment(string postfixText)
+        {
+            if (string.IsNullOrWhiteSpace(postfixText))
+                return string.Empty;
+
+            var trimmedText = postfixText.Trim();
+            if (string.IsNullOrEmpty(trimmedText))
+                return string.Empty;
+
+            // Handle single-line comment
+            if (trimmedText.StartsWith("//"))
+            {
+                return trimmedText;
+            }
+
+            // Handle multi-line comment that starts and ends on the same line
+            if (trimmedText.StartsWith("/*") && trimmedText.Contains("*/"))
+            {
+                return trimmedText;
+            }
+
+            // Handle multi-line comment that starts but doesn't end on the same line
+            if (trimmedText.StartsWith("/*") && !trimmedText.Contains("*/"))
+            {
+                return trimmedText; // Return the starting part, will be collected by calling code if needed
+            }
+
+            return string.Empty;
         }
 
         private (string regionStart, string regionEnd) ParseRegionMarkers(string[] lines, int startIndex, int endIndex)

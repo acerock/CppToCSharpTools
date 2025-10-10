@@ -44,7 +44,8 @@ private:
 
     CString cValue1;
     CString cValue2;
-    CString cValue3;
+    CString cValue3; 
+    CAgrMT* m_pmtReport; //Res/Rate-Reporting (To do: Not touch?)
 
     // Static member
 

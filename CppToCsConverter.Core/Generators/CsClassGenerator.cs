@@ -167,7 +167,9 @@ namespace CppToCsConverter.Core.Generators
             // Preserve original C++ type for downstream processing
             var csType = member.Type;
             
-            sb.AppendLine($"        {accessibility} {staticKeyword}{csType} {member.Name};");
+            // Include postfix comment if present
+            var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
+            sb.AppendLine($"        {accessibility} {staticKeyword}{csType} {member.Name};{postfixComment}");
 
             // Add region end marker (from .h file, converted to comment)  
             if (!string.IsNullOrEmpty(member.RegionEnd))

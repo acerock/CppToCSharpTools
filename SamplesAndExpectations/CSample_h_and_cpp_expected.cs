@@ -60,6 +60,7 @@ namespace Generated_CSample
         private CString cValue1;
         private CString cValue2;
         private CString cValue3;
+        private CAgrMT* m_pmtReport; //Res/Rate-Reporting (To do: Not touch?)
 
         // Static member
 
