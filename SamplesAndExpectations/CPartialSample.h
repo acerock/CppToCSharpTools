@@ -38,6 +38,9 @@ public:
     void MethodOneInPartial(const CString& cParam1,
                    const bool &bParam2,
                    CString *pcParam3);
+                   
+	agrint GetRate(CAgrMT* pmtTrans, double& dValue, const TDimValue& dimValueId, CString& cTransDateFrom, CString& cTransDateTo, const CString& cDateLimit, const double& dPostFlag);
+
     void MethodTwoInPartial(const CString& cParam1,
                    const bool &bParam2,
                    CString *pcParam3);

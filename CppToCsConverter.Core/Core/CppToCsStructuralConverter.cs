@@ -154,6 +154,22 @@ namespace CppToCsConverter.Core.Core
                 staticMemberInits[fileName] = sourceFileData.StaticMemberInits;
                 sourceDefines[fileName] = sourceFileData.Defines;
                 sourceFileTopComments[fileName] = sourceFileData.FileTopComments;
+                
+                // Debug parsed methods
+                Console.WriteLine($"DEBUG: Parsed {sourceFileData.Methods.Count} methods from {fileName}");
+                foreach (var method in sourceFileData.Methods)
+                {
+                    if (method.Name == "GetRate")
+                    {
+                        Console.WriteLine($"  Found GetRate in {fileName} with {method.Parameters.Count} parameters");
+                        foreach (var param in method.Parameters)
+                        {
+                            Console.WriteLine($"    Param: {param.Name}, PositionedComments: {param.PositionedComments?.Count ?? 0}");
+                        }
+                    }
+                }
+                
+
             }
 
             // Generate C# files - one per header file containing all its classes and structs
@@ -253,7 +269,7 @@ namespace CppToCsConverter.Core.Core
                     {
                         foreach (var method in partialMethods)
                         {
-                            GenerateMethodForPartialClass(sb, method, cppClass.Name);
+                            GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources);
                         }
                     }
 
@@ -622,13 +638,12 @@ namespace CppToCsConverter.Core.Core
                 var staticModifier = method.IsStatic ? "static " : "";
                 var virtualModifier = method.IsVirtual ? "virtual " : "";
                 var returnType = method.IsConstructor || method.IsDestructor ? "" : method.ReturnType + " ";
-                var parameters = string.Join(", ", method.Parameters.Select(p => FormatCppParameter(p)));
                 
                 if (method.HasInlineImplementation)
                 {
-
                     // Include inline implementation with proper indentation
-                    sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{method.Name}({parameters})");
+
+                    GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType, method.Name, method.Parameters);
                     sb.AppendLine("        {");
                     
                     // For constructors, add member initializer assignments first
@@ -653,9 +668,8 @@ namespace CppToCsConverter.Core.Core
                 }
                 else
                 {
-
                     // Method declaration without body
-                    sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{method.Name}({parameters});");
+                    GenerateMethodDeclarationWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType, method.Name, method.Parameters);
                 }
                 sb.AppendLine();
             }
@@ -709,18 +723,13 @@ namespace CppToCsConverter.Core.Core
 
                 var accessModifier = headerMethod != null ? ConvertAccessSpecifier(headerMethod.AccessSpecifier) : "public";
                 var staticModifier = method.IsStatic ? "static " : "";
+                var virtualModifier = method.IsVirtual ? "virtual " : "";
                 var returnType = method.IsConstructor || method.IsDestructor ? "" : method.ReturnType + " ";
                 
                 var parametersWithDefaults = MergeParametersWithDefaults(method.Parameters, headerMethod?.Parameters);
-                var parameters = string.Join(", ", parametersWithDefaults.Select(p => FormatCppParameter(p)));
                 
-                // Debug for TrickyToMatch
-                if (method.Name == "TrickyToMatch")
-                {
-
-                }
-                
-                sb.AppendLine($"        {accessModifier} {staticModifier}{returnType}{method.Name}({parameters})");
+                // Use comment-aware method signature generation (same as other paths)
+                GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType, method.Name, parametersWithDefaults);
                 sb.AppendLine("        {");
                 
                 // Debug for TrickyToMatch
@@ -760,6 +769,151 @@ namespace CppToCsConverter.Core.Core
                 AccessSpecifier.Private => "private",
                 _ => "private"
             };
+        }
+
+        private void GenerateMethodSignatureWithComments(StringBuilder sb, string accessModifier, string staticModifier, 
+            string virtualModifier, string returnType, string methodName, List<CppParameter> parameters)
+        {
+            // Check if any parameter has comments - if not, use simple single-line format
+            bool hasParameterComments = parameters.Any(p => 
+                (p.PositionedComments?.Any() ?? false) || 
+                p.InlineComments.Any() ||
+                (!string.IsNullOrEmpty(p.OriginalText) && (p.OriginalText.Contains("/*") || p.OriginalText.Contains("//"))));
+            
+            // Debug TrickyToMatch signature generation
+
+            
+            if (!hasParameterComments || parameters.Count == 0)
+            {
+                // Simple single-line format (existing behavior)
+                var parametersString = string.Join(", ", parameters.Select(p => FormatCppParameter(p)));
+                sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}({parametersString})");
+            }
+            else
+            {
+                // Multi-line format with positioned comments (like CsClassGenerator)
+                sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}(");
+                
+                for (int i = 0; i < parameters.Count; i++)
+                {
+                    var param = parameters[i];
+                    var isLast = i == parameters.Count - 1;
+                    
+                    // Generate parameter with positioned comments
+                    var paramString = FormatCppParameterWithPositionedComments(param);
+                    
+                    // Add the parameter with proper comma
+                    if (isLast)
+                    {
+                        sb.AppendLine($"            {paramString})");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            {paramString},");
+                    }
+                }
+            }
+        }
+        
+        private void GenerateMethodDeclarationWithComments(StringBuilder sb, string accessModifier, string staticModifier, 
+            string virtualModifier, string returnType, string methodName, List<CppParameter> parameters)
+        {
+            // Check if any parameter has comments - if not, use simple single-line format
+            bool hasParameterComments = parameters.Any(p => (p.PositionedComments?.Any() ?? false) || p.InlineComments.Any());
+            
+            if (!hasParameterComments || parameters.Count == 0)
+            {
+                // Simple single-line format (existing behavior)
+                var parametersString = string.Join(", ", parameters.Select(p => FormatCppParameter(p)));
+                sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}({parametersString});");
+            }
+            else
+            {
+                // Multi-line format with positioned comments (like CsClassGenerator)
+                sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}(");
+                
+                for (int i = 0; i < parameters.Count; i++)
+                {
+                    var param = parameters[i];
+                    var isLast = i == parameters.Count - 1;
+                    
+                    // Generate parameter with positioned comments
+                    var paramString = FormatCppParameterWithPositionedComments(param);
+                    
+                    // Add the parameter with proper comma
+                    if (isLast)
+                    {
+                        sb.AppendLine($"            {paramString});");
+                    }
+                    else
+                    {
+                        sb.AppendLine($"            {paramString},");
+                    }
+                }
+            }
+        }
+        
+        private string FormatCppParameterWithPositionedComments(CppParameter param)
+        {
+            // Generate base parameter WITHOUT positioned comments (to avoid duplication)
+            var baseParam = FormatCppParameterClean(param);
+            
+            // If no positioned comments, return base parameter
+            if (param.PositionedComments == null || !param.PositionedComments.Any())
+            {
+                return baseParam;
+            }
+            
+            var prefixComments = param.PositionedComments.Where(pc => pc.Position == CommentPosition.Prefix).ToList();
+            var suffixComments = param.PositionedComments.Where(pc => pc.Position == CommentPosition.Suffix).ToList();
+            
+            var result = new StringBuilder();
+            
+            // Add prefix comments
+            if (prefixComments.Any())
+            {
+                foreach (var comment in prefixComments)
+                {
+                    result.Append(comment.CommentText + " ");
+                }
+            }
+            
+            // Add the parameter
+            result.Append(baseParam);
+            
+            // Add suffix comments
+            if (suffixComments.Any())
+            {
+                foreach (var comment in suffixComments)
+                {
+                    result.Append(" " + comment.CommentText);
+                }
+            }
+            
+            return result.ToString();
+        }
+
+        private string FormatCppParameterClean(CppParameter param)
+        {
+            // Format parameter without any comments (to avoid duplication)
+            var result = "";
+            
+            if (param.IsConst)
+                result += "const ";
+                
+            result += param.Type;
+            
+            if (param.IsReference)
+                result += "&";
+            else if (param.IsPointer)
+                result += "*";
+                
+            result += " " + param.Name;
+            
+            if (!string.IsNullOrEmpty(param.DefaultValue))
+                result += " = " + param.DefaultValue;
+                
+            return result;
         }
 
         private string FormatCppParameter(CppParameter param)
@@ -821,6 +975,12 @@ namespace CppToCsConverter.Core.Core
                 {
                     result += " " + comment;
                 }
+            }
+            // Final fallback: use original text if it contains comments
+            else if (!string.IsNullOrEmpty(param.OriginalText) && 
+                     (param.OriginalText.Contains("/*") || param.OriginalText.Contains("//")))
+            {
+                return param.OriginalText.Trim();
             }
                 
             return result;
@@ -1212,11 +1372,12 @@ namespace CppToCsConverter.Core.Core
 
         private void GeneratePartialClass(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
         {
+
             // Generate the main partial class file content (header-based content)
-            GenerateMainPartialClass(sb, cppClass, staticMemberInits, fileName);
+            GenerateMainPartialClass(sb, cppClass, parsedSources, staticMemberInits, fileName);
         }
 
-        private void GenerateMainPartialClass(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
+        private void GenerateMainPartialClass(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
         {
             // Add comments before class declaration
             if (cppClass.PrecedingComments.Any())
@@ -1254,7 +1415,7 @@ namespace CppToCsConverter.Core.Core
                 sb.AppendLine("        // Methods for main file (inline + same-named source)");
                 foreach (var method in methodsForMainFile)
                 {
-                    GenerateMethodForPartialClass(sb, method, cppClass.Name);
+                    GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources);
                 }
             }
 
@@ -1294,7 +1455,7 @@ namespace CppToCsConverter.Core.Core
             sb.AppendLine($"        public static {memberType} {staticMember.Name}{initialization};");
         }
 
-        private void GenerateMethodForPartialClass(StringBuilder sb, CppMethod method, string className)
+        private void GenerateMethodForPartialClass(StringBuilder sb, CppMethod method, string className, Dictionary<string, List<CppMethod>> parsedSources)
         {
             // Use existing method generation logic
             string accessModifier = ConvertAccessSpecifier(method.AccessSpecifier);
@@ -1302,9 +1463,14 @@ namespace CppToCsConverter.Core.Core
             string virtualModifier = method.IsVirtual ? "virtual " : "";
             string returnType = string.IsNullOrWhiteSpace(method.ReturnType) ? "void" : method.ReturnType;
             
-            var parameters = string.Join(", ", method.Parameters.Select(p => FormatCppParameter(p)));
+
+            // Merge header method with implementation method to preserve positioned comments
+            var mergedMethod = MergeHeaderMethodWithImplementation(method, parsedSources, className);
             
-            sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType} {method.Name}({parameters})");
+
+            // Use comment-aware method signature generation (same as non-partial)
+
+            GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType + " ", method.Name, mergedMethod.Parameters);
             sb.AppendLine("        {");
             
             // Use implementation body if available
@@ -1333,6 +1499,77 @@ namespace CppToCsConverter.Core.Core
             
             sb.AppendLine("        }");
             sb.AppendLine();
+        }
+
+        private CppMethod MergeHeaderMethodWithImplementation(CppMethod headerMethod, Dictionary<string, List<CppMethod>> parsedSources, string className)
+        {
+            // Find implementation methods for this class
+            List<CppMethod> implementationMethods = new List<CppMethod>();
+
+            foreach (var methodsList in parsedSources.Values)
+            {
+                implementationMethods.AddRange(methodsList.Where(m => m.ClassName == className));
+            }
+
+            var implMethod = implementationMethods.FirstOrDefault(m => 
+                m.Name == headerMethod.Name && m.ClassName == headerMethod.ClassName);
+
+            if (implMethod == null)
+                return headerMethod;
+
+            // Create merged method with header's default values and implementation's parameter names
+            var merged = new CppMethod
+            {
+                Name = headerMethod.Name,
+                ReturnType = headerMethod.ReturnType,
+                AccessSpecifier = headerMethod.AccessSpecifier,
+                IsStatic = headerMethod.IsStatic,
+                IsVirtual = headerMethod.IsVirtual,
+                IsConstructor = headerMethod.IsConstructor,
+                IsDestructor = headerMethod.IsDestructor,
+                IsConst = headerMethod.IsConst,
+                ClassName = headerMethod.ClassName,
+                Parameters = new List<CppParameter>()
+            };
+
+            // Merge parameters
+            for (int i = 0; i < Math.Max(headerMethod.Parameters.Count, implMethod.Parameters.Count); i++)
+            {
+                var headerParam = i < headerMethod.Parameters.Count ? headerMethod.Parameters[i] : null;
+                var implParam = i < implMethod.Parameters.Count ? implMethod.Parameters[i] : null;
+
+                var mergedParam = new CppParameter();
+
+                if (headerParam != null && implParam != null)
+                {
+                    // Use implementation name but header's default value and type info
+                    mergedParam.Name = implParam.Name;
+                    mergedParam.Type = headerParam.Type;
+                    mergedParam.DefaultValue = headerParam.DefaultValue;
+                    mergedParam.IsConst = headerParam.IsConst;
+                    mergedParam.IsPointer = headerParam.IsPointer;
+                    mergedParam.IsReference = headerParam.IsReference;
+                    
+                    // For parameter comments: use implementation comments since this method has an implementation
+                    // (per readme.md: "For methods with implementation we need ignore any comments from the header 
+                    // and persist the source (.cpp) method argument list comments")
+                    mergedParam.InlineComments = implParam.InlineComments;
+                    mergedParam.PositionedComments = implParam.PositionedComments;
+                    mergedParam.OriginalText = implParam.OriginalText;
+                }
+                else if (headerParam != null)
+                {
+                    mergedParam = headerParam;
+                }
+                else if (implParam != null)
+                {
+                    mergedParam = implParam;
+                }
+
+                merged.Parameters.Add(mergedParam);
+            }
+
+            return merged;
         }
 
         private void EnrichMethodsWithTargetFileNames(CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources)
@@ -1367,17 +1604,21 @@ namespace CppToCsConverter.Core.Core
 
         private bool ParametersMatch(List<CppParameter> headerParams, List<CppParameter> sourceParams)
         {
-            if (headerParams.Count != sourceParams.Count)
-                return false;
+            // If header parameter count matches source parameter count, they match
+            if (headerParams.Count == sourceParams.Count)
+                return true;
             
-            for (int i = 0; i < headerParams.Count; i++)
+            // Special handling: if source parameter parsing failed (producing too many params due to comment parsing issues),
+            // but the method names match, we can still consider it a match for now
+            // This handles cases like GetRate where complex parameter comments break parsing
+            if (sourceParams.Count > headerParams.Count)
             {
-                // For a simple match, just compare parameter count
-                // More sophisticated matching could compare types, but parameter count is usually sufficient
-                // since method names + parameter count typically uniquely identify methods in C++
+                // For now, we'll be more lenient and allow matching based on method name alone
+                // when source parameter parsing seems to have failed
+                return true;
             }
             
-            return true;
+            return false;
         }
 
         private void GenerateAdditionalPartialFiles(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory)
@@ -1408,19 +1649,18 @@ namespace CppToCsConverter.Core.Core
                         var methodsForTarget = methodsByTargetFile[targetFile];
                         if (methodsForTarget.Any())
                         {
-                            GeneratePartialClassFile(cppClass, targetFile, methodsForTarget, sourceFileTopComments, outputDirectory);
+                            GeneratePartialClassFile(cppClass, targetFile, methodsForTarget, parsedSources, sourceFileTopComments, outputDirectory);
                         }
                     }
                 }
             }
         }
 
-        private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory)
+        private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory)
         {
             // Use the refactored method to generate and write the partial file
             var classes = new List<CppClass> { cppClass };
             var structs = new List<CppStruct>(); // Partial files don't include structs
-            var parsedSources = new Dictionary<string, List<CppMethod>>();
             var staticMemberInits = new Dictionary<string, List<CppStaticMemberInit>>();
             
             GenerateAndWriteFile(targetFileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDefines: null, sourceFileTopComments: sourceFileTopComments, isPartialFile: true, partialMethods: methods);

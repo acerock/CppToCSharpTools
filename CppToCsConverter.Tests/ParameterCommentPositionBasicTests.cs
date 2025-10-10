@@ -186,5 +186,190 @@ void TestClass::TestMethod(/* IN */ const CString& param1 /* OUT */)
                 File.Delete(tempFile);
             }
         }
+
+        [Fact]
+        public void RealCSample_TrickyToMatch_ShouldParseCorrectly()
+        {
+            // Arrange - Test the actual CSample.cpp file
+            var sampleCppPath = Path.Combine("..", "..", "..", "..", "SamplesAndExpectations", "CSample.cpp");
+            
+            // Act
+            var parser = new CppSourceParser();
+            var (methods, _) = parser.ParseSourceFile(sampleCppPath);
+            
+            // Assert
+            var trickyMethod = methods.FirstOrDefault(m => m.Name == "TrickyToMatch");
+            Assert.NotNull(trickyMethod);
+            Assert.Equal("CSample", trickyMethod.ClassName);
+            Assert.Equal(3, trickyMethod.Parameters.Count);
+            
+            // Verify positioned comments are parsed
+            var param1 = trickyMethod.Parameters[0]; // cResTab
+            Assert.Equal("cResTab", param1.Name);
+            Assert.True(param1.PositionedComments?.Any() ?? false, "First parameter should have positioned comments");
+            
+            var param2 = trickyMethod.Parameters[1]; // bGetAgeAndTaxNumberFromResTab
+            Assert.Equal("bGetAgeAndTaxNumberFromResTab", param2.Name);
+            Assert.True(param2.PositionedComments?.Any() ?? false, "Second parameter should have positioned comments");
+            
+            var param3 = trickyMethod.Parameters[2]; // pmtTable
+            Assert.Equal("pmtTable", param3.Name);
+            Assert.True(param3.PositionedComments?.Any() ?? false, "Third parameter should have positioned comments");
+        }
+
+        [Fact]
+        public void StructuralConverter_TrickyToMatch_ShouldGenerateMultiLineWithPositionedComments()
+        {
+            // Arrange
+            // Navigate up from test bin directory to solution root  
+            var assemblyLocation = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
+            var solutionRoot = Path.GetFullPath(Path.Combine(assemblyLocation, "..", "..", "..", ".."));
+            var samplesDir = Path.Combine(solutionRoot, "SamplesAndExpectations");
+            var outputDir = Path.Combine(Path.GetTempPath(), "TrickyToMatchPositioning");
+            
+            // Ensure output directory exists
+            Directory.CreateDirectory(outputDir);
+
+            // Verify sample files exist
+            var headerFile = Path.Combine(samplesDir, "CSample.h");
+            var sourceFile = Path.Combine(samplesDir, "CSample.cpp");
+            Assert.True(File.Exists(headerFile), $"Header file should exist at {headerFile}");
+            Assert.True(File.Exists(sourceFile), $"Source file should exist at {sourceFile}");
+
+            // Act
+            var converter = new CppToCsConverter.Core.CppToCsConverterApi();
+            converter.ConvertSpecificFiles(samplesDir, new[] { "CSample.h", "CSample.cpp" }, outputDir);
+
+            // Assert
+            var generatedFile = Path.Combine(outputDir, "CSample.cs");
+            Assert.True(File.Exists(generatedFile), $"Generated file should exist at {generatedFile}");
+
+            var content = File.ReadAllText(generatedFile);
+            
+            // Verify TrickyToMatch exists and has multi-line format
+            Assert.Contains("private void TrickyToMatch(", content);
+            
+            // Verify positioned comments are preserved without duplication
+            Assert.Contains("/* IN*/ const CString& cResTab,", content);
+            Assert.Contains("/* IN */ const bool& bGetAgeAndTaxNumberFromResTab,", content);
+            Assert.Contains("/* OUT */ CAgrMT* pmtTable)", content);
+            
+            // Verify no comment duplication (should not have /* IN*/ /* IN*/)
+            Assert.DoesNotContain("/* IN*/ /* IN*/", content);
+            Assert.DoesNotContain("/* IN */ /* IN */", content);
+            Assert.DoesNotContain("/* OUT */ /* OUT */", content);
+            
+            // Verify multi-line format (parameters on separate lines)
+            var lines = content.Split('\n').Select(line => line.Trim()).ToArray();
+            var trickyToMatchIndex = Array.FindIndex(lines, line => line.Contains("private void TrickyToMatch("));
+            Assert.True(trickyToMatchIndex >= 0, "TrickyToMatch method declaration should be found");
+            
+            // Next lines should contain the parameters
+            Assert.Contains("/* IN*/ const CString& cResTab,", lines[trickyToMatchIndex + 1]);
+            Assert.Contains("/* IN */ const bool& bGetAgeAndTaxNumberFromResTab,", lines[trickyToMatchIndex + 2]);
+            Assert.Contains("/* OUT */ CAgrMT* pmtTable)", lines[trickyToMatchIndex + 3]);
+        }
+
+        [Fact]
+        public void FormatCppParameterWithPositionedComments_ShouldNotDuplicateComments()
+        {
+            // Arrange - Create a parameter with positioned comments
+            var param = new CppParameter
+            {
+                Name = "testParam",
+                Type = "const CString",
+                IsReference = true,
+                PositionedComments = new List<ParameterComment>
+                {
+                    new ParameterComment { CommentText = "/* IN*/", Position = CommentPosition.Prefix }
+                }
+            };
+
+            // Act - Use reflection to call the private method
+            var converter = new CppToCsConverter.Core.Core.CppToCsStructuralConverter();
+            var method = typeof(CppToCsConverter.Core.Core.CppToCsStructuralConverter)
+                .GetMethod("FormatCppParameterWithPositionedComments", 
+                          System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+            Assert.NotNull(method);
+            var result = (string?)method.Invoke(converter, new object[] { param });
+            Assert.NotNull(result);
+
+            // Assert - Should have comment only once
+            Assert.Contains("/* IN*/", result);
+            var commentOccurrences = result.Split(new[] { "/* IN*/" }, StringSplitOptions.None).Length - 1;
+            Assert.Equal(1, commentOccurrences); // Comment should appear exactly once
+            Assert.Contains("const CString& testParam", result);
+        }
+
+        [Fact]  
+        public void MixedCommentTypes_ShouldPreferPositionedOverInline()
+        {
+            // Arrange - Parameter with both positioned and inline comments
+            var sourceContent = @"
+void TestClass::MixedCommentMethod(
+    /* POSITIONED */ const CString& param1 /* inline comment */
+)
+{
+    // Implementation  
+}";
+
+            var tempFile = Path.GetTempFileName();
+            File.WriteAllText(tempFile, sourceContent);
+
+            try
+            {
+                // Act
+                var parser = new CppSourceParser();
+                var (methods, _) = parser.ParseSourceFile(tempFile);
+
+                // Assert
+                Assert.Single(methods);
+                var method = methods[0];
+                var param1 = method.Parameters[0];
+                
+                // Should have both positioned and inline comments
+                Assert.NotNull(param1.PositionedComments);
+                Assert.NotEmpty(param1.PositionedComments);
+                Assert.NotNull(param1.InlineComments);
+                Assert.NotEmpty(param1.InlineComments);
+                
+                // Positioned comment should be detected
+                Assert.Equal("/* POSITIONED */", param1.PositionedComments[0].CommentText);
+                Assert.Equal(CommentPosition.Prefix, param1.PositionedComments[0].Position);
+            }
+            finally
+            {
+                File.Delete(tempFile);
+            }
+        }
+
+        [Fact]
+        public void EmptyPositionedComments_ShouldFallbackToCleanParameter()
+        {
+            // Arrange - Parameter without positioned comments
+            var param = new CppParameter
+            {
+                Name = "cleanParam",
+                Type = "int",
+                IsConst = true,
+                DefaultValue = "0"
+            };
+
+            // Act - Use reflection to test the clean parameter formatting
+            var converter = new CppToCsConverter.Core.Core.CppToCsStructuralConverter();
+            var method = typeof(CppToCsConverter.Core.Core.CppToCsStructuralConverter)
+                .GetMethod("FormatCppParameterWithPositionedComments",
+                          System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+            Assert.NotNull(method);
+            var result = (string?)method.Invoke(converter, new object[] { param });
+            Assert.NotNull(result);
+
+            // Assert - Should be clean parameter format
+            Assert.Equal("const int cleanParam = 0", result);
+            Assert.DoesNotContain("/*", result);
+            Assert.DoesNotContain("//", result);
+        }
     }
 }

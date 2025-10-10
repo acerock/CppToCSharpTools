@@ -180,6 +180,140 @@ namespace CppToCsConverter.Core.Parsers
                 methods.Add(method);
             }
 
+            // Handle multi-line method signatures that the regex missed
+            methods.AddRange(ParseMultiLineMethodImplementations(content, fileName, methods, orderIndex));
+
+            return methods;
+        }
+
+        private List<CppMethod> ParseMultiLineMethodImplementations(string content, string fileName, List<CppMethod> existingMethods, int startOrderIndex)
+        {
+            var methods = new List<CppMethod>();
+            var lines = content.Split('\n');
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i].Trim();
+                
+                // Look for pattern: ClassName::MethodName (
+                var methodHeaderMatch = Regex.Match(line, @"^(?:(\w+(?:\s*\*|\s*&)?)\s+)?(\w+)\s*::\s*([~]?\w+)\s*\($");
+                if (methodHeaderMatch.Success)
+                {
+                    var className = methodHeaderMatch.Groups[2].Value;
+                    var methodName = methodHeaderMatch.Groups[3].Value;
+                    var returnType = methodHeaderMatch.Groups[1].Success ? methodHeaderMatch.Groups[1].Value.Trim() : "void";
+                    
+                    // Skip if we already found this method
+                    bool alreadyFound = existingMethods.Any(m => 
+                        m.ClassName == className && 
+                        m.Name == methodName);
+                        
+                    if (alreadyFound)
+                        continue;
+                    
+                    // Find the closing parenthesis and opening brace
+                    var parametersString = "";
+                    int currentLine = i + 1;
+                    int parenCount = 1; // We already have one opening paren
+                    bool foundClosingParen = false;
+                    bool foundOpeningBrace = false;
+                    int braceLineIndex = -1;
+                    
+                    // Collect parameters across multiple lines
+                    while (currentLine < lines.Length && parenCount > 0)
+                    {
+                        var paramLine = lines[currentLine];
+                        parametersString += paramLine;
+                        
+                        // Count parentheses to handle nested comments with parens
+                        foreach (char c in paramLine)
+                        {
+                            if (c == '(') parenCount++;
+                            else if (c == ')') parenCount--;
+                        }
+                        
+                        if (parenCount == 0)
+                        {
+                            foundClosingParen = true;
+                            break;
+                        }
+                        
+                        currentLine++;
+                    }
+                    
+                    if (!foundClosingParen)
+                        continue;
+                    
+                    // Look for const modifier and opening brace after the closing paren
+                    currentLine++;
+                    bool isConst = false;
+                    while (currentLine < lines.Length && !foundOpeningBrace)
+                    {
+                        var braceLine = lines[currentLine].Trim();
+                        if (braceLine.Contains("const") && !foundOpeningBrace)
+                        {
+                            isConst = true;
+                        }
+                        if (braceLine.Contains("{"))
+                        {
+                            foundOpeningBrace = true;
+                            braceLineIndex = currentLine;
+                            break;
+                        }
+                        currentLine++;
+                    }
+                    
+                    if (foundOpeningBrace)
+                    {
+                        // Create the method
+                        var method = new CppMethod
+                        {
+                            ReturnType = returnType,
+                            ClassName = className,
+                            Name = methodName,
+                            IsConst = isConst,
+                            OrderIndex = startOrderIndex + methods.Count
+                        };
+
+                        // Check if constructor or destructor
+                        method.IsConstructor = !method.Name.StartsWith("~") && method.Name == method.ClassName;
+                        method.IsDestructor = method.Name.StartsWith("~");
+
+                        // Parse parameters
+                        method.Parameters = ParseParametersFromImplementation(parametersString);
+
+                        // Extract method body
+                        // Calculate the position of the opening brace based on line numbers
+                        int braceIndex = -1;
+                        int charPos = 0;
+                        for (int lineIdx = 0; lineIdx <= braceLineIndex && lineIdx < lines.Length; lineIdx++)
+                        {
+                            if (lineIdx == braceLineIndex)
+                            {
+                                // Find the brace in this specific line
+                                int braceInLine = lines[lineIdx].IndexOf('{');
+                                if (braceInLine >= 0)
+                                {
+                                    braceIndex = charPos + braceInLine;
+                                    break;
+                                }
+                            }
+                            charPos += lines[lineIdx].Length + 1; // +1 for the newline character
+                        }
+                        
+                        if (braceIndex >= 0)
+                        {
+                            method.ImplementationBody = ExtractMethodBody(content, braceIndex + 1);
+                        }
+                        
+                        // Set TargetFileName
+                        method.TargetFileName = fileName;
+
+                        methods.Add(method);
+                    }
+                }
+            }
+            
             return methods;
         }
 
@@ -250,11 +384,36 @@ namespace CppToCsConverter.Core.Parsers
             var parameters = new List<string>();
             var current = new System.Text.StringBuilder();
             int depth = 0;
+            bool inCStyleComment = false;
             
             for (int i = 0; i < parametersString.Length; i++)
             {
                 char c = parametersString[i];
                 
+                // Check for start of C-style comment
+                if (!inCStyleComment && c == '/' && i + 1 < parametersString.Length && parametersString[i + 1] == '*')
+                {
+                    inCStyleComment = true;
+                    current.Append(c);
+                    continue;
+                }
+                
+                // Check for end of C-style comment
+                if (inCStyleComment && c == '*' && i + 1 < parametersString.Length && parametersString[i + 1] == '/')
+                {
+                    inCStyleComment = false;
+                    current.Append(c);
+                    continue;
+                }
+                
+                // If we're inside a comment, just append the character
+                if (inCStyleComment)
+                {
+                    current.Append(c);
+                    continue;
+                }
+                
+                // Normal parameter splitting logic (only when not in comment)
                 if (c == '(' || c == '<')
                     depth++;
                 else if (c == ')' || c == '>')

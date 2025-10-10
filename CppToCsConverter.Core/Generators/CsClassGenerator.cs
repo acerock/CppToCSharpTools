@@ -378,6 +378,14 @@ namespace CppToCsConverter.Core.Generators
 
         private string GenerateParameter(CppParameter param)
         {
+            // If original text contains comments and no positioned comments are available, preserve original formatting
+            if (!string.IsNullOrEmpty(param.OriginalText) && 
+                (param.OriginalText.Contains("/*") || param.OriginalText.Contains("//")) &&
+                (param.PositionedComments == null || !param.PositionedComments.Any()))
+            {
+                return param.OriginalText.Trim();
+            }
+
             // Preserve original C++ parameter type for downstream processing
             var csType = param.Type;
             var modifier = "";
@@ -593,7 +601,27 @@ namespace CppToCsConverter.Core.Generators
             string virtualKeyword, string returnType, string methodName, List<CppParameter> parameters)
         {
             // Check if any parameter has comments - if not, use simple single-line format
-            bool hasParameterComments = parameters.Any(p => (p.PositionedComments?.Any() ?? false) || p.InlineComments.Any());
+            bool hasParameterComments = parameters.Any(p => 
+                (p.PositionedComments?.Any() ?? false) || 
+                p.InlineComments.Any() ||
+                (!string.IsNullOrEmpty(p.OriginalText) && (p.OriginalText.Contains("/*") || p.OriginalText.Contains("//"))));
+            
+            // Debug GetRate method specifically
+            if (methodName == "GetRate")
+            {
+                Console.WriteLine($"DEBUG: CsClassGenerator.GenerateMethodSignatureWithComments for {methodName}");
+                Console.WriteLine($"DEBUG: hasParameterComments = {hasParameterComments}");
+                Console.WriteLine($"DEBUG: parameters.Count = {parameters.Count}");
+                for (int i = 0; i < parameters.Count; i++)
+                {
+                    var p = parameters[i];
+                    Console.WriteLine($"  Param[{i}]: {p.Name}");
+                    Console.WriteLine($"    PositionedComments: {p.PositionedComments?.Count ?? 0}");
+                    Console.WriteLine($"    InlineComments: {p.InlineComments?.Count ?? 0}");
+                    Console.WriteLine($"    OriginalText: '{p.OriginalText}'");
+                    Console.WriteLine($"    Contains /*: {(!string.IsNullOrEmpty(p.OriginalText) && p.OriginalText.Contains("/*"))}");
+                }
+            }
             
 
             
