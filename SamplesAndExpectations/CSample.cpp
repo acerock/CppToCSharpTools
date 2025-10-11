@@ -11,6 +11,12 @@
 // Comment for cpp define 3
 #define CPP_DEFINE3 30 
 
+// Demo of non-class methods
+bool LocalFunction(const agrint& valueIn /* value in */)
+{
+    return valueIn > 0 && valueIn < 100;
+}
+
 ISample* ISample::GetInstance()
 {
     CSample* pSample = new CSample();

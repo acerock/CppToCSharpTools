@@ -235,7 +235,7 @@ internal partial class CSample : ISample
 }
 ```
 
-## Classes with static member and intialization
+### Classes with static member and intialization
 A C++ class can have a static member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
 
 #### Sample for multiple .cpp files with method bodies
@@ -261,29 +261,8 @@ internal class CSample : ISample
 }
 ```
 
-## Classes with static members and intialization
-A C++ class can have a static member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
-
-#### Sample static member initialization
-CSample.h
-```
-class CSample : public ISample
-{
-private:
-	static agrint s_value;
-}
-```
-CSample.cpp
-```
-CSample::m_value = 42;
-```
-CSample.cs
-```
-internal class CSample : ISample
-{
-    private static agrint s_value = 42;
-}
-```
+### Classes with static array members and intialization
+A C++ class can have a static array member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
 
 #### Sample static array initialization
 CStaticClass.h
@@ -311,6 +290,119 @@ Expected CStaticClass.cs
         public static CString[] ColFrom = { _T("from_1"), _T("from_2"), _T("from_3"), _T("from_4") };
         public static CString[] ColTo = { _T("to_1"), _T("to_2"), _T("to_3"), _T("to_4") };
     }
+```
+
+### Local methods in C++ source files without class scope regulator
+Any .cpp file can have methods not part of a class. Local methods are identified by not having a class scope resolutor (::). 
+
+A local method might have a forward declaration in the .cpp file before it is used. A forward declaration is equal to method declarations in header files but for .cpp forward declaration we can saftly ignore these. 
+
+A local method with body should be persisted in the .cs file as a private static class member in the order they exists in the original .cpp file. If a local method is found in a partial class .cpp, we write it to the partial class C# file in the order it was found in the .cpp file. 
+
+As a local method does not have a class scope resolutor we need to know when to look for them an how to identify the class where it belongs. For this we can use the following rule:
+1. We only need to look for local methods in .cpp files when looking for non-inline class member methods using the class scope regulators.
+2. To not have to look for local methods each and every time we look for a non-inline class member we can cache the .cpp file name to not having to do another search for the next method in this .cpp file.
+3. When one or more local methods are found we
+   a. Capture it as it as it was a normal class member and add it to the class member collection as a private and static method.
+   b. Sicne we do this for every class non-inline method, we assure we don't get duplicates persited using its parameter signature. Note that local methods can have overloads so to not loose local methods we need to match the signature.
+   c. The method is considered a private and static method
+   d. In the case of partial class implementations, the target .cs file will be the name where the method was found.
+   e. We can read and persist the method using our existing parsing and model (with adjustments).
+   f. We capture the method order in the .cpp file so we can restore the methods to the class (or partial class) in the same order.
+   
+#### Sample .cpp files with local methods
+CSample.h
+```
+class CSample : public ISample
+{
+private:
+    agrint m_value1;
+
+public:
+	void MethodOne();
+	void MethodTwo();
+	void MethodThree();
+}
+```
+CSample.cpp
+```
+#include "CSample.h"
+
+// A comment for the local method
+bool CheckSomeValue(/* IN */ const agrint& value)
+{
+    // Method body
+    return value > 0 && value < 1000;
+}
+
+void CSample::MethodOne()
+{
+    if (CheckSomeValue(3))
+        m_value1 = 1;
+}
+```
+SampleMoreImpl.cpp
+```
+void CSample::MethodTwo()
+{
+    m_value1 = 2;
+}
+
+// A comment for the local method 2
+bool CheckSomeValue2(/* IN */ const agrint& value)
+{
+    // Method body
+    return value > 0 && value < 1000;
+}
+
+// Comment for method three
+void CSample::MethodThree()
+{
+    m_value1 = 3;
+}
+```
+CSample.cs
+```
+internal partial class CSample : ISample
+{
+    private agrint m_value1;
+
+    // A comment for the local method
+    internal static bool CheckSomeValue(/* IN */ const agrint& value)
+    {
+        // Method body
+        return value > 0 && value < 1000;
+    }
+
+    public void MethodOne()
+    {
+        if (CheckSomeValue(3))
+            m_value1 = 1;
+    }
+}
+```
+SampleMoreImpl.cs
+```
+internal partial class CSample : ISample
+{
+    public void MethodTwo()
+    {
+        m_value1 = 2;
+    }
+
+    // A comment for the local method 2
+    private static bool CheckSomeValue2(/* IN */ const agrint& value)
+    {
+        // Method body
+        return value != 0;
+    }
+
+    // Comment for method three
+    public void MethodThree()
+    {
+        m_value1 = 3;
+    }
+}
 ```
 
 ## Struct type

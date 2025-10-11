@@ -14,6 +14,7 @@ namespace CppToCsConverter.Core.Models
         public bool IsConstructor { get; set; }
         public bool IsDestructor { get; set; }
         public bool IsConst { get; set; }
+        public bool IsLocalMethod { get; set; } = false; // Local method without class scope regulator (::)
         public bool HasInlineImplementation { get; set; }
         public string InlineImplementation { get; set; } = string.Empty;
         public string ImplementationBody { get; set; } = string.Empty;

@@ -19,6 +19,12 @@ void CPartialSample::MethodTwoInPartial(const CString& cParam1,
     // Implementation of MethodTwoInPartial
 }
 
+// Demo of non-class methods in partial implementation
+bool LocalFunction2(const agrint& valueIn /* value in */)
+{
+    return valueIn > 0 && valueIn < 100;
+}
+
 /*
 **  Find the appropriate value (dValue) for the currenct transaction.
 */

@@ -721,7 +721,8 @@ namespace CppToCsConverter.Core.Core
                     }
                 }
 
-                var accessModifier = headerMethod != null ? ConvertAccessSpecifier(headerMethod.AccessSpecifier) : "public";
+                var accessModifier = headerMethod != null ? ConvertAccessSpecifier(headerMethod.AccessSpecifier) : 
+                                    (method.IsLocalMethod ? ConvertAccessSpecifier(method.AccessSpecifier) : "public");
                 var staticModifier = method.IsStatic ? "static " : "";
                 var virtualModifier = method.IsVirtual ? "virtual " : "";
                 var returnType = method.IsConstructor || method.IsDestructor ? "" : method.ReturnType + " ";
@@ -1620,6 +1621,17 @@ namespace CppToCsConverter.Core.Core
                         headerMethod.ImplementationIndentation = sourceMethod.ImplementationIndentation;
                     }
                 }
+            }
+            
+            // Add local methods from source files that don't exist in the header
+            var localMethods = allSourceMethods.Where(sm => 
+                sm.ClassName == cppClass.Name && 
+                sm.IsLocalMethod &&
+                !cppClass.Methods.Any(hm => hm.Name == sm.Name)).ToList();
+                
+            foreach (var localMethod in localMethods)
+            {
+                cppClass.Methods.Add(localMethod);
             }
         }
 

@@ -16,6 +16,11 @@ namespace CppToCsConverter.Core.Parsers
             @"(?:(\w+(?:\s*\*|\s*&)?)\s+)?(\w+)\s*::\s*([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?\s*\{", 
             RegexOptions.Compiled | RegexOptions.Multiline);
         
+        // Regex to detect local methods (functions without class scope regulator ::)
+        private readonly Regex _localMethodRegex = new Regex(
+            @"(?:^|\n)\s*(?:(\w+(?:\s*\*|\s*&)?)\s+)?([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?\s*\{",
+            RegexOptions.Compiled | RegexOptions.Multiline);
+        
         private readonly Regex _staticMemberInitRegex = new Regex(
             @"(?:(const)\s+)?(?:(\w+)\s+)?(\w+)\s*::\s*(\w+)(?:\s*\[\s*\])?(?:\s*\[\s*(\d*)\s*\])?\s*=\s*([^;]+);", 
             RegexOptions.Compiled);
@@ -182,6 +187,16 @@ namespace CppToCsConverter.Core.Parsers
 
             // Handle multi-line method signatures that the regex missed
             methods.AddRange(ParseMultiLineMethodImplementations(content, fileName, methods, orderIndex));
+
+            // Parse local methods (functions without class scope regulator ::)
+            var localMethods = ParseLocalMethods(content, fileName, methods);
+            methods.AddRange(localMethods);
+
+            // Recalculate order indices based on actual file positions
+            RecalculateMethodOrderIndices(content, methods);
+            
+            // Sort methods by their recalculated order indices
+            methods = methods.OrderBy(m => m.OrderIndex).ToList();
 
             return methods;
         }
@@ -556,6 +571,154 @@ namespace CppToCsConverter.Core.Parsers
             }
             
             return string.Empty;
+        }
+
+        private List<CppMethod> ParseLocalMethods(string content, string fileName, List<CppMethod> existingMethods)
+        {
+            var localMethods = new List<CppMethod>();
+            
+            // First, determine which class methods are implemented in this file
+            // Local methods belong to the class with the most methods implemented in the same .cpp file
+            // Exclude interface classes (typically start with 'I' and have fewer implementations)
+            var classCounts = existingMethods
+                .Where(m => !IsLikelyInterfaceClass(m.ClassName))  // Exclude interface classes
+                .GroupBy(m => m.ClassName)
+                .ToDictionary(g => g.Key, g => g.Count());
+            var targetClassName = classCounts.OrderByDescending(kvp => kvp.Value)
+                                            .FirstOrDefault().Key ?? "Unknown";
+            
+            // Find all potential local method matches
+            var matches = _localMethodRegex.Matches(content);
+            var lines = content.Split('\n');
+            
+            foreach (Match match in matches)
+            {
+                var returnType = match.Groups[1].Success ? match.Groups[1].Value.Trim() : "void";
+                var methodName = match.Groups[2].Value;
+                var parametersString = match.Groups[3].Value;
+                var isConst = match.Groups[4].Success;
+                
+                // Skip if this looks like it might be a class method (contains ::)
+                if (methodName.Contains("::"))
+                    continue;
+                
+                // Skip if method name contains common non-method patterns
+                if (methodName.Equals("if", StringComparison.OrdinalIgnoreCase) ||
+                    methodName.Equals("while", StringComparison.OrdinalIgnoreCase) ||
+                    methodName.Equals("for", StringComparison.OrdinalIgnoreCase) ||
+                    methodName.Equals("switch", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                
+                // Check if this is already found as a class method (to avoid duplicates)
+                if (existingMethods.Any(m => m.Name == methodName))
+                    continue;
+                
+                // Determine order index based on position in file
+                int lineNumber = content.Substring(0, match.Index).Split('\n').Length - 1;
+                int orderIndex = GetMethodOrderIndex(content, match.Index, existingMethods);
+                
+                // Create local method
+                var localMethod = new CppMethod
+                {
+                    ReturnType = returnType,
+                    Name = methodName,
+                    IsConst = isConst,
+                    IsLocalMethod = true,
+                    IsStatic = true,
+                    AccessSpecifier = AccessSpecifier.Private,
+                    ClassName = targetClassName, // Associate with the class from this file
+                    TargetFileName = fileName,
+                    OrderIndex = orderIndex
+                };
+
+                // Parse parameters
+                localMethod.Parameters = ParseParametersFromImplementation(parametersString);
+
+                // Extract method body
+                localMethod.ImplementationBody = ExtractMethodBody(content, match.Index + match.Length);
+                
+                // Only add if we successfully extracted a method body (not just forward declaration)
+                if (!string.IsNullOrWhiteSpace(localMethod.ImplementationBody))
+                {
+                    localMethods.Add(localMethod);
+                }
+            }
+            
+            return localMethods;
+        }
+        
+        /// <summary>
+        /// Determines if a class name likely represents an interface class
+        /// </summary>
+        private bool IsLikelyInterfaceClass(string className)
+        {
+            // Interfaces typically start with 'I' followed by a capital letter
+            return className.StartsWith("I") && className.Length > 1 && char.IsUpper(className[1]);
+        }
+        
+        private int GetMethodOrderIndex(string content, int matchIndex, List<CppMethod> existingMethods)
+        {
+            // Count how many existing methods appear before this position in the file
+            int orderIndex = 0;
+            
+            foreach (var method in existingMethods)
+            {
+                // Find the position of each existing method in the content
+                var methodPattern = $"{method.ClassName}::{method.Name}";
+                var methodIndex = content.IndexOf(methodPattern);
+                if (methodIndex >= 0 && methodIndex < matchIndex)
+                {
+                    orderIndex++;
+                }
+            }
+            
+            return orderIndex;
+        }
+
+        private void RecalculateMethodOrderIndices(string content, List<CppMethod> methods)
+        {
+            // Create a list of (method, position) pairs
+            var methodPositions = new List<(CppMethod method, int position)>();
+            
+            foreach (var method in methods)
+            {
+                int position = -1;
+                
+                if (method.IsLocalMethod)
+                {
+                    // For local methods, find by method name and opening brace
+                    var pattern = $"{method.Name}\\s*\\([^)]*\\)\\s*\\{{";
+                    var regex = new Regex(pattern, RegexOptions.IgnoreCase);
+                    var match = regex.Match(content);
+                    if (match.Success)
+                    {
+                        position = match.Index;
+                    }
+                }
+                else
+                {
+                    // For class methods, find by ClassName::MethodName
+                    var pattern = $"{Regex.Escape(method.ClassName)}::{Regex.Escape(method.Name)}";
+                    position = content.IndexOf(pattern);
+                }
+                
+                if (position >= 0)
+                {
+                    methodPositions.Add((method, position));
+                }
+            }
+            
+            // Sort by file position and assign new order indices
+            var sortedMethods = methodPositions
+                .OrderBy(mp => mp.position)
+                .Select((mp, index) => new { mp.method, orderIndex = index })
+                .ToList();
+            
+            // Update the OrderIndex for each method
+            foreach (var item in sortedMethods)
+            {
+                item.method.OrderIndex = item.orderIndex;
+            }
         }
 
         private List<CppStaticMemberInit> ParseStaticMemberInitializations(string content)

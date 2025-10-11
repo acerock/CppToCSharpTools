@@ -80,6 +80,12 @@ namespace Generated_CSample
             // Cleanup code here
         }
 
+        // Demo of non-class methods
+        bool LocalFunction(const agrint& valueIn /* value in */)
+        {
+            return valueIn > 0 && valueIn < 100;
+        }
+
         public void MethodOne(CString cParam1,
                     bool bParam2,
                     out CString pcParam3)
