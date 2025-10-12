@@ -11,7 +11,9 @@ namespace CppToCsConverter.Tests
         public void VerifyTestsUsesSameLogicAsApp()
         {
             // Arrange - Use same content as app test
-            var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            var tempDir = Path.Combine(Path.GetTempPath(), "TestLogic");
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
             Directory.CreateDirectory(tempDir);
 
             var headerContent = "class TestLogic { public: void InlineMethod() { /* inline */ } void SourceMethod(); };";
@@ -36,7 +38,7 @@ namespace CppToCsConverter.Tests
                 var generatedContent = File.ReadAllText(outputFile);
                 
                 // This should match exactly what the app generates
-                Assert.Contains("namespace Generated_TestLogic", generatedContent);
+                Assert.Contains("namespace U4.BatchNet.TL.Compatibility", generatedContent);
                 Assert.Contains("internal class TestLogic", generatedContent);
                 Assert.Contains("SourceMethod()", generatedContent);
                 Assert.Contains("/* source */", generatedContent);

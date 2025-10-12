@@ -40,7 +40,7 @@ namespace CppToCsConverter.Core.Core
             var headerFiles = Directory.GetFiles(sourceDirectory, "*.h", SearchOption.AllDirectories);
             var sourceFiles = Directory.GetFiles(sourceDirectory, "*.cpp", SearchOption.AllDirectories);
 
-            ConvertFiles(headerFiles, sourceFiles, outputDirectory);
+            ConvertFiles(headerFiles, sourceFiles, outputDirectory, sourceDirectory);
         }
 
         public void ConvertSpecificFiles(string sourceDirectory, string[] fileNames, string outputDirectory)
@@ -83,10 +83,10 @@ namespace CppToCsConverter.Core.Core
                 }
             }
 
-            ConvertFiles(headerFiles.ToArray(), sourceFiles.ToArray(), outputDirectory);
+            ConvertFiles(headerFiles.ToArray(), sourceFiles.ToArray(), outputDirectory, sourceDirectory);
         }
 
-        public void ConvertFiles(string[] headerFiles, string[] sourceFiles, string outputDirectory)
+        public void ConvertFiles(string[] headerFiles, string[] sourceFiles, string outputDirectory, string sourceDirectory = "")
         {
             Console.WriteLine($"Found {headerFiles.Length} header files and {sourceFiles.Length} source files");
             Console.WriteLine($"Output directory path: '{outputDirectory}'");
@@ -185,10 +185,10 @@ namespace CppToCsConverter.Core.Core
                 Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} class(es) and {structs.Count} struct(s)");
                 
                 // Generate main C# file
-                GenerateAndWriteFile(fileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDefines, sourceFileTopComments);
+                GenerateAndWriteFile(fileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDirectory, sourceDefines, sourceFileTopComments);
                 
                 // Generate additional partial class files for classes that need them
-                GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, sourceFileTopComments, outputDirectory);
+                GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, sourceFileTopComments, outputDirectory, sourceDirectory);
             }
             
             // Old individual class generation logic has been replaced with file-based generation above
@@ -246,10 +246,49 @@ namespace CppToCsConverter.Core.Core
             }
         }
 
-        private void AddNamespace(StringBuilder sb, string fileName)
+        private void AddNamespace(StringBuilder sb, string fileName, string sourceDirectory)
         {
-            sb.AppendLine($"namespace Generated_{fileName}");
+            string namespaceName = ResolveNamespace(sourceDirectory);
+            sb.AppendLine($"namespace {namespaceName}");
             sb.AppendLine("{");
+        }
+
+        /// <summary>
+        /// Resolves the namespace based on the source directory path according to README requirements.
+        /// Pattern: "U4.BatchNet.XX.Compatibility" where XX is the last two uppercase characters of the input folder,
+        /// or the full folder name if less than two uppercase characters are found.
+        /// </summary>
+        /// <param name="sourceDirectory">The source directory path</param>
+        /// <returns>The resolved namespace</returns>
+        public string ResolveNamespace(string sourceDirectory)
+        {
+            if (string.IsNullOrEmpty(sourceDirectory))
+            {
+                return "Generated_Unknown";
+            }
+
+            // Get the directory name from the full path
+            string folderName = Path.GetFileName(sourceDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            
+            if (string.IsNullOrEmpty(folderName))
+            {
+                return "Generated_Unknown";
+            }
+
+            // Extract the last two uppercase characters from the folder name
+            var upperCaseChars = folderName.Where(char.IsUpper).ToArray();
+            
+            if (upperCaseChars.Length >= 2)
+            {
+                // Take the last two uppercase characters
+                string suffix = new string(upperCaseChars.Skip(upperCaseChars.Length - 2).ToArray());
+                return $"U4.BatchNet.{suffix}.Compatibility";
+            }
+            else
+            {
+                // Less than two uppercase characters found, use the full folder name
+                return $"U4.BatchNet.{folderName}.Compatibility";
+            }
         }
 
         private void GenerateFileContent(StringBuilder sb, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines, string fileName, bool isPartialFile, List<CppMethod>? partialMethods = null)
@@ -374,7 +413,7 @@ namespace CppToCsConverter.Core.Core
             return classMethodCounts.First().Class;
         }
 
-        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines = null, Dictionary<string, List<string>>? sourceFileTopComments = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
+        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string sourceDirectory, Dictionary<string, List<CppDefine>>? sourceDefines = null, Dictionary<string, List<string>>? sourceFileTopComments = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
         {
             var sb = new StringBuilder();
             
@@ -383,7 +422,7 @@ namespace CppToCsConverter.Core.Core
             
             AddFileTopComments(sb, fileName, sourceFileTopComments);
             AddUsingStatements(sb, containsOnlyInterfaces);
-            AddNamespace(sb, fileName);
+            AddNamespace(sb, fileName, sourceDirectory);
             GenerateFileContent(sb, classes, structs, parsedSources, staticMemberInits, sourceDefines, fileName, isPartialFile, partialMethods);
             
             sb.AppendLine("}");
@@ -1654,7 +1693,7 @@ namespace CppToCsConverter.Core.Core
             return false;
         }
 
-        private void GenerateAdditionalPartialFiles(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory)
+        private void GenerateAdditionalPartialFiles(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory, string sourceDirectory)
         {
             foreach (var cppClass in classes)
             {
@@ -1682,21 +1721,21 @@ namespace CppToCsConverter.Core.Core
                         var methodsForTarget = methodsByTargetFile[targetFile];
                         if (methodsForTarget.Any())
                         {
-                            GeneratePartialClassFile(cppClass, targetFile, methodsForTarget, parsedSources, sourceFileTopComments, outputDirectory);
+                            GeneratePartialClassFile(cppClass, targetFile, methodsForTarget, parsedSources, sourceFileTopComments, outputDirectory, sourceDirectory);
                         }
                     }
                 }
             }
         }
 
-        private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory)
+        private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory, string sourceDirectory)
         {
             // Use the refactored method to generate and write the partial file
             var classes = new List<CppClass> { cppClass };
             var structs = new List<CppStruct>(); // Partial files don't include structs
             var staticMemberInits = new Dictionary<string, List<CppStaticMemberInit>>();
             
-            GenerateAndWriteFile(targetFileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDefines: null, sourceFileTopComments: sourceFileTopComments, isPartialFile: true, partialMethods: methods);
+            GenerateAndWriteFile(targetFileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDirectory, sourceDefines: null, sourceFileTopComments: sourceFileTopComments, isPartialFile: true, partialMethods: methods);
         }
     }
 }

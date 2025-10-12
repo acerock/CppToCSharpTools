@@ -14,6 +14,11 @@ This document describes the recommeded approach to handle the complexity of tran
 
 The following files exist to highlight common structure in .h and .cpp files with expected .cs.
 
+# Resolving the C# Namespace
+For this project we have a pattern based on naming of the input folder name to resolve the namespace for our .cs files.
+
+The namespace to use is "U4.BatchNet.XX.Compatibility" where XX is the last two uppercase characters of the input folder. For instance if input folder is "c:\test\AgrLibHS" the namespace will be "U4.BatchNet.XX.Compatibility" and if the input folder is "c:\test\AgrYX" the namespace should be "U4.BatchNet.XY.Compatibility".
+
 # C++ interface defintions
 A C++ interface is a class defined with pure virtual methods. 
 
