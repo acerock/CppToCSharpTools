@@ -14,10 +14,17 @@ This document describes the recommeded approach to handle the complexity of tran
 
 The following files exist to highlight common structure in .h and .cpp files with expected .cs.
 
+# Deveopment life-cycle and tooling
+The tool we are building is a .NET CLI app with simple arguments for input source folder, optional comma-separated list of individaul files, and an output folder.
+
+We do TDD to assure we test all features and capabilities. The tests are not using reflection but we assure the code is accessable to the test project.
+
 # Resolving the C# Namespace
 For this project we have a pattern based on naming of the input folder name to resolve the namespace for our .cs files.
 
 The namespace to use is "U4.BatchNet.XX.Compatibility" where XX is the last two uppercase characters of the input folder. For instance if input folder is "c:\test\AgrLibHS" the namespace will be "U4.BatchNet.XX.Compatibility" and if the input folder is "c:\test\AgrYX" the namespace should be "U4.BatchNet.XY.Compatibility".
+
+If the input folder name contains '.', '_', or '-' we only consider the trailing characters. This means if the folder is "c:\test\Something.AgrXY" the namespace should be "U4.BatchNet.XY.Compatibility" or if the folder is "c:\test\Something_Sample" the namespace should be "U4.BatchNet.Sample.Compatibility".
 
 # C++ interface defintions
 A C++ interface is a class defined with pure virtual methods. 

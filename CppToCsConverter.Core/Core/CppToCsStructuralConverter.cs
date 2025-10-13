@@ -257,6 +257,7 @@ namespace CppToCsConverter.Core.Core
         /// Resolves the namespace based on the source directory path according to README requirements.
         /// Pattern: "U4.BatchNet.XX.Compatibility" where XX is the last two uppercase characters of the input folder,
         /// or the full folder name if less than two uppercase characters are found.
+        /// If the folder name contains '.', '_', or '-', only trailing characters after the last occurrence are considered.
         /// </summary>
         /// <param name="sourceDirectory">The source directory path</param>
         /// <returns>The resolved namespace</returns>
@@ -275,8 +276,24 @@ namespace CppToCsConverter.Core.Core
                 return "Generated_Unknown";
             }
 
-            // Extract the last two uppercase characters from the folder name
-            var upperCaseChars = folderName.Where(char.IsUpper).ToArray();
+            // If folder name contains '.', '_', or '-', only consider trailing characters after the last occurrence
+            char[] separators = { '.', '_', '-' };
+            int lastSeparatorIndex = -1;
+            
+            foreach (char separator in separators)
+            {
+                int index = folderName.LastIndexOf(separator);
+                if (index > lastSeparatorIndex)
+                {
+                    lastSeparatorIndex = index;
+                }
+            }
+            
+            // Extract the trailing part after the last separator, or use the full name if no separators found
+            string relevantPart = lastSeparatorIndex >= 0 ? folderName.Substring(lastSeparatorIndex + 1) : folderName;
+
+            // Extract the last two uppercase characters from the relevant part
+            var upperCaseChars = relevantPart.Where(char.IsUpper).ToArray();
             
             if (upperCaseChars.Length >= 2)
             {
@@ -286,8 +303,8 @@ namespace CppToCsConverter.Core.Core
             }
             else
             {
-                // Less than two uppercase characters found, use the full folder name
-                return $"U4.BatchNet.{folderName}.Compatibility";
+                // Less than two uppercase characters found, use the relevant part
+                return $"U4.BatchNet.{relevantPart}.Compatibility";
             }
         }
 
