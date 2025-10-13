@@ -1,25 +1,31 @@
-/* My struct */
-typedef struct
-{
-    bool MyBoolField;
-    agrint MyIntField;
-} MyStruct;
+using Agresso.Types;
+using BatchNet.Compatibility.Types;
+using U4.BatchNet.Common.Compatibility;
 
-/* The Interface */
-public interface ISample
+namespace U4.BatchNet.Sample.Compatibility
 {
-    void MethodOne(CString cParam1,
-                   bool bParam2,
-                   out CString pcParam3);
 
-    bool MethodTwo();
-}
-
-internal static class ISampleExtensions
-{
-    public static ISample GetInstance(this ISample sample)
+    /* My struct */
+    typedef struct
     {
-        CSample* pSample = new CSample();
-        return pSample;
+        bool MyBoolField;
+        agrint MyIntField;
+    } MyStruct;
+
+    public interface ISample
+    {
+        void MethodOne(const CString& cParam1, const bool &bParam2, CString *pcParam3);
+
+        bool MethodTwo();
+
+    }
+
+    public static class ISampleExtensions
+    {
+        public static ISample GetInstance(this ISample instance)
+        {
+            return new CSample();
+        }
+
     }
 }

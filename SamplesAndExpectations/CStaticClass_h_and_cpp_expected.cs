@@ -6,7 +6,7 @@ using U4.BatchNet.Common.Compatibility;
 using static BatchNet.Compatibility.Level1;
 using static BatchNet.Compatibility.BatchApi;
 
-namespace Generated_CSample
+namespace U4.BatchNet.Sample.Compatibility
 {
     internal static class CStaticClass
     {
