@@ -28,6 +28,9 @@ class CSomeClass
     StructOne memberOne;
     int memberTwo;
 
+    // Array of ints
+    agrint m_aIntArr1[ARR_SIZE]; // Comment about ARR_SIZE 
+ 
     public:
         CSomeClass() : memberTwo(33) {
             memberOne.lTestType = 0;

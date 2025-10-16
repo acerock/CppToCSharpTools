@@ -100,7 +100,7 @@ In C++, pure virtual classes (or interfaces) can contain static methods - typica
 	}
 ```
 
-## C++ header files (.h)
+# C++ header files (.h)
 A C++ header file can hold one or more type definitions like structs, classes, defines, etc. 
 For a class it holds the public, protected, or private access specifiers and the default values of the parameters and these are important to bring to the C# code. If a method is defined without access specifier it is considered private.
 
@@ -131,6 +131,45 @@ private:
 };
 ```
 
+## C++ class array member variables
+C++ classes can have C-style array member variables that we need to transfer to the C# classes and rewrite to an intialized array.
+
+We capture the type, name and the size from the header file declaration:
+type name[size];
+
+Where it can be any type, variable name and const value. Our task is to recreate it in the C# class as
+type[] name = new type[size];
+
+This is a  follow the rules regarding preceding and consecutive comments and access modifiers.
+
+As mentioned, the goal is to assure array members are correctly persisted just as any other member variable and we don't have to worry about the constant being a #define in C++ or an positive integer. 
+
+#### Sample fixed sized array member
+CSample.h
+```
+// We move this to the class and another tool will translate it to internal const int ARR_SIZE = 10;
+#define ARR_SIZE 10
+
+class CSample : public ISample
+{
+private:
+    // Array of ints
+    agrint m_value1[ARR_SIZE]; // Comment about ARR_SIZE 
+}
+```
+
+Expected CSample.cs
+```
+internal class CSample : ISample
+{
+    // We move this to the class and another tool will translate it to internal const int ARR_SIZE = 10;
+    #define ARR_SIZE 10
+
+    // Array of ints
+    private agrint[] m_value1 = new agrint[ARR_SIZE]; // Comment about ARR_SIZE
+}
+```
+
 #### Sample result from header file information
 This sample shows how this starts to build up the structure and content of the C# result file.
 ```
@@ -149,7 +188,7 @@ This sample shows how this starts to build up the structure and content of the C
 }
 ```
 
-## C++ source files (.cpp)
+# C++ source files (.cpp)
 A method can be inline defined (having method body) in the .h file. If not the body is found in a .cpp file with the class scope resolutor (::).
 
 #### Sample C++ method with class scope resolutor
@@ -173,7 +212,7 @@ private:
 };
 ```
 
-### Adding method definitions to the C# file
+## Adding method definitions to the C# file
 To complete the .cs file with method bodies we have to look at the .cpp file for the implementations.
 Also, the .cpp file defines the order of the method implementations in the .cs file, so when the order is different as in the .h file, we will move the method to match the ordering in the .cpp file. This will allow us to do a side-by-side compare of the C++ file and the C# file.
 
@@ -247,7 +286,7 @@ internal partial class CSample : ISample
 }
 ```
 
-### Classes with static member and intialization
+## Classes with static member and intialization
 A C++ class can have a static member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
 
 #### Sample for multiple .cpp files with method bodies
@@ -273,7 +312,7 @@ internal class CSample : ISample
 }
 ```
 
-### Classes with static array members and intialization
+## Classes with static array members and intialization
 A C++ class can have a static array member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
 
 #### Sample static array initialization
@@ -529,10 +568,10 @@ internal static class ISampleExtensions
 }
 ```
 
-#### Struct type defined in a header file together with a class with .cpp implementation
+### Struct type defined in a header file together with a class with .cpp implementation
 In this case we copy the structs as is in the same order they appear in the header/source file.
 
-#### Struct type defined in a header file with no class
+### Struct type defined in a header file with no class
 In this case we create a .cs file with same name as the .h file where all structs are copied to this file.
 ##### Sample
 MyStructs.h
@@ -702,7 +741,7 @@ For methods with implementation we need ignore any comments from the header and 
 
 Parameter comments are posional as they can be considered prefixing a parameter or postfixing a parameter.
 
-##### Samples for comments in method parameter list
+### Samples for comments in method parameter list
 The following samples show that comments in parameter list is valid at any point both in header and source files.
 
 We need to assure method signatures still match by ignoring the comments but persist the comments for the inline method parameter list as well as the source (.cpp) parameter list. For methods with implementation in the source file, we persit the comments from the source file.
@@ -767,7 +806,7 @@ namespace Generated_CSample
 }
 ```
 
-#### File top comments
+### File top comments
 Source files (.cpp) can start with a block of comments at the very top that is not mapped to a consecutive element (class, struct, or define). This block of comment typically appear before any #include statement and we consider this a file top comment. Top file comments should be persisted and written to the top of the .cs file before any using statement.
 
 This is general for the source file (.cpp) independent of the content otherwise (multiple classes, partial classes, or single classes). Top file comments sticks to the file.
@@ -882,7 +921,7 @@ internal partial class CSample : ISample
 }
 ```
 
-#### Rules
+### Rules
 1) Comments are associated to the consecutive type or member and restored before their equivalent in the .cs file.
 2) If a method has a block of comments associated in both the .h file and the .cpp file, we persist boths and write the comment from the .h file first.
 3) There are cases where a comment follows a construct. For instance a member variable can have a comment on the same line following its declaration. Also, see the rules for pragma region in .h files.
@@ -908,7 +947,7 @@ internal class CSample : ISample
 }
 ```
 
-#### Advanced comment block before class declaration
+### Advanced comment block before class declaration
 ```
 /* 
  *  Some description goes here
@@ -939,7 +978,7 @@ internal class CSample : ISample
 }
 ```
 
-#### Comment block before member variable
+### Comment block before member variable
 CSample.h
 ```
 class CSample : public ISample
@@ -962,7 +1001,7 @@ internal class CSample : ISample
 }
 ```
 
-#### Optional comment block after member variable
+### Optional comment block after member variable
 CSample.h
 ```
 class CSample : public ISample
@@ -989,7 +1028,7 @@ internal class CSample : ISample
 }
 ```
 
-#### Comment block before member definition in .h file
+### Comment block before member definition in .h file
 CSample.h
 ```
 class CSample : public ISample
@@ -1031,7 +1070,7 @@ internal class CSample : ISample
 }
 ```
 
-#### Comment block before member definition in .h file and .cpp implementation
+### Comment block before member definition in .h file and .cpp implementation
 CSample.h
 ```
 class CSample : public ISample
@@ -1075,7 +1114,7 @@ internal class CSample : ISample
 }
 ```
 
-### Regions
+## Regions
 In C++ regions are defined by using #pragma region and #pragma endregion in both .h or .cpp file.
 * We only want to recreate regions from the .cpp files since the .cpp files defines the order the member methods appear in the .cs file. By trying to also recreate the regions defined in .h files we might end up with conflicting or incorrect regions in the .cs file.
 * Instead, we want to turn regions in the .h file into comments and handle them as ordenary comments where a) the region start comment is written before teh comments of the consecutive member variable or method and b) the region end comment is written after the preceding member variable or method. 

@@ -100,6 +100,13 @@ namespace CppToCsConverter.Core.Utils
                     }
                 }
             }
+            
+            // Handle array members without static initialization
+            if (member.IsArray && string.IsNullOrEmpty(initialization))
+            {
+                memberType = $"{member.Type}[]";
+                initialization = $" = new {member.Type}[{member.ArraySize}]";
+            }
 
             return (memberType, initialization);
         }

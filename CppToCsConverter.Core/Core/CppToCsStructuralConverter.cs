@@ -610,14 +610,16 @@ namespace CppToCsConverter.Core.Core
                     }
                     else if (member.IsArray)
                     {
-                        // Array declaration without initialization
+                        // Array declaration without initialization - provide proper C# initialization
                         memberType = $"{member.Type}[]";
+                        initialization = $" = new {member.Type}[{member.ArraySize}]";
                     }
                 }
                 else if (member.IsArray)
                 {
-                    // Non-static array member
+                    // Non-static array member - provide proper C# initialization
                     memberType = $"{member.Type}[]";
+                    initialization = $" = new {member.Type}[{member.ArraySize}]";
                 }
                 
                 // Include postfix comment if present

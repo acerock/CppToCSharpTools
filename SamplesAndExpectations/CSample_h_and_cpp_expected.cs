@@ -38,6 +38,8 @@ namespace U4.BatchNet.Sample.Compatibility
     {
         private StructOne memberOne;
         private int memberTwo;
+        // Array of ints
+        private agrint[] m_aIntArr1 = new agrint[ARR_SIZE]; // Comment about ARR_SIZE
 
         public CSomeClass()
         {
