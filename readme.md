@@ -26,6 +26,8 @@ The namespace to use is "U4.BatchNet.XX.Compatibility" where XX is the last two 
 
 If the input folder name contains '.', '_', or '-' we only consider the trailing characters. This means if the folder is "c:\test\Something.AgrXY" the namespace should be "U4.BatchNet.XY.Compatibility" or if the folder is "c:\test\Something_Sample" the namespace should be "U4.BatchNet.Sample.Compatibility".
 
+We use file scoped namespaces.
+
 # C++ interface defintions
 A C++ interface is a class defined with pure virtual methods. 
 
@@ -688,8 +690,8 @@ void CSample::MethodOne(const CString& cParam1,
 
 Expected generated CSample.cs
 ```
-namespace Generated_CSample
-{
+namespace Generated_CSample;
+
 // Here are some defines
 
 // Comment for warning
@@ -707,19 +709,19 @@ namespace Generated_CSample
 
 #define CPP_DEFINE4 40
 
-    // Comment for class
-    internal class CSample : ISample
-    {
-        private agrint m_value1;
+// Comment for class
+internal class CSample : ISample
+{
+    private agrint m_value1;
 
-        public void MethodOne(CString cParam1,
-                bool bParam2,
-                out CString pcParam3)
-        {
-            // Implementation of MethodOne
-        }
+    public void MethodOne(CString cParam1,
+            bool bParam2,
+            out CString pcParam3)
+    {
+        // Implementation of MethodOne
     }
 }
+
 ```
 
 ## Comments and regions
@@ -782,28 +784,28 @@ void CSample::MethodOne(
 
 Expected CSample.cs
 ```
-namespace Generated_CSample
+namespace Generated_CSample;
+
+// Comment for class
+internal class CSample : ISample
 {
-    // Comment for class
-    internal class CSample : ISample
+    private agrint m_value1;
+
+    bool InlineMethod(/*void*/)
+    { 
+        return m_value1 > 3 && m_value1 < 33; 
+    }    
+
+    public void MethodOne(
+            /* IN */ const CString& cParam1,
+            /* IN */ const bool &bParam2,
+            // somebody comment something here
+            /* OUT */ CString *pcParam3)
     {
-        private agrint m_value1;
-
-        bool InlineMethod(/*void*/)
-        { 
-            return m_value1 > 3 && m_value1 < 33; 
-        }    
-
-        public void MethodOne(
-                /* IN */ const CString& cParam1,
-                /* IN */ const bool &bParam2,
-                // somebody comment something here
-                /* OUT */ CString *pcParam3)
-        {
-            // Implementation of MethodOne
-        }
+        // Implementation of MethodOne
     }
 }
+
 ```
 
 ### File top comments
@@ -871,12 +873,14 @@ CSample.cs
  * above. All comments, single lines, and multi-lines are together considered a block and handled by
  * our general rules for comments but sticks to the file
  */ 
-using Agresso.Interface.CoreServices;
 using Agresso.Types;
-using BatchNet.Compatibility.Types;
+using Agresso.Interface.CoreServices;
+using BatchNet;
+using BatchNet.Compatibility;
 using BatchNet.Fundamentals.Compatibility;
-using U4.BatchNet.Common.Compatibility;
+using U4.BatchNet.ServerLib.Compatibility;
 using static BatchNet.Compatibility.Level1;
+using static BatchNet.Compatibility.Level2;
 using static BatchNet.Compatibility.BatchApi;
 
 internal partial class CSample : ISample
@@ -897,12 +901,14 @@ SampleMoreImpl.cs
  * persisted to the top of SampleMoreImpl.cs - before the using statements 
  */ 
 
-using Agresso.Interface.CoreServices;
 using Agresso.Types;
-using BatchNet.Compatibility.Types;
+using Agresso.Interface.CoreServices;
+using BatchNet;
+using BatchNet.Compatibility;
 using BatchNet.Fundamentals.Compatibility;
-using U4.BatchNet.Common.Compatibility;
+using U4.BatchNet.ServerLib.Compatibility;
 using static BatchNet.Compatibility.Level1;
+using static BatchNet.Compatibility.Level2;
 using static BatchNet.Compatibility.BatchApi;
 
 internal partial class CSample : ISample

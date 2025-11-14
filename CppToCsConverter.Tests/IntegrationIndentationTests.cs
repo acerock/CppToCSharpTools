@@ -156,16 +156,16 @@ void CSample::ComplexMethod()
                 
                 var result = _classGenerator.GenerateClass(cppClass, sourceMethods, "CSample.cs");
 
-                // Assert - Check that nested structures maintain relative indentation
-                // Original C++ had 4-space base indentation, C# should have 12-space base
-                Assert.Contains("            for (int i = 0; i < 10; i++)", result);      // Base level: 12 spaces
-                Assert.Contains("            {", result);                                   // Base level: 12 spaces
-                Assert.Contains("                if (i % 2 == 0)", result);               // +1 level: 16 spaces
-                Assert.Contains("                {", result);                               // +1 level: 16 spaces  
-                Assert.Contains("                    switch (i)", result);                 // +2 levels: 20 spaces
-                Assert.Contains("                    {", result);                           // +2 levels: 20 spaces
-                Assert.Contains("                        case 0:", result);                // +3 levels: 24 spaces
-                Assert.Contains("                            DoSomething();", result);     // +4 levels: 28 spaces
+                // Assert - Check that nested structures maintain relative indentation (updated for file-scoped namespace)
+                // Original C++ had 4-space base indentation, C# should have 8-space base (was 12)
+                Assert.Contains("        for (int i = 0; i < 10; i++)", result);      // Base level: 8 spaces
+                Assert.Contains("        {", result);                                   // Base level: 8 spaces
+                Assert.Contains("            if (i % 2 == 0)", result);               // +1 level: 12 spaces
+                Assert.Contains("            {", result);                               // +1 level: 12 spaces  
+                Assert.Contains("                switch (i)", result);                 // +2 levels: 16 spaces
+                Assert.Contains("                {", result);                           // +2 levels: 16 spaces
+                Assert.Contains("                    case 0:", result);                // +3 levels: 20 spaces
+                Assert.Contains("                        DoSomething();", result);     // +4 levels: 24 spaces
             }
             finally
             {
@@ -203,12 +203,12 @@ return;
                 
                 var result = _classGenerator.GenerateClass(cppClass, sourceMethods, "CSample.cs");
 
-                // Assert - Even with zero indentation in C++, should get proper C# indentation
-                Assert.Contains("            if (condition)", result);      // 12 spaces for method body
-                Assert.Contains("            {", result);                   // 12 spaces
-                Assert.Contains("            DoSomething();", result);      // 12 spaces - preserves original zero indentation at method body level
-                Assert.Contains("            return;", result);             // 12 spaces - preserves original zero indentation at method body level
-                Assert.Contains("            }", result);                   // 12 spaces
+                // Assert - Even with zero indentation in C++, should get proper C# indentation (updated for file-scoped namespace)
+                Assert.Contains("        if (condition)", result);      // 8 spaces for method body (was 12)
+                Assert.Contains("        {", result);                   // 8 spaces
+                Assert.Contains("        DoSomething();", result);      // 8 spaces - preserves original zero indentation at method body level
+                Assert.Contains("        return;", result);             // 8 spaces - preserves original zero indentation at method body level
+                Assert.Contains("        }", result);                   // 8 spaces
             }
             finally
             {
@@ -244,12 +244,12 @@ public:
 
                 var result = _classGenerator.GenerateClass(cppClass, new System.Collections.Generic.List<CppMethod>(), "CSample.cs");
 
-                // Assert - Multi-line comment structure should be preserved with proper C# indentation
-                Assert.Contains("        /*", result);                                         // Base comment level: 8 spaces
-                Assert.Contains("         * Multi-line comment describing method", result);   // Preserve internal structure
-                Assert.Contains("         * Second line with different indentation", result); // Preserve internal structure  
-                Assert.Contains("           Third line with even more indentation", result);  // Preserve internal structure
-                Assert.Contains("         */", result);                                        // Preserve internal structure
+                // Assert - Multi-line comment structure should be preserved with proper C# indentation (updated for file-scoped namespace)
+                Assert.Contains("    /*", result);                                         // Base comment level: 4 spaces (was 8)
+                Assert.Contains("     * Multi-line comment describing method", result);   // Preserve internal structure
+                Assert.Contains("     * Second line with different indentation", result); // Preserve internal structure  
+                Assert.Contains("       Third line with even more indentation", result);  // Preserve internal structure
+                Assert.Contains("     */", result);                                        // Preserve internal structure
             }
             finally
             {
@@ -287,9 +287,9 @@ public:
 
                 var result = _classGenerator.GenerateClass(cppClass, new System.Collections.Generic.List<CppMethod>(), "CSample.cs");
 
-                // Assert - Inline implementations should be indented to method body level
-                Assert.Contains("            return m_value > 0;", result);  // 12 spaces for method body
-                Assert.Contains("            return m_value * 2;", result);  // 12 spaces for method body
+                // Assert - Inline implementations should be indented to method body level (updated for file-scoped namespace)
+                Assert.Contains("        return m_value > 0;", result);  // 8 spaces for method body (was 12)
+                Assert.Contains("        return m_value * 2;", result);  // 8 spaces for method body (was 12)
             }
             finally
             {

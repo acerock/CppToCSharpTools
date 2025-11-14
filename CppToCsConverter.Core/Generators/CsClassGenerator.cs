@@ -55,24 +55,24 @@ namespace CppToCsConverter.Core.Generators
             sb.AppendLine("using System;");
             sb.AppendLine();
 
-            // Add namespace
-            sb.AppendLine("namespace GeneratedClasses");
-            sb.AppendLine("{");
+            // Add file-scoped namespace
+            sb.AppendLine("namespace GeneratedClasses;");
+            sb.AppendLine();
 
             // Add comments before class declaration
             if (cppClass.PrecedingComments.Any())
             {
                 foreach (var comment in cppClass.PrecedingComments)
                 {
-                    sb.AppendLine($"    {comment}");
+                    sb.AppendLine(comment);
                 }
             }
 
             // Class declaration
             var partialKeyword = isPartial ? "partial " : "";
             var inheritance = cppClass.BaseClasses.Any() ? $" : {string.Join(", ", cppClass.BaseClasses)}" : "";
-            sb.AppendLine($"    public {partialKeyword}class {cppClass.Name}{inheritance}");
-            sb.AppendLine("    {");
+            sb.AppendLine($"public {partialKeyword}class {cppClass.Name}{inheritance}");
+            sb.AppendLine("{");
 
             // Add define statements (only in non-partial classes or main class file)
             if (!isPartial || fileName == cppClass.Name)
@@ -95,7 +95,6 @@ namespace CppToCsConverter.Core.Generators
                 sb.AppendLine();
             }
 
-            sb.AppendLine("    }");
             sb.AppendLine("}");
 
             return sb.ToString();
@@ -158,7 +157,7 @@ namespace CppToCsConverter.Core.Generators
             if (!string.IsNullOrEmpty(method.SourceRegionStart))
             {
                 sb.AppendLine();
-                sb.AppendLine($"        {method.SourceRegionStart}");
+                sb.AppendLine($"    {method.SourceRegionStart}");
                 sb.AppendLine();
             }
 
@@ -166,7 +165,7 @@ namespace CppToCsConverter.Core.Generators
             if (!string.IsNullOrEmpty(method.HeaderRegionStart))
             {
                 sb.AppendLine();
-                sb.AppendLine($"        {method.HeaderRegionStart}");
+                sb.AppendLine($"    {method.HeaderRegionStart}");
                 sb.AppendLine();
             }
 
@@ -218,7 +217,7 @@ namespace CppToCsConverter.Core.Generators
             // Generate method signature with parameter comments
             var methodName = method.IsConstructor ? cppClass.Name : method.Name;
             GenerateMethodSignatureWithComments(sb, accessibility, staticKeyword, virtualKeyword, returnType, methodName, mergedMethod.Parameters);
-            sb.AppendLine("        {");
+            sb.AppendLine("    {");
 
             // Generate method body
 
@@ -231,7 +230,7 @@ namespace CppToCsConverter.Core.Generators
                     foreach (var initializer in method.MemberInitializerList)
                     {
                         var convertedValue = ConvertCppToCsValue(initializer.InitializationValue);
-                        sb.AppendLine($"            {initializer.MemberName} = {convertedValue};");
+                        sb.AppendLine($"        {initializer.MemberName} = {convertedValue};");
                     }
                 }
                 
@@ -267,7 +266,7 @@ namespace CppToCsConverter.Core.Generators
                         foreach (var initializer in method.MemberInitializerList)
                         {
                             var convertedValue = ConvertCppToCsValue(initializer.InitializationValue);
-                            sb.AppendLine($"            {initializer.MemberName} = {convertedValue};");
+                            sb.AppendLine($"        {initializer.MemberName} = {convertedValue};");
 
                         }
                         
@@ -275,41 +274,41 @@ namespace CppToCsConverter.Core.Generators
                         if (!string.IsNullOrEmpty(method.InlineImplementation))
                         {
                             var convertedBody = ConvertCppToCsBody(method.InlineImplementation);
-                            sb.AppendLine(AddIndentation(convertedBody, "            "));
+                            sb.AppendLine(AddIndentation(convertedBody, "        "));
 
                         }
                         
                         if (method.MemberInitializerList.Count == 0 && string.IsNullOrEmpty(method.InlineImplementation))
                         {
-                            sb.AppendLine("            // TODO: Initialize members");
+                            sb.AppendLine("        // TODO: Initialize members");
                         }
                     }
                     else if (method.ReturnType != "void" && !method.IsDestructor && !string.IsNullOrEmpty(method.ReturnType))
                     {
                         var defaultReturn = GetDefaultReturnValue(method.ReturnType);
-                        sb.AppendLine($"            return {defaultReturn};");
+                        sb.AppendLine($"        return {defaultReturn};");
                     }
                     else
                     {
-                        sb.AppendLine("            // TODO: Implement method");
+                        sb.AppendLine("        // TODO: Implement method");
                     }
                 }
             }
 
-            sb.AppendLine("        }");
+            sb.AppendLine("    }");
 
             // Add header region end (from .h file - converted to comment)
             if (!string.IsNullOrEmpty(method.HeaderRegionEnd))
             {
                 sb.AppendLine();
-                sb.AppendLine($"        {method.HeaderRegionEnd}");
+                sb.AppendLine($"    {method.HeaderRegionEnd}");
             }
 
             // Add source region end (from .cpp file - preserved as region)
             if (!string.IsNullOrEmpty(method.SourceRegionEnd))
             {
                 sb.AppendLine();
-                sb.AppendLine($"        {method.SourceRegionEnd}");
+                sb.AppendLine($"    {method.SourceRegionEnd}");
             }
         }
 
@@ -630,12 +629,12 @@ namespace CppToCsConverter.Core.Generators
                 // Simple single-line format
                 var parameterStrings = parameters.Select(GenerateParameter);
                 var parametersString = string.Join(", ", parameterStrings);
-                sb.AppendLine($"        {accessibility} {staticKeyword}{virtualKeyword}{returnType}{methodName}({parametersString})");
+                sb.AppendLine($"    {accessibility} {staticKeyword}{virtualKeyword}{returnType}{methodName}({parametersString})");
             }
             else
             {
                 // Multi-line format with positioned comments
-                sb.AppendLine($"        {accessibility} {staticKeyword}{virtualKeyword}{returnType}{methodName}(");
+                sb.AppendLine($"    {accessibility} {staticKeyword}{virtualKeyword}{returnType}{methodName}(");
                 
                 for (int i = 0; i < parameters.Count; i++)
                 {
@@ -648,18 +647,18 @@ namespace CppToCsConverter.Core.Generators
                     // Add the parameter with proper comma
                     if (isLast)
                     {
-                        sb.AppendLine($"                {paramString})");
+                        sb.AppendLine($"            {paramString})");
                     }
                     else
                     {
-                        sb.AppendLine($"                {paramString},");
+                        sb.AppendLine($"            {paramString},");
                     }
                 }
                 
                 // If we didn't add the closing paren (no parameters), add it
                 if (parameters.Count == 0)
                 {
-                    sb.AppendLine("        )");
+                    sb.AppendLine("    )");
                 }
             }
         }

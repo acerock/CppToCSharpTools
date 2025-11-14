@@ -17,14 +17,14 @@ namespace CppToCsConverter.Core.Utils
         public const string IndentUnit = "    ";
 
         /// <summary>
-        /// Indentation levels for different C# constructs
+        /// Indentation levels for different C# constructs (file-scoped namespaces)
         /// </summary>
         public static class Levels
         {
-            public const int Namespace = 0;      // namespace { (base level)
-            public const int Class = 1;          // class/interface declaration (4 spaces)
-            public const int ClassMember = 2;    // fields, properties, methods (8 spaces)
-            public const int MethodBody = 3;     // method implementation (12 spaces)
+            public const int FileScope = 0;      // File-scoped namespace (no indentation)
+            public const int Class = 0;          // class/interface declaration (0 spaces)
+            public const int ClassMember = 1;    // fields, properties, methods (4 spaces)
+            public const int MethodBody = 2;     // method implementation (8 spaces)
         }
 
         /// <summary>

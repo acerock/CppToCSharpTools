@@ -22,14 +22,14 @@ namespace CppToCsConverter.Core.Generators
             sb.AppendLine("using System;");
             sb.AppendLine();
 
-            // Add namespace (you might want to make this configurable)
-            sb.AppendLine("namespace GeneratedInterfaces");
-            sb.AppendLine("{");
+            // Add file-scoped namespace
+            sb.AppendLine("namespace GeneratedInterfaces;");
+            sb.AppendLine();
 
             // Interface declaration
             var accessibility = cppInterface.IsPublicExport ? "public" : "internal";
-            sb.AppendLine($"    {accessibility} interface {cppInterface.Name}");
-            sb.AppendLine("    {");
+            sb.AppendLine($"{accessibility} interface {cppInterface.Name}");
+            sb.AppendLine("{");
 
             // Add methods (skip constructors, destructors, and static methods for interfaces)
             var interfaceMethods = cppInterface.Methods
@@ -39,11 +39,11 @@ namespace CppToCsConverter.Core.Generators
             foreach (var method in interfaceMethods)
             {
                 var methodSignature = GenerateMethodSignature(method);
-                sb.AppendLine($"        {methodSignature};");
+                sb.AppendLine($"    {methodSignature};");
                 sb.AppendLine();
             }
 
-            sb.AppendLine("    }");
+            sb.AppendLine("}");
 
             // Generate extension class for static methods if any exist
             var staticMethods = cppInterface.Methods
@@ -53,8 +53,8 @@ namespace CppToCsConverter.Core.Generators
             if (staticMethods.Any())
             {
                 sb.AppendLine();
-                sb.AppendLine($"    public static class {cppInterface.Name}Extensions");
-                sb.AppendLine("    {");
+                sb.AppendLine($"public static class {cppInterface.Name}Extensions");
+                sb.AppendLine("{");
 
                 foreach (var staticMethod in staticMethods)
                 {
@@ -65,29 +65,27 @@ namespace CppToCsConverter.Core.Generators
                         !string.IsNullOrEmpty(impl.ImplementationBody));
                     
                     var methodSignature = GenerateExtensionMethodSignature(cppInterface.Name, staticMethod);
-                    sb.AppendLine($"        {methodSignature}");
-                    sb.AppendLine("        {");
+                    sb.AppendLine($"    {methodSignature}");
+                    sb.AppendLine("    {");
                     
                     if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
                     {
                         // Use actual implementation body
-                        var indentedBody = IndentMethodBody(implementation.ImplementationBody, 3);
+                        var indentedBody = IndentMethodBody(implementation.ImplementationBody, 2);
                         sb.Append(indentedBody);
                     }
                     else
                     {
-                        sb.AppendLine("            // TODO: Implementation not found");
-                        sb.AppendLine("            throw new NotImplementedException();");
+                        sb.AppendLine("        // TODO: Implementation not found");
+                        sb.AppendLine("        throw new NotImplementedException();");
                     }
                     
-                    sb.AppendLine("        }");
+                    sb.AppendLine("    }");
                     sb.AppendLine();
                 }
 
-                sb.AppendLine("    }");
+                sb.AppendLine("}");
             }
-
-            sb.AppendLine("}");
 
             return sb.ToString();
         }

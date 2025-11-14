@@ -204,18 +204,21 @@ namespace CppToCsConverter.Core.Core
             {
                 // Interface-only files get specific using statements
                 sb.AppendLine("using Agresso.Types;");
-                sb.AppendLine("using BatchNet.Compatibility.Types;");
-                sb.AppendLine("using U4.BatchNet.Common.Compatibility;");
+                sb.AppendLine("using BatchNet;");
+                sb.AppendLine("using BatchNet.Compatibility;");
+                sb.AppendLine("using U4.BatchNet.ServerLib.Compatibility;");
             }
             else
             {
                 // Files with classes get extended Agresso/BatchNet using statements
-                sb.AppendLine("using Agresso.Interface.CoreServices;");
                 sb.AppendLine("using Agresso.Types;");
-                sb.AppendLine("using BatchNet.Compatibility.Types;");
+                sb.AppendLine("using Agresso.Interface.CoreServices;");
+                sb.AppendLine("using BatchNet;");
+                sb.AppendLine("using BatchNet.Compatibility;");
                 sb.AppendLine("using BatchNet.Fundamentals.Compatibility;");
-                sb.AppendLine("using U4.BatchNet.Common.Compatibility;");
+                sb.AppendLine("using U4.BatchNet.ServerLib.Compatibility;");
                 sb.AppendLine("using static BatchNet.Compatibility.Level1;");
+                sb.AppendLine("using static BatchNet.Compatibility.Level2;");
                 sb.AppendLine("using static BatchNet.Compatibility.BatchApi;");
             }
             sb.AppendLine();
@@ -249,8 +252,8 @@ namespace CppToCsConverter.Core.Core
         private void AddNamespace(StringBuilder sb, string fileName, string sourceDirectory)
         {
             string namespaceName = ResolveNamespace(sourceDirectory);
-            sb.AppendLine($"namespace {namespaceName}");
-            sb.AppendLine("{");
+            sb.AppendLine($"namespace {namespaceName};");
+            sb.AppendLine();
         }
 
         /// <summary>
@@ -317,8 +320,8 @@ namespace CppToCsConverter.Core.Core
                 {
                     var cppClass = classes[0];
                     string classAccessModifier = cppClass.IsPublicExport ? "public" : "internal";
-                    sb.AppendLine($"    {classAccessModifier} partial class {cppClass.Name}");
-                    sb.AppendLine("    {");
+                    sb.AppendLine($"{classAccessModifier} partial class {cppClass.Name}");
+                    sb.AppendLine("{");
 
                     // Generate methods for this partial file
                     if (partialMethods != null)
@@ -329,7 +332,7 @@ namespace CppToCsConverter.Core.Core
                         }
                     }
 
-                    sb.AppendLine("    }");
+                    sb.AppendLine("}");
                 }
             }
             else
@@ -442,8 +445,6 @@ namespace CppToCsConverter.Core.Core
             AddNamespace(sb, fileName, sourceDirectory);
             GenerateFileContent(sb, classes, structs, parsedSources, staticMemberInits, sourceDefines, fileName, isPartialFile, partialMethods);
             
-            sb.AppendLine("}");
-            
             // Write the file
             var csFileName = Path.Combine(outputDirectory, $"{fileName}.cs");
             WriteFileToDirectory(csFileName, sb.ToString(), fileName);
@@ -475,11 +476,11 @@ namespace CppToCsConverter.Core.Core
             // Write preceding comments with proper indentation
             foreach (var comment in define.PrecedingComments)
             {
-                sb.AppendLine($"        {comment}");
+                sb.AppendLine($"    {comment}");
             }
             
             // Write the define statement itself with proper indentation
-            sb.AppendLine($"        {define.FullDefinition}");
+            sb.AppendLine($"    {define.FullDefinition}");
         }
 
         private void WriteFileToDirectory(string filePath, string content, string fileName)
@@ -551,14 +552,14 @@ namespace CppToCsConverter.Core.Core
             {
                 foreach (var comment in cppClass.PrecedingComments)
                 {
-                    sb.AppendLine($"    {comment}");
+                    sb.AppendLine(comment);
                 }
             }
 
             var accessibility = cppClass.IsPublicExport ? "public" : "internal";
             var classStaticModifier = ShouldBeStaticClass(cppClass, parsedSources) ? "static " : "";
-            sb.AppendLine($"    {accessibility} {classStaticModifier}class {cppClass.Name}");
-            sb.AppendLine("    {");
+            sb.AppendLine($"{accessibility} {classStaticModifier}class {cppClass.Name}");
+            sb.AppendLine("{");
 
             // Add define statements first
             WriteDefineStatementsInline(sb, cppClass);
@@ -570,7 +571,7 @@ namespace CppToCsConverter.Core.Core
                 if (!string.IsNullOrEmpty(member.RegionStart))
                 {
                     sb.AppendLine();
-                    sb.AppendLine($"        {member.RegionStart}");
+                    sb.AppendLine($"    {member.RegionStart}");
                     sb.AppendLine();
                 }
 
@@ -579,7 +580,7 @@ namespace CppToCsConverter.Core.Core
                 {
                     foreach (var comment in member.PrecedingComments)
                     {
-                        sb.AppendLine($"        {comment}");
+                        sb.AppendLine($"    {comment}");
                     }
                 }
 
@@ -624,13 +625,13 @@ namespace CppToCsConverter.Core.Core
                 
                 // Include postfix comment if present
                 var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
-                sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {memberName}{initialization};{postfixComment}");
+                sb.AppendLine($"    {accessModifier} {staticModifier}{memberType} {memberName}{initialization};{postfixComment}");
 
                 // Add region end marker (from .h file, converted to comment)  
                 if (!string.IsNullOrEmpty(member.RegionEnd))
                 {
                     sb.AppendLine();
-                    sb.AppendLine($"        {member.RegionEnd}");
+                    sb.AppendLine($"    {member.RegionEnd}");
                 }
             }
 
@@ -662,7 +663,7 @@ namespace CppToCsConverter.Core.Core
                 if (!string.IsNullOrEmpty(method.SourceRegionStart))
                 {
                     sb.AppendLine();
-                    sb.AppendLine($"        {method.SourceRegionStart}");
+                    sb.AppendLine($"    {method.SourceRegionStart}");
                     sb.AppendLine();
                 }
 
@@ -670,7 +671,7 @@ namespace CppToCsConverter.Core.Core
                 if (!string.IsNullOrEmpty(method.HeaderRegionStart))
                 {
                     sb.AppendLine();
-                    sb.AppendLine($"        {method.HeaderRegionStart}");
+                    sb.AppendLine($"    {method.HeaderRegionStart}");
                     sb.AppendLine();
                 }
 
@@ -679,7 +680,7 @@ namespace CppToCsConverter.Core.Core
                 {
                     foreach (var comment in method.HeaderComments)
                     {
-                        sb.AppendLine($"        {comment}");
+                        sb.AppendLine($"    {comment}");
                     }
                 }
 
@@ -688,7 +689,7 @@ namespace CppToCsConverter.Core.Core
                 {
                     foreach (var comment in method.SourceComments)
                     {
-                        sb.AppendLine($"        {comment}");
+                        sb.AppendLine($"    {comment}");
                     }
                 }
 
@@ -702,7 +703,7 @@ namespace CppToCsConverter.Core.Core
                     // Include inline implementation with proper indentation
 
                     GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType, method.Name, method.Parameters);
-                    sb.AppendLine("        {");
+                    sb.AppendLine("    {");
                     
                     // For constructors, add member initializer assignments first
                     if (method.IsConstructor && method.MemberInitializerList.Count > 0)
@@ -710,7 +711,7 @@ namespace CppToCsConverter.Core.Core
                         foreach (var initializer in method.MemberInitializerList)
                         {
                             var convertedValue = ConvertCppToCsValue(initializer.InitializationValue);
-                            sb.AppendLine($"            {initializer.MemberName} = {convertedValue};");
+                            sb.AppendLine($"        {initializer.MemberName} = {convertedValue};");
                         }
                     }
                     
@@ -722,7 +723,7 @@ namespace CppToCsConverter.Core.Core
                     );
                     sb.Append(indentedInlineBody);
                     sb.AppendLine(); // Ensure line break before closing brace
-                    sb.AppendLine("        }");
+                    sb.AppendLine("    }");
                 }
                 else
                 {

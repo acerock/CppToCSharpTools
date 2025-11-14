@@ -1,6 +1,12 @@
 using Agresso.Types;
-using BatchNet.Compatibility.Types;
-using U4.BatchNet.Common.Compatibility;
+using Agresso.Interface.CoreServices;
+using BatchNet;
+using BatchNet.Compatibility;
+using BatchNet.Fundamentals.Compatibility;
+using U4.BatchNet.ServerLib.Compatibility;
+using static BatchNet.Compatibility.Level1;
+using static BatchNet.Compatibility.Level2;
+using static BatchNet.Compatibility.BatchApi;
 
 namespace U4.BatchNet.Sample.Compatibility
 {

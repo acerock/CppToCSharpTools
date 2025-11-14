@@ -112,8 +112,8 @@ namespace CppToCsConverter.Tests
             // Act
             var result = IndentationManager.ReindentBlock(originalComment, originalIndentation, targetLevel);
 
-            // Assert
-            var expected = "    // Class comment from header\n    // Second line of comment";
+            // Assert - Updated for file-scoped namespace (Class = 0 spaces)
+            var expected = "// Class comment from header\n// Second line of comment";
             Assert.Equal(expected, result);
         }
 
@@ -128,8 +128,8 @@ namespace CppToCsConverter.Tests
             // Act
             var result = IndentationManager.ReindentBlock(originalComment, originalIndentation, targetLevel);
 
-            // Assert
-            var expected = "        // Method comment from header\n        // Second line of comment";
+            // Assert - Updated for file-scoped namespace (ClassMember = 4 spaces)
+            var expected = "    // Method comment from header\n    // Second line of comment";
             Assert.Equal(expected, result);
         }
 
@@ -144,8 +144,8 @@ namespace CppToCsConverter.Tests
             // Act
             var result = IndentationManager.ReindentBlock(originalBody, originalIndentation, targetLevel);
 
-            // Assert
-            var expected = "            if (condition)\n            {\n                doSomething();\n            }";
+            // Assert - Updated for file-scoped namespace (MethodBody = 8 spaces)
+            var expected = "        if (condition)\n        {\n            doSomething();\n        }";
             Assert.Equal(expected, result);
         }
 
@@ -160,8 +160,8 @@ namespace CppToCsConverter.Tests
             // Act
             var result = IndentationManager.ReindentBlock(originalBody, originalIndentation, targetLevel);
 
-            // Assert - Should preserve the 4-space nesting within the method body
-            var expected = "            if (condition)\n            {\n                for (int i = 0; i < 10; i++)\n                {\n                    doSomething(i);\n                }\n            }";
+            // Assert - Updated for file-scoped namespace (MethodBody = 8 spaces), preserving 4-space nesting
+            var expected = "        if (condition)\n        {\n            for (int i = 0; i < 10; i++)\n            {\n                doSomething(i);\n            }\n        }";
             Assert.Equal(expected, result);
         }
 
@@ -176,8 +176,8 @@ namespace CppToCsConverter.Tests
             // Act
             var result = IndentationManager.ReindentBlock(originalBody, originalIndentation, targetLevel);
 
-            // Assert - Empty lines should get target indentation
-            var expected = "            // Comment\n            \n            int value = 42;\n            \n            return value;";
+            // Assert - Updated for file-scoped namespace (MethodBody = 8 spaces)
+            var expected = "        // Comment\n        \n        int value = 42;\n        \n        return value;";
             Assert.Equal(expected, result);
         }
 
@@ -196,8 +196,8 @@ namespace CppToCsConverter.Tests
             // Act
             var result = IndentationManager.ReindentMethodComments(comments, originalIndentation);
 
-            // Assert
-            var expected = "        // Method does something important\n        // @param value The input value\n        // @return The processed result";
+            // Assert - Updated for file-scoped namespace (method comments = 4 spaces)
+            var expected = "    // Method does something important\n    // @param value The input value\n    // @return The processed result";
             Assert.Equal(expected, result);
         }
 
@@ -211,8 +211,8 @@ namespace CppToCsConverter.Tests
             // Act
             var result = IndentationManager.ReindentMethodBody(methodBody, originalIndentation);
 
-            // Assert
-            var expected = "            m_value = value;\n            return m_value * 2;";
+            // Assert - Updated for file-scoped namespace (MethodBody = 8 spaces)
+            var expected = "        m_value = value;\n        return m_value * 2;";
             Assert.Equal(expected, result);
         }
 
@@ -271,11 +271,11 @@ namespace CppToCsConverter.Tests
         [Fact]
         public void GetIndentationForLevel_ReturnsCorrectSpacing()
         {
-            // Assert
-            Assert.Equal("", IndentationManager.GetIndentationForLevel(IndentationManager.Levels.Namespace));
-            Assert.Equal("    ", IndentationManager.GetIndentationForLevel(IndentationManager.Levels.Class));
-            Assert.Equal("        ", IndentationManager.GetIndentationForLevel(IndentationManager.Levels.ClassMember));
-            Assert.Equal("            ", IndentationManager.GetIndentationForLevel(IndentationManager.Levels.MethodBody));
+            // Assert - Updated for file-scoped namespaces
+            Assert.Equal("", IndentationManager.GetIndentationForLevel(IndentationManager.Levels.FileScope));
+            Assert.Equal("", IndentationManager.GetIndentationForLevel(IndentationManager.Levels.Class));
+            Assert.Equal("    ", IndentationManager.GetIndentationForLevel(IndentationManager.Levels.ClassMember));
+            Assert.Equal("        ", IndentationManager.GetIndentationForLevel(IndentationManager.Levels.MethodBody));
         }
 
         [Fact]
@@ -289,15 +289,15 @@ namespace CppToCsConverter.Tests
             // Act
             var result = IndentationManager.ReindentBlock(originalBody, originalIndentation, targetLevel);
 
-            // Assert
-            var expected = "            if (condition)\n            {\n                doSomething();\n            }";
+            // Assert - Updated for file-scoped namespace (MethodBody = 8 spaces)
+            var expected = "        if (condition)\n        {\n            doSomething();\n        }";
             Assert.Equal(expected, result);
         }
 
         [Theory]
-        [InlineData("// Single line comment", 0, IndentationManager.Levels.ClassMember, "        // Single line comment")]
-        [InlineData("    /* Multi-line\n       comment */", 4, IndentationManager.Levels.ClassMember, "        /* Multi-line\n           comment */")]
-        [InlineData("        void Method();", 8, IndentationManager.Levels.ClassMember, "        void Method();")]
+        [InlineData("// Single line comment", 0, IndentationManager.Levels.ClassMember, "    // Single line comment")]
+        [InlineData("    /* Multi-line\n       comment */", 4, IndentationManager.Levels.ClassMember, "    /* Multi-line\n       comment */")]
+        [InlineData("        void Method();", 8, IndentationManager.Levels.ClassMember, "    void Method();")]
         public void ReindentBlock_VariousInputs_ProducesExpectedOutput(string input, int originalIndent, int targetLevel, string expected)
         {
             // Act
