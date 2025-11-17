@@ -461,8 +461,8 @@ namespace CppToCsConverter.Core.Core
                 sb.AppendLine($"    {comment}");
             }
             
-            // Write the define statement itself with proper indentation
-            sb.AppendLine($"    {define.FullDefinition}");
+            // Transform the define to a C# const declaration
+            sb.AppendLine($"    {define.ToCSharpConst()}");
         }
 
         private void WriteFileToDirectory(string filePath, string content, string fileName)

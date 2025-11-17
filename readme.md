@@ -147,7 +147,7 @@ type[] name = new type[size];
 
 This is a  follow the rules regarding preceding and consecutive comments and access modifiers.
 
-As mentioned, the goal is to assure array members are correctly persisted just as any other member variable and we don't have to worry about the constant being a #define in C++ or an positive integer. 
+As mentioned, the goal is to assure array members are correctly persisted just as any other member variable. 
 
 #### Sample fixed sized array member
 CSample.h
@@ -168,7 +168,7 @@ Expected CSample.cs
 internal class CSample : ISample
 {
     // We move this to the class and another tool will translate it to internal const int ARR_SIZE = 10;
-    #define ARR_SIZE 10
+    internal const int ARR_SIZE = 10;
 
     // Array of ints
     private agrint[] m_value1 = new agrint[ARR_SIZE]; // Comment about ARR_SIZE
@@ -639,20 +639,88 @@ internal class MyOtherStruct
 
 ## Define statements
 Both C++ header (.h) and source files (.cpp) can hold #define statements and we need to assure these are collected and persisted in the model, and then written to correct location when we assemble the .cs files. 
-In .h files, #define statements will appears outside class and struct definitions, and in .cpp files they appear outside the methods.
+In .h files, #define statements might appear outside class and struct definitions, and in .cpp files they appear outside the method bodies.
 
-There will be another tool run later that will do the translation of the define statements to the correct C# syntax. For this application the task is to assure we collect them from the header and .cpp source files, as they are with preceding comments and write them to the the .cs file.
+For this application the task is to assure we collect them from the header and source files as they are with preceding comments, persist them in the model as CppConst objects, and write them to the the target location in the .cs file with correct member variable indention and comments.
+
+We follow a simple rule to transform the #define statement to `internal const <type> <name> = <value>;` statements.
 
 Collecting defines from C++ files:
 1. Defines can be found in both the header (.h) and source files (.cpp) for a class.
 2. There might be more defines found in multi-file C++ class source files.
 
 Constructing C# class with defines
-1. Defines collected from both header file and source files are written as is and with comments at the very start of the class as the next line after the class opening bracket. 
-2. In case it is a partial class scenario, the defines are written to the main .cs file.
-3. Defines are written in a specific order
-  1. Defines from the header file
-  2. Defines from the cpp files
+1. Defines collected from header file are reconstructed as C# internal const members at the very start of the class after the class opening bracket. In case of partial classes, these defines will go to the main .cs file.
+2. Defines collected from source files are reconstructed as C# private const members after the ones from the header file.
+3. In case of source file defines in a partial class scenario, the partial source file defines are written to the matching partial class .cs file.
+
+### Transforming to const members in the .cs file
+The define statement is translated to an internal const in the format 
+```
+<access-modifier> <type> <name> = <value>;
+```
+If the define was found in header file, the <access-modifier> is internal.
+If the define was found in source file, the <access-modifier> is private.
+
+To descide the type we need to look at the value. 
+#### Samples
+```
+#define mychar1define _T('')
+#define mychar2define _T( '\t' )
+#define mychar3define 't'
+
+#define mystr1define _("")
+#define mystr2define _("A")
+#define mystr3define _("ABC")
+
+#define myint1define    0
+#define myint2define    123
+
+#define mylong1define   0L
+#define mylong2define   -123456789L
+
+#define mydouble1define 0.0005
+#define mydobule2define -0.1
+#define mydobule3define 1D
+
+#define mybool1define   TRUE
+#define mybool3define   YES
+#define mybool3define   OK
+#define mybool4define   true
+#define mybool5define   FALSE
+#define mybool6define   NO
+#define mybool7define   NOTOK
+#define mybool8define   false
+```
+
+Are written to .cs as follows:
+```
+internal const char mychar1define = '';
+internal const char mychar2define = '\t';
+internal const char mychar3define 't';
+internal const string mystr1define = "";
+internal const string mystr2define = "A";
+internal const string mystr3define = "ABC";
+
+internal const int myint1define = 0;
+internal const int myint2define = 123;
+
+internal const long mylong1define = 0L;
+internal const long mylong2define = -123456789L;
+
+internal const double mydouble1define = 0.0005;
+internal const double mydobule2define = -0.1;
+internal const double mydobule3define = 1D;
+
+internal const bool mybool1define = true;
+internal const bool mybool3define = true;
+internal const bool mybool3define = true;
+internal const bool mybool4define = true;
+internal const bool mybool5define = false;
+internal const bool mybool6define = false;
+internal const bool mybool7define = false;
+internal const bool mybool8define = false;
+```
 
 ### Defines with no value
 We only collect define statements that followed with a value or expression and ignore those without.
@@ -667,7 +735,6 @@ CSample.h
 #pragma once
 
 // Here are some defines
-
 // Comment for warning
 #define WARNING 1
 // Comment for stop
@@ -713,26 +780,27 @@ Expected generated CSample.cs
 ```
 namespace Generated_CSample;
 
-// Here are some defines
-
-// Comment for warning
-#define WARNING 1
-// Comment for stop
-#define STOP 2
-#define STOP_ALL 4
-
-/* DEFINES IN CPP*/
-// Also cpp files can have defines
-#define CPP_DEFINE 10
-#define CPP_DEFINE2 20 
-// Comment for cpp define 3
-#define CPP_DEFINE3 30 
-
-#define CPP_DEFINE4 40
-
 // Comment for class
 internal class CSample : ISample
 {
+    // Here are some defines
+    // Comment for warning
+    internal const int WARNING = 1;
+    // Comment for stop
+    internal const int STOP = 2;
+    internal const int STOP_ALL = 4;
+    // Some more defines
+    internal const int MY_DEFINE4 = 4;
+    internal const int MY_DEFINE5 = 5;
+
+    /* DEFINES IN CPP*/
+    // Also cpp files can have defines
+    private const int CPP_DEFINE = 10;
+    private const int CPP_DEFINE2 = 20;
+    // Comment for cpp define 3
+    private const int CPP_DEFINE3 = 30;
+    private const int CPP_DEFINE4 = 40;
+
     private agrint m_value1;
 
     public void MethodOne(CString cParam1,
@@ -742,7 +810,6 @@ internal class CSample : ISample
         // Implementation of MethodOne
     }
 }
-
 ```
 
 ## Comments and regions

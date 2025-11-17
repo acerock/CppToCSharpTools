@@ -134,7 +134,8 @@ namespace CppToCsConverter.Core.Parsers
                             Value = defineMatch.Groups[2].Value.Trim(),
                             FullDefinition = line,
                             PrecedingComments = precedingComments,
-                            SourceFileName = fileName
+                            SourceFileName = fileName,
+                            IsFromHeader = true
                         };
                         
                         defines.Add(define);

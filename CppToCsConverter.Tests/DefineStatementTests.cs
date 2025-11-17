@@ -310,18 +310,22 @@ void CSample::MethodOne(const CString& cParam1,
                 Console.WriteLine("Generated C# content:");
                 Console.WriteLine(generatedContent);
                 
-                // Should contain header defines
-                Assert.Contains("#define WARNING 1", generatedContent);
-                Assert.Contains("#define STOP 2", generatedContent);
-                Assert.Contains("#define STOP_ALL 4", generatedContent);
-                Assert.Contains("#define MY_DEFINE4 4", generatedContent);
-                Assert.Contains("#define MY_DEFINE5 5", generatedContent);
+                // Should contain header defines transformed to internal const
+                Assert.Contains("internal const int WARNING = 1;", generatedContent);
+                Assert.Contains("internal const int STOP = 2;", generatedContent);
+                Assert.Contains("internal const int STOP_ALL = 4;", generatedContent);
+                Assert.Contains("internal const int MY_DEFINE4 = 4;", generatedContent);
+                Assert.Contains("internal const int MY_DEFINE5 = 5;", generatedContent);
                 
-                // Should contain source defines
-                Assert.Contains("#define CPP_DEFINE 10", generatedContent);
-                Assert.Contains("#define CPP_DEFINE2 20", generatedContent);
-                Assert.Contains("#define CPP_DEFINE3 30", generatedContent);
-                Assert.Contains("#define CPP_DEFINE4 40", generatedContent);
+                // Should contain source defines transformed to private const
+                Assert.Contains("private const int CPP_DEFINE = 10;", generatedContent);
+                Assert.Contains("private const int CPP_DEFINE2 = 20;", generatedContent);
+                Assert.Contains("private const int CPP_DEFINE3 = 30;", generatedContent);
+                Assert.Contains("private const int CPP_DEFINE4 = 40;", generatedContent);
+                
+                // Should NOT contain raw #define statements (old format)
+                Assert.DoesNotContain("#define WARNING", generatedContent);
+                Assert.DoesNotContain("#define CPP_DEFINE ", generatedContent);
                 
                 // Should contain comments
                 Assert.Contains("// Comment for warning", generatedContent);

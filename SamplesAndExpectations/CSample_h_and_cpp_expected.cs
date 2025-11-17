@@ -13,16 +13,6 @@ using static BatchNet.Compatibility.BatchApi;
 
 namespace U4.BatchNet.Sample.Compatibility;
 
-// Top defines
-#define MY_DEFINE 1
-#define MY_DEFINE2 2
-// Comment for define 3
-#define MY_DEFINE3 3
-
-// Some more defines
-#define MY_DEFINE4 4
-#define MY_DEFINE5 5
-
 internal class StructOne
 {
     protected agrint lTestType;
@@ -35,12 +25,12 @@ internal class StructOne
 
     //#endregion  // Comment test
 
-    public StructOne(const TAttid& inAttId, const TDimValue &inDimVal, agrint lInTestType=0)
+    public StructOne(const TAttid& inAttId, const TDimValue &inDimVal, agrint lInTestType = 0)
     {
         lTestType = lInTestType;
         attid = inAttId;
         dimVal = inDimVal;
-    }    
+    }
 }
 
 internal class CSomeClass
@@ -66,6 +56,16 @@ internal class CSomeClass
 // Comment for class
 internal class CSample : ISample
 {
+    // Top defines
+    internal const int MY_DEFINE = 1;
+    internal const int MY_DEFINE2 = 2;
+    // Comment for define 3
+    internal const int MY_DEFINE3 = 3;
+    // Some more defines
+    private const int MY_DEFINE4 = 4;
+    private const int MY_DEFINE5 = 5;
+    private const int CPP_DEFINE4 = 40;
+    
     private agrint m_value1;
 
     private CString cValue1;

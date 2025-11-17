@@ -55,9 +55,9 @@ private:
                 Console.WriteLine("Generated C# content:");
                 Console.WriteLine(generatedContent);
                 
-                // Check expectations based on readme.md
+                // Check expectations based on readme.md - define is now transformed to const
                 Assert.Contains("agrint[] m_value1 = new agrint[ARR_SIZE]; // Comment about ARR_SIZE", generatedContent);
-                Assert.Contains("#define ARR_SIZE 10", generatedContent);
+                Assert.Contains("internal const int ARR_SIZE = 10;", generatedContent);
             }
             finally
             {
