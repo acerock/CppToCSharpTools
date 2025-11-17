@@ -33,13 +33,14 @@ struct MyStruct
             try
             {
                 // Act
-                var structs = _parser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _parser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
                 var myStruct = structs[0];
                 Assert.Equal("MyStruct", myStruct.Name);
-                Assert.Equal(StructType.Simple, myStruct.Type);
+                Assert.True(myStruct.IsStruct);
                 Assert.Equal(2, myStruct.Members.Count);
                 
                 Assert.Equal("MyBoolField", myStruct.Members[0].Name);
@@ -73,13 +74,14 @@ typedef struct
             try
             {
                 // Act
-                var structs = _parser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _parser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
                 var myStruct = structs[0];
                 Assert.Equal("MyStruct", myStruct.Name);
-                Assert.Equal(StructType.Typedef, myStruct.Type);
+                Assert.True(myStruct.IsStruct);
                 Assert.Equal(2, myStruct.Members.Count);
                 
                 Assert.Equal("MyBoolField", myStruct.Members[0].Name);
@@ -111,13 +113,14 @@ typedef struct MyTag
             try
             {
                 // Act
-                var structs = _parser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _parser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
                 var myStruct = structs[0];
                 Assert.Equal("MyStruct", myStruct.Name);
-                Assert.Equal(StructType.TypedefTag, myStruct.Type);
+                Assert.True(myStruct.IsStruct);
                 Assert.Equal(2, myStruct.Members.Count);
                 
                 Assert.Equal("MyBoolField", myStruct.Members[0].Name);
@@ -151,7 +154,8 @@ typedef struct
             try
             {
                 // Act
-                var structs = _parser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _parser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
@@ -191,7 +195,8 @@ struct MyStruct
             try
             {
                 // Act
-                var structs = _parser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _parser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
@@ -203,8 +208,9 @@ struct MyStruct
                 Assert.Contains("*", myStruct.Members[0].Type);
                 
                 Assert.Equal("pConstStringField", myStruct.Members[1].Name);
-                Assert.Contains("const", myStruct.Members[1].Type);
+                Assert.True(myStruct.Members[1].IsConst, "pConstStringField should be const");
                 Assert.Contains("CString", myStruct.Members[1].Type);
+                Assert.Contains("*", myStruct.Members[1].Type);
                 
                 Assert.Equal("pmtTable", myStruct.Members[2].Name);
                 Assert.Contains("CAgrMT", myStruct.Members[2].Type);
@@ -242,7 +248,8 @@ typedef struct MyTag
             try
             {
                 // Act
-                var structs = _parser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _parser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Equal(2, structs.Count);
@@ -269,9 +276,9 @@ typedef struct MyTag
         }
 
         [Fact]
-        public void Parse_StructMembersWithVariousAccessModifiers_AllGetInternalAccess()
+        public void Parse_StructMembersWithVariousAccessModifiers_PreservesAccessSpecifiers()
         {
-            // Arrange - In C++ structs, members are public by default, but we want internal in C#
+            // Arrange - In C++ structs, members default to internal (for C# conversion), but explicit access specifiers are preserved
             var content = @"
 struct MyStruct
 {
@@ -290,17 +297,30 @@ public:
             try
             {
                 // Act
-                var structs = _parser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _parser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
                 var myStruct = structs[0];
+                Assert.Equal(4, myStruct.Members.Count);
                 
-                // All struct members should have Internal access regardless of C++ access specifiers
-                foreach (var member in myStruct.Members)
-                {
-                    Assert.Equal(AccessSpecifier.Internal, member.AccessSpecifier);
-                }
+                // With unified approach, C++ access specifiers are preserved
+                // First field has no explicit specifier, defaults to Internal for structs (struct default)
+                Assert.Equal(AccessSpecifier.Internal, myStruct.Members[0].AccessSpecifier);
+                Assert.Equal("publicField", myStruct.Members[0].Name);
+                
+                // Private field
+                Assert.Equal(AccessSpecifier.Private, myStruct.Members[1].AccessSpecifier);
+                Assert.Equal("privateField", myStruct.Members[1].Name);
+                
+                // Protected field
+                Assert.Equal(AccessSpecifier.Protected, myStruct.Members[2].AccessSpecifier);
+                Assert.Equal("protectedField", myStruct.Members[2].Name);
+                
+                // Public field - explicitly marked as public
+                Assert.Equal(AccessSpecifier.Public, myStruct.Members[3].AccessSpecifier);
+                Assert.Equal("publicField2", myStruct.Members[3].Name);
             }
             finally
             {

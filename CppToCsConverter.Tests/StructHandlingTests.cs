@@ -36,16 +36,18 @@ struct MyStruct
             try
             {
                 // Act
-                var structs = _headerParser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _headerParser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
                 var cppStruct = structs[0];
                 Assert.Equal("MyStruct", cppStruct.Name);
-                Assert.Equal(Core.Models.StructType.Simple, cppStruct.Type);
-                Assert.Contains("struct MyStruct", cppStruct.OriginalDefinition);
-                Assert.Contains("bool MyBoolField;", cppStruct.OriginalDefinition);
-                Assert.Contains("agrint MyIntField;", cppStruct.OriginalDefinition);
+                Assert.True(cppStruct.IsStruct);
+                // Verify struct members are parsed
+                Assert.Equal(2, cppStruct.Members.Count);
+                Assert.Contains(cppStruct.Members, m => m.Name == "MyBoolField");
+                Assert.Contains(cppStruct.Members, m => m.Name == "MyIntField");
             }
             finally
             {
@@ -70,15 +72,16 @@ typedef struct
             try
             {
                 // Act
-                var structs = _headerParser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _headerParser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
                 var cppStruct = structs[0];
                 Assert.Equal("MyStruct", cppStruct.Name);
-                Assert.Equal(Core.Models.StructType.Typedef, cppStruct.Type);
-                Assert.Contains("typedef struct", cppStruct.OriginalDefinition);
-                Assert.Contains("} MyStruct;", cppStruct.OriginalDefinition);
+                Assert.True(cppStruct.IsStruct);
+                // Verify struct members are parsed
+                Assert.Equal(2, cppStruct.Members.Count);
             }
             finally
             {
@@ -104,16 +107,16 @@ typedef struct MyTag
             try
             {
                 // Act
-                var structs = _headerParser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _headerParser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
                 var cppStruct = structs[0];
                 Assert.Equal("MyOtherStruct", cppStruct.Name);
-                Assert.Equal(Core.Models.StructType.TypedefTag, cppStruct.Type);
-                Assert.Contains("typedef struct MyTag", cppStruct.OriginalDefinition);
-                Assert.Contains("// This struct has a comment copied as is", cppStruct.OriginalDefinition);
-                Assert.Contains("} MyOtherStruct;", cppStruct.OriginalDefinition);
+                Assert.True(cppStruct.IsStruct);
+                // Verify comment on member is preserved
+                Assert.Contains(cppStruct.Members, m => m.PrecedingComments.Any(c => c.Contains("This struct has a comment copied as is")));
             }
             finally
             {
@@ -139,7 +142,8 @@ typedef struct
             try
             {
                 // Act
-                var structs = _headerParser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _headerParser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
@@ -186,7 +190,8 @@ typedef struct MyTag
             try
             {
                 // Act
-                var structs = _headerParser.ParseStructsFromHeaderFile(tempFile);
+                var classes = _headerParser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Equal(3, structs.Count);
@@ -194,18 +199,18 @@ typedef struct MyTag
                 // First struct
                 var firstStruct = structs.FirstOrDefault(s => s.Name == "MyStruct");
                 Assert.NotNull(firstStruct);
-                Assert.Equal(Core.Models.StructType.Typedef, firstStruct.Type);
+                Assert.True(firstStruct.IsStruct);
                 Assert.Single(firstStruct.PrecedingComments);
                 
                 // Second struct
                 var secondStruct = structs.FirstOrDefault(s => s.Name == "SimpleStruct");
                 Assert.NotNull(secondStruct);
-                Assert.Equal(Core.Models.StructType.Simple, secondStruct.Type);
+                Assert.True(secondStruct.IsStruct);
                 
                 // Third struct
                 var thirdStruct = structs.FirstOrDefault(s => s.Name == "MyOtherStruct");
                 Assert.NotNull(thirdStruct);
-                Assert.Equal(Core.Models.StructType.TypedefTag, thirdStruct.Type);
+                Assert.True(thirdStruct.IsStruct);
                 Assert.Single(thirdStruct.PrecedingComments);
             }
             finally
@@ -231,8 +236,8 @@ struct MyStruct
             try
             {
                 // Act
-                var structs = _headerParser.ParseStructsFromHeaderFile(tempFile);
                 var classes = _headerParser.ParseHeaderFile(tempFile);
+                var structs = classes.Where(c => c.IsStruct).ToList();
 
                 // Assert
                 Assert.Single(structs);
