@@ -6,6 +6,20 @@
 
 CPartialSample::m_iIndex = -1;
 
+struct LocalStruct
+{
+protected:
+    agrint m_iCounter;
+
+public:
+    TDimValue dimValue;
+
+    LocalStruct(const TDimValue& firstDimValue)
+    {
+        dimValue = firstDimValue;
+    }
+};
+
 CPartialSample::CPartialSample()
 {
     m_value1 = 0;

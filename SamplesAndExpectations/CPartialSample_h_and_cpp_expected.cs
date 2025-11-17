@@ -24,11 +24,23 @@ namespace U4.BatchNet.Sample.Compatibility
         internal TDimValue dimVal;
     }
 
+    internal class LocalStruct
+    {
+        protected agrint m_iCounter;
+
+        public TDimValue dimValue;
+
+        public LocalStruct(const TDimValue& firstDimValue)
+        {
+            dimValue = firstDimValue;
+        }
+    }
+
     // Comment for class
     internal partial class CPartialSample
     {
         private agrint m_value1;
-            // Static member
+        // Static member
         private static agrint m_iIndex = -1;
 
         // Methods for main file (inline + same-named source)
@@ -40,7 +52,7 @@ namespace U4.BatchNet.Sample.Compatibility
 
         private int MethodPrivInl1(const TDimValue& dim1)
         {
-            if (dim1.IsEmpty()) 
+            if (dim1.IsEmpty())
                 return 0;
 
             return 42;

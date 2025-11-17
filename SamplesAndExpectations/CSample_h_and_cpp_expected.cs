@@ -29,7 +29,7 @@ namespace U4.BatchNet.Sample.Compatibility
 
         //#region Just a h-file pragma test
 
-        // att-id memeber comment
+        // att-id member comment
         public TAttId attId;
         public TDimValue dimVal;
 

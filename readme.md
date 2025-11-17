@@ -3,6 +3,9 @@ This folder contains files to demostrate how C++ interfaces and classes are defi
 
 This document describes the recommeded approach to handle the complexity of translating these classes into the desired C# output.
 
+## Test Driven Development
+We are building out and maintaining our test suite for all requirements. Every time we do changes we re-run all tests to assure we have not broken existing tests and to assure our new functionality works as expected.
+
 ## What this project is about
 * This project is about building the C# files based on the content of one or more C++ header (.h) files and implementation (.cpp) files.
 * It focus on assembling the type (interfaces and classes) to ensure access modifiers, default values and method bodies is correctly applied.
@@ -574,6 +577,7 @@ internal static class ISampleExtensions
 
 ### Struct type defined in a header file together with a class with .cpp implementation
 In this case we copy the structs as is in the same order they appear in the header/source file.
+Struct types can be defined both in .h files and .cpp files. We follow the same rules for the order they are writtent to the source .cs file as for classes.
 
 ### Struct type defined in a header file with no class
 In this case we create a .cs file with same name as the .h file where all structs written as a class to this file.

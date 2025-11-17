@@ -16,7 +16,7 @@ protected:
 #pragma region Just a h-file pragma test
 public:
 
-    // att-id memeber comment
+    // att-id member comment
     TAttId attId;
     TDimValue dimVal;
 #pragma endregion // Comment test
