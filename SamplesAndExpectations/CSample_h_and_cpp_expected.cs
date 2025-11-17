@@ -23,15 +23,15 @@ namespace U4.BatchNet.Sample.Compatibility
 #define MY_DEFINE4 4
 #define MY_DEFINE5 5
 
-    struct StructOne
+    internal struct StructOne
     {
-        agrint lTestType;
+        protected agrint lTestType;
 
         //#region Just a h-file pragma test
 
         // att-id memeber comment
-        TAttId attId;
-        TDimValue dimVal;
+        public TAttId attId;
+        public TDimValue dimVal;
 
         //#endregion  // Comment test
     }

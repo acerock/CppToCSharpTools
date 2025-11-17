@@ -12,10 +12,10 @@ namespace U4.BatchNet.Sample.Compatibility
 {
 
     /* My struct */
-    typedef struct
+    internal class MyStruct
     {
-        bool MyBoolField;
-        agrint MyIntField;
+        internal bool MyBoolField;
+        internal agrint MyIntField;
     } MyStruct;
 
     public interface ISample

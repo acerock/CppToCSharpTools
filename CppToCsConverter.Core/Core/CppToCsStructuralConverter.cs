@@ -827,6 +827,7 @@ namespace CppToCsConverter.Core.Core
                 AccessSpecifier.Public => "public",
                 AccessSpecifier.Protected => "protected",
                 AccessSpecifier.Private => "private",
+                AccessSpecifier.Internal => "internal",
                 _ => "private"
             };
         }
@@ -1400,7 +1401,7 @@ namespace CppToCsConverter.Core.Core
         }
 
         /// <summary>
-        /// Generates a struct as-is from C++ without transformation
+        /// Generates a struct as an internal C# class with internal members
         /// </summary>
         private void GenerateStructInline(StringBuilder sb, CppStruct cppStruct)
         {
@@ -1409,25 +1410,32 @@ namespace CppToCsConverter.Core.Core
             {
                 foreach (var comment in cppStruct.PrecedingComments)
                 {
-                    sb.AppendLine($"    {comment}");
+                    sb.AppendLine(comment);
                 }
             }
 
-            // Normalize line endings in the original definition first
-            var normalizedDefinition = cppStruct.OriginalDefinition.Replace("\r\n", "\n").Replace("\n", Environment.NewLine);
-            var lines = normalizedDefinition.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            // Transform struct to internal class
+            sb.AppendLine($"internal class {cppStruct.Name}");
+            sb.AppendLine("{");
             
-            foreach (var line in lines)
+            // Generate members with internal access modifier
+            foreach (var member in cppStruct.Members)
             {
-                if (!string.IsNullOrEmpty(line.Trim()))
+                // Add preceding comments
+                if (member.PrecedingComments.Any())
                 {
-                    // Preserve original indentation and add base indentation for C# file
-                    sb.AppendLine($"    {line}");
+                    foreach (var comment in member.PrecedingComments)
+                    {
+                        sb.AppendLine($"    {comment}");
+                    }
                 }
+                
+                // Generate member with internal modifier
+                var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
+                sb.AppendLine($"    internal {member.Type} {member.Name};{postfixComment}");
             }
             
-            // Add blank line after struct
-            sb.AppendLine();
+            sb.AppendLine("}");
         }
 
         private void GeneratePartialClass(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)

@@ -10,13 +10,24 @@
 
 struct StructOne
 {
+protected:
     agrint lTestType;
 
 #pragma region Just a h-file pragma test
+public:
+
     // att-id memeber comment
     TAttId attId;
     TDimValue dimVal;
 #pragma endregion // Comment test
+
+public:
+    StructOne(const TAttid& inAttId, const TDimValue &inDimVal, agrint lInTestType=0)
+    {
+        lTestType = lInTestType;
+        attid = inAttId;
+        dimVal = inDimVal;
+    }    
 };
 
 // Some more defines

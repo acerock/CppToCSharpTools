@@ -4,6 +4,7 @@ namespace CppToCsConverter.Core.Models
     {
         Private,
         Protected,
-        Public
+        Public,
+        Internal
     }
 }

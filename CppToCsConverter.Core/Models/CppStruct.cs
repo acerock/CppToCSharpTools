@@ -10,13 +10,14 @@ namespace CppToCsConverter.Core.Models
     }
 
     /// <summary>
-    /// Represents a C++ struct that should be copied as-is to C# without transformation
+    /// Represents a C++ struct that should be transformed to a C# internal class
     /// </summary>
     public class CppStruct
     {
         public string Name { get; set; } = string.Empty;
-        public string OriginalDefinition { get; set; } = string.Empty; // Complete struct definition as-is from C++
+        public string OriginalDefinition { get; set; } = string.Empty; // Complete struct definition as-is from C++ (for reference)
         public StructType Type { get; set; }
         public List<string> PrecedingComments { get; set; } = new List<string>(); // Comments before struct declaration
+        public List<CppMember> Members { get; set; } = new List<CppMember>(); // Parsed struct member fields
     }
 }

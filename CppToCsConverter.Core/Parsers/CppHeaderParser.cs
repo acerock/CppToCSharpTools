@@ -1277,13 +1277,16 @@ namespace CppToCsConverter.Core.Parsers
                 }
             }
             
-            return new CppStruct
+            var cppStruct = new CppStruct
             {
                 Name = structName,
                 Type = StructType.Simple,
                 OriginalDefinition = string.Join(Environment.NewLine, structLines).Trim(),
                 PrecedingComments = precedingComments
             };
+            
+            ParseStructMembers(cppStruct, structLines.ToArray());
+            return cppStruct;
         }
 
         private CppStruct ParseTypedefStruct(string[] lines, ref int startIndex)
@@ -1328,13 +1331,16 @@ namespace CppToCsConverter.Core.Parsers
                 }
             }
             
-            return new CppStruct
+            var cppStruct = new CppStruct
             {
                 Name = structName,
                 Type = StructType.Typedef,
                 OriginalDefinition = string.Join(Environment.NewLine, structLines).Trim(),
                 PrecedingComments = precedingComments
             };
+            
+            ParseStructMembers(cppStruct, structLines.ToArray());
+            return cppStruct;
         }
 
         private CppStruct ParseTypedefStructTag(string[] lines, ref int startIndex, string tagName)
@@ -1379,12 +1385,134 @@ namespace CppToCsConverter.Core.Parsers
                 }
             }
             
-            return new CppStruct
+            var cppStruct = new CppStruct
             {
                 Name = structName,
                 Type = StructType.TypedefTag,
                 OriginalDefinition = string.Join(Environment.NewLine, structLines).Trim(),
                 PrecedingComments = precedingComments
+            };
+            
+            ParseStructMembers(cppStruct, structLines.ToArray());
+            return cppStruct;
+        }
+
+        /// <summary>
+        /// Parses member fields from a struct definition
+        /// </summary>
+        private void ParseStructMembers(CppStruct cppStruct, string[] lines)
+        {
+            bool insideBraces = false;
+            List<string> precedingComments = new List<string>();
+            int braceDepth = 0;
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                var trimmedLine = line.Trim();
+                
+                // Track brace depth
+                foreach (char c in trimmedLine)
+                {
+                    if (c == '{')
+                    {
+                        braceDepth++;
+                        insideBraces = true;
+                    }
+                    else if (c == '}')
+                    {
+                        braceDepth--;
+                    }
+                }
+                
+                // Exit when we leave the struct body completely
+                if (insideBraces && braceDepth == 0)
+                {
+                    break;
+                }
+                
+                // Skip if not inside braces yet
+                if (!insideBraces)
+                    continue;
+                
+                // Remove brace characters for processing
+                var contentLine = trimmedLine.Replace("{", "").Replace("}", "").Trim();
+                
+                // Collect comments
+                if (contentLine.StartsWith("//") || contentLine.StartsWith("/*") || contentLine.StartsWith("*"))
+                {
+                    precedingComments.Add(line); // Preserve original indentation
+                    continue;
+                }
+                
+                // Skip empty lines
+                if (string.IsNullOrWhiteSpace(contentLine))
+                {
+                    if (precedingComments.Any())
+                        precedingComments.Add(""); // Preserve empty lines in comment blocks
+                    continue;
+                }
+                
+                // Skip pragma region lines
+                if (contentLine.Contains("#pragma region") || contentLine.Contains("#pragma endregion"))
+                    continue;
+                
+                // Parse member field: type name;
+                if (contentLine.Contains(";") && !contentLine.StartsWith("typedef"))
+                {
+                    var member = ParseStructMemberField(contentLine, precedingComments);
+                    if (member != null)
+                    {
+                        cppStruct.Members.Add(member);
+                    }
+                    precedingComments.Clear();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Parses a single struct member field from a line like "bool MyBoolField;" or "agrint MyIntField; // comment"
+        /// </summary>
+        private CppMember? ParseStructMemberField(string line, List<string> precedingComments)
+        {
+            // Remove trailing semicolon
+            var cleanLine = line.TrimEnd(';').Trim();
+            
+            // Check for postfix comment
+            string postfixComment = "";
+            int commentIndex = cleanLine.IndexOf("//");
+            if (commentIndex == -1)
+                commentIndex = cleanLine.IndexOf("/*");
+                
+            if (commentIndex >= 0)
+            {
+                postfixComment = cleanLine.Substring(commentIndex).Trim();
+                cleanLine = cleanLine.Substring(0, commentIndex).Trim();
+            }
+            
+            // Parse type and name
+            var parts = cleanLine.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2)
+                return null;
+            
+            // Last part is the name, everything before is the type
+            var name = parts[parts.Length - 1].TrimEnd('*', '&'); // Remove pointer/reference markers from name
+            var type = string.Join(" ", parts.Take(parts.Length - 1));
+            
+            // Check if name has pointer/reference in it
+            if (parts[parts.Length - 1].Contains("*") || parts[parts.Length - 1].Contains("&"))
+            {
+                type += parts[parts.Length - 1].Replace(name, "").Trim();
+            }
+            
+            return new CppMember
+            {
+                Name = name,
+                Type = type,
+                AccessSpecifier = AccessSpecifier.Internal, // Struct members default to internal
+                PrecedingComments = new List<string>(precedingComments),
+                PostfixComment = postfixComment,
+                IsStatic = false
             };
         }
 

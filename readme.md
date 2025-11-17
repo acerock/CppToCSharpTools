@@ -459,7 +459,7 @@ internal partial class CSample : ISample
 ```
 
 ## Struct type
-For structs the goal is to copy them as is with no changes to structure or type to the correct C# source file. This app should not transform structs into C# structs, change access modifiers or comments as this will be handled later downstream by another tool.
+For structs the goal is to change them into valid C# classes.
 
 ### Identifying structs
 There are three differnt ways to define a struct in C++ and we need to identity all.
@@ -491,6 +491,8 @@ typedef struct MyTag
 
 ### Persisting structs in .cs files
 The app should identify correct .cs file home for the struct and keep it's order from the .h files.
+
+Structs should be transformed to internal classes and same rules for classes should be applied when it comes to access modifiers except default access modifier is internal.
 
 #### Struct type defined in a header file with pure virtual classes (interface)
 Header file containing pure virtual classes will not have a matching .cpp file. Consider a pure virtual class declaration ISample in ISample.h where there is no ISample.cpp. 
@@ -535,11 +537,11 @@ typedef struct MyTag
 ISample.cs
 ```
 /* My struct */
-typedef struct
+internal class MyStruct
 {
-    bool MyBoolField;
-    agrint MyIntField;
-} MyStruct;
+    internal bool MyBoolField;
+    internal agrint MyIntField;
+};
 
 /* The Interface */
 public interface ISample
@@ -553,12 +555,12 @@ public interface ISample
 
 // This comment is for the other struct
 
-typedef struct MyTag
+internal class MyOtherStruct
 {
     // This struct has a comment copied as is
-    bool someBool;
-    agrint intValue;
-} MyOtherStruct;
+    internal bool someBool;
+    internal agrint intValue;
+};
 
 internal static class ISampleExtensions
 {
@@ -574,7 +576,7 @@ internal static class ISampleExtensions
 In this case we copy the structs as is in the same order they appear in the header/source file.
 
 ### Struct type defined in a header file with no class
-In this case we create a .cs file with same name as the .h file where all structs are copied to this file.
+In this case we create a .cs file with same name as the .h file where all structs written as a class to this file.
 ##### Sample
 MyStructs.h
 ```
@@ -585,6 +587,14 @@ typedef struct
 {
     bool MyBoolField;
     agrint MyIntField;
+
+public:
+    // Constructor
+    MyStruct(const bool& bField, const agrint& intField)
+    {
+        MyBoolField = bField;
+        MyIntField = intField;
+    };
 } MyStruct;
 
 // This comment is for the other struct
@@ -600,20 +610,27 @@ typedef struct MyTag
 MyStructs.cs
 ```
 /* My struct */
-typedef struct
+internal class MyStruct
 {
-    bool MyBoolField;
-    agrint MyIntField;
-} MyStruct;
+    internal bool MyBoolField;
+    internal agrint MyIntField;
+
+    // Constructor
+    public MyStruct(const bool& bField, const agrint& intField)
+    {
+        MyBoolField = bField;
+        MyIntField = intField;
+    };
+};
 
 // This comment is for the other struct
 
-typedef struct MyTag
+internal class MyOtherStruct
 {
     // This struct has a comment copied as is
-    bool someBool;
-    agrint intValue;
-} MyOtherStruct;
+    internal bool someBool;
+    internal agrint intValue;
+};
 ```
 
 ## Define statements

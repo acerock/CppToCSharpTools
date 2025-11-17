@@ -16,13 +16,13 @@ namespace U4.BatchNet.Sample.Compatibility
 {
 
     // This should go into CPartialSample.cs
-    struct StructOne
+    internal class StructOne
     {
-        agrint lTestType;
+        internal agrint lTestType;
         // att-id memeber comment
-        TAttId attId;
-        TDimValue dimVal;
-    };
+        internal TAttId attId;
+        internal TDimValue dimVal;
+    }
 
     // Comment for class
     internal partial class CPartialSample
