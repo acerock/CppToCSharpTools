@@ -7,6 +7,7 @@ namespace CppToCsConverter.Core.Models
     {
         public string Name { get; set; } = string.Empty;
         public bool IsInterface { get; set; }
+        public bool IsStruct { get; set; } // True if this was a C++ struct (becomes internal class in C#)
         public bool IsPublicExport { get; set; }
         public List<string> BaseClasses { get; set; } = new List<string>();
         public List<CppMember> Members { get; set; } = new List<CppMember>();
@@ -16,7 +17,9 @@ namespace CppToCsConverter.Core.Models
         public List<CppDefine> HeaderDefines { get; set; } = new List<CppDefine>(); // Define statements from header file
         public List<CppDefine> SourceDefines { get; set; } = new List<CppDefine>(); // Define statements from source files
         
-        public AccessSpecifier DefaultAccessSpecifier => IsInterface ? AccessSpecifier.Public : AccessSpecifier.Private;
+        public AccessSpecifier DefaultAccessSpecifier => IsInterface ? AccessSpecifier.Public : 
+                                                          IsStruct ? AccessSpecifier.Internal : 
+                                                          AccessSpecifier.Private;
         
         /// <summary>
         /// Determines if this class should be generated as partial classes based on TargetFileName distribution

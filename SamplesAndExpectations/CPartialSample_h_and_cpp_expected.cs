@@ -12,70 +12,70 @@ using static BatchNet.Compatibility.Level1;
 using static BatchNet.Compatibility.Level2;
 using static BatchNet.Compatibility.BatchApi;
 
-namespace U4.BatchNet.Sample.Compatibility
+namespace U4.BatchNet.Sample.Compatibility;
+
+
+// This should go into CPartialSample.cs
+internal class StructOne
 {
+    internal agrint lTestType;
+    // att-id memeber comment
+    internal TAttId attId;
+    internal TDimValue dimVal;
+}
 
-    // This should go into CPartialSample.cs
-    internal class StructOne
+internal class LocalStruct
+{
+    protected agrint m_iCounter;
+
+    public TDimValue dimValue;
+
+    public LocalStruct(const TDimValue& firstDimValue)
     {
-        internal agrint lTestType;
-        // att-id memeber comment
-        internal TAttId attId;
-        internal TDimValue dimVal;
-    }
-
-    internal class LocalStruct
-    {
-        protected agrint m_iCounter;
-
-        public TDimValue dimValue;
-
-        public LocalStruct(const TDimValue& firstDimValue)
-        {
-            dimValue = firstDimValue;
-        }
-    }
-
-    // Comment for class
-    internal partial class CPartialSample
-    {
-        private agrint m_value1;
-        // Static member
-        private static agrint m_iIndex = -1;
-
-        // Methods for main file (inline + same-named source)
-        private CString PrivateMemberWithBodyInHfile(const TAttId &att_id)
-        {
-            if (cValue1.IsEmpty()) return _T("");
-            return cValue1;
-        }
-
-        private int MethodPrivInl1(const TDimValue& dim1)
-        {
-            if (dim1.IsEmpty())
-                return 0;
-
-            return 42;
-        }
-
-        public void CPartialSample()
-        {
-            m_value1 = 0;
-
-            cValue1 = _T("ABC");
-            cValue2 = _T("DEF");
-            cValue3 = _T("GHI");
-        }
-
-        public void ~CPartialSample()
-        {
-            // Cleanup code here
-        }
-
-        public void MethodOne(const CString& cParam1, const bool &bParam2, CString *pcParam3)
-        {
-            // Implementation of MethodOne
-        }
-
+        dimValue = firstDimValue;
     }
 }
+
+// Comment for class
+internal partial class CPartialSample
+{
+    private agrint m_value1;
+    // Static member
+    private static agrint m_iIndex = -1;
+
+    // Methods for main file (inline + same-named source)
+    private CString PrivateMemberWithBodyInHfile(const TAttId &att_id)
+    {
+        if (cValue1.IsEmpty()) return _T("");
+        return cValue1;
+    }
+
+    private int MethodPrivInl1(const TDimValue& dim1)
+    {
+        if (dim1.IsEmpty())
+            return 0;
+
+        return 42;
+    }
+
+    public void CPartialSample()
+    {
+        m_value1 = 0;
+
+        cValue1 = _T("ABC");
+        cValue2 = _T("DEF");
+        cValue3 = _T("GHI");
+    }
+
+    public void ~CPartialSample()
+    {
+        // Cleanup code here
+    }
+
+    public void MethodOne(const CString& cParam1, const bool &bParam2, CString *pcParam3)
+    {
+        // Implementation of MethodOne
+    }
+
+}
+

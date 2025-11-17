@@ -19,11 +19,13 @@ namespace CppToCsConverter.Core.Parsers
         private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
         private readonly Regex _defineRegex = new Regex(@"^\s*#define\s+(\w+)(?:\s+(.*))?$", RegexOptions.Compiled);
         
-        // Struct parsing regex patterns for the three types
-        private readonly Regex _simpleStructRegex = new Regex(@"^\s*struct\s+(\w+)\s*$", RegexOptions.Compiled);
+        // Regex for typedef struct name extraction (e.g., "} MyStruct;")
+        private readonly Regex _typedefNameRegex = new Regex(@"^\s*}\s*(\w+)\s*;\s*$", RegexOptions.Compiled);
+        
+        // Deprecated struct-specific regex patterns (kept for backward compatibility with ParseStructsFromHeaderFile)
+        private readonly Regex _simpleStructRegex = new Regex(@"^\s*struct\s+(\w+)", RegexOptions.Compiled);
         private readonly Regex _typedefStructRegex = new Regex(@"^\s*typedef\s+struct\s*$", RegexOptions.Compiled);
         private readonly Regex _typedefStructTagRegex = new Regex(@"^\s*typedef\s+struct\s+(\w+)\s*$", RegexOptions.Compiled);
-        private readonly Regex _typedefNameRegex = new Regex(@"^\s*}\s*(\w+)\s*;\s*$", RegexOptions.Compiled);
 
         public CppHeaderParser(ILogger? logger = null)
         {
@@ -170,27 +172,31 @@ namespace CppToCsConverter.Core.Parsers
                 if (line.StartsWith("#") && !line.Contains("pragma region"))
                     continue;
 
-                // Check for class declaration (but skip struct declarations that should be handled as structs)
+                // Check for class/struct declaration
                 var classMatch = _classRegex.Match(line);
-                if (classMatch.Success && !inClass && !IsStructDeclaration(line))
+                bool isTypedefStruct = line.TrimStart().StartsWith("typedef struct");
+                
+                // Also check for typedef struct without a name (will get name from closing brace)
+                if ((classMatch.Success || isTypedefStruct) && !inClass)
                 {
-                    // Collect comments before the class declaration
+                    // Collect comments before the class/struct declaration
                     var precedingComments = CollectPrecedingComments(lines, i);
 
                     currentClass = new CppClass
                     {
-                        Name = classMatch.Groups[1].Value,
+                        Name = classMatch.Success ? classMatch.Groups[1].Value : "UnnamedStruct", // Temporary name, will be updated from closing brace if typedef struct
+                        IsStruct = line.Contains("struct"),
                         IsPublicExport = line.Contains("__declspec(dllexport)"),
                         PrecedingComments = precedingComments
                     };
 
-                    if (classMatch.Groups[2].Success)
+                    if (classMatch.Success && classMatch.Groups[2].Success)
                     {
                         currentClass.BaseClasses.Add(classMatch.Groups[2].Value);
                     }
 
-                    // Check if it's an interface (contains pure virtual methods)
-                    currentClass.IsInterface = IsInterface(lines, i);
+                    // Check if it's an interface (contains pure virtual methods) - but only for classes, not structs
+                    currentClass.IsInterface = !currentClass.IsStruct && IsInterface(lines, i);
                     
                     currentAccess = currentClass.DefaultAccessSpecifier;
                     inClass = true;
@@ -203,8 +209,18 @@ namespace CppToCsConverter.Core.Parsers
                     continue;
 
                 // Check for class ending pattern
-                if (line == "};" || (line == "}" && (i + 1 >= lines.Length || !lines[i + 1].Trim().StartsWith("else"))))
+                if (line == "};" || line.Trim().StartsWith("}") || (line == "}" && (i + 1 >= lines.Length || !lines[i + 1].Trim().StartsWith("else"))))
                 {
+                    // For typedef struct, extract the name from the closing line (e.g., "} MyStruct;")
+                    if (currentClass.IsStruct && line.Contains("}"))
+                    {
+                        var typedefNameMatch = _typedefNameRegex.Match(line);
+                        if (typedefNameMatch.Success)
+                        {
+                            currentClass.Name = typedefNameMatch.Groups[1].Value;
+                        }
+                    }
+                    
                     // This is likely the class ending brace
                     startIndex = i + 1;
                     foundClassEnd = true;
@@ -314,6 +330,7 @@ namespace CppToCsConverter.Core.Parsers
                             Name = memberMatch.Groups[4].Value,
                             AccessSpecifier = currentAccess,
                             IsStatic = memberMatch.Groups[1].Success,
+                            IsConst = memberMatch.Groups[2].Success,
                             IsArray = memberMatch.Groups[5].Success,
                             ArraySize = memberMatch.Groups[5].Success ? memberMatch.Groups[5].Value : string.Empty,
                             PrecedingComments = precedingComments,
@@ -903,24 +920,25 @@ namespace CppToCsConverter.Core.Parsers
             
             while (lookbackIndex >= 0)
             {
-                var line = lines[lookbackIndex].Trim();
+                var line = lines[lookbackIndex];
+                var trimmedLine = line.Trim();
                 
                 // Check for single line comments
-                if (line.StartsWith("//"))
+                if (trimmedLine.StartsWith("//"))
                 {
-                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    commentBlock.Insert(0, line); // Keep original indentation temporarily
                     lookbackIndex--;
                     continue;
                 }
                 
                 // Check for end of multi-line comment
-                if (line.EndsWith("*/"))
+                if (trimmedLine.EndsWith("*/"))
                 {
                     inMultiLineComment = true;
-                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    commentBlock.Insert(0, line); // Keep original indentation temporarily
                     
                     // If this line also starts the comment, we're done with this block
-                    if (line.StartsWith("/*"))
+                    if (trimmedLine.StartsWith("/*"))
                     {
                         inMultiLineComment = false;
                         lookbackIndex--;
@@ -932,9 +950,9 @@ namespace CppToCsConverter.Core.Parsers
                 }
                 
                 // Check for start of multi-line comment
-                if (inMultiLineComment && line.StartsWith("/*"))
+                if (inMultiLineComment && trimmedLine.StartsWith("/*"))
                 {
-                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    commentBlock.Insert(0, line); // Keep original indentation temporarily
                     inMultiLineComment = false;
                     lookbackIndex--;
                     continue;
@@ -943,13 +961,13 @@ namespace CppToCsConverter.Core.Parsers
                 // Inside multi-line comment
                 if (inMultiLineComment)
                 {
-                    commentBlock.Insert(0, lines[lookbackIndex]);
+                    commentBlock.Insert(0, line); // Keep original indentation temporarily
                     lookbackIndex--;
                     continue;
                 }
                 
                 // Check for empty lines between comment blocks
-                if (string.IsNullOrWhiteSpace(line))
+                if (string.IsNullOrWhiteSpace(trimmedLine))
                 {
                     // Peek ahead to see if there are more comments
                     int peekIndex = lookbackIndex - 1;
@@ -964,7 +982,7 @@ namespace CppToCsConverter.Core.Parsers
                         if (peekLine.StartsWith("//") || peekLine.EndsWith("*/"))
                         {
                             // There are more comments, include the empty line
-                            commentBlock.Insert(0, lines[lookbackIndex]);
+                            commentBlock.Insert(0, line);
                             lookbackIndex--;
                             continue;
                         }
@@ -975,14 +993,21 @@ namespace CppToCsConverter.Core.Parsers
                 break;
             }
             
-            // Add the collected comment block to results if any
-            comments.AddRange(commentBlock);
-            
-            // Capture original indentation from first comment line
-            if (comments.Any())
+            // Process collected comments - remove minimum indentation while preserving relative indentation
+            if (commentBlock.Any())
             {
-                var firstComment = comments[0];
+                // Capture original indentation from first comment line
+                var firstComment = commentBlock[0];
                 originalIndentation = firstComment.Length - firstComment.TrimStart().Length;
+                
+                // Find minimum indentation from non-empty lines
+                int minIndent = commentBlock
+                    .Where(l => !string.IsNullOrWhiteSpace(l))
+                    .Min(l => l.Length - l.TrimStart().Length);
+                
+                // Remove minimum indentation from all lines to preserve relative indentation
+                comments.AddRange(commentBlock.Select(l => 
+                    string.IsNullOrWhiteSpace(l) ? "" : (l.Length >= minIndent ? l.Substring(minIndent) : l)));
             }
             
             return (comments, originalIndentation);
@@ -1062,6 +1087,14 @@ namespace CppToCsConverter.Core.Parsers
                     var description = regionMatch.Groups[2].Success ? regionMatch.Groups[2].Value.Trim() : string.Empty;
                     regionStart = $"//#region {description}".Trim();
                     break;
+                }
+                
+                // Skip access specifiers when searching for regions
+                if (line.Equals("public:", StringComparison.OrdinalIgnoreCase) ||
+                    line.Equals("protected:", StringComparison.OrdinalIgnoreCase) ||
+                    line.Equals("private:", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
                 }
                 
                 // If we hit non-empty, non-comment line, stop looking
@@ -1157,6 +1190,7 @@ namespace CppToCsConverter.Core.Parsers
         /// <summary>
         /// Parses structs from header file and returns them with original C++ syntax preserved
         /// </summary>
+        [Obsolete("This method is deprecated. Use ParseHeaderFile instead and filter for IsStruct=true.")]
         public List<CppStruct> ParseStructsFromHeaderFile(string filePath)
         {
             try
@@ -1441,7 +1475,7 @@ namespace CppToCsConverter.Core.Parsers
                 // Collect comments
                 if (contentLine.StartsWith("//") || contentLine.StartsWith("/*") || contentLine.StartsWith("*"))
                 {
-                    precedingComments.Add(line); // Preserve original indentation
+                    precedingComments.Add(trimmedLine); // Use trimmed version - indentation will be added during C# generation
                     continue;
                 }
                 

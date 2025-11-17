@@ -8,6 +8,7 @@ namespace CppToCsConverter.Core.Models
         public string Name { get; set; } = string.Empty;
         public AccessSpecifier AccessSpecifier { get; set; }
         public bool IsStatic { get; set; }
+        public bool IsConst { get; set; }
         public bool IsArray { get; set; }
         public string ArraySize { get; set; } = string.Empty;
         public List<string> PrecedingComments { get; set; } = new List<string>(); // Comments before member declaration

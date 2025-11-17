@@ -20,18 +20,20 @@ namespace CppToCsConverter.Core.Utils
         /// <param name="accessSpecifierConverter">Function to convert AccessSpecifier to string (allows different formatting)</param>
         /// <param name="staticMemberInits">Optional static member initializations for static members</param>
         /// <param name="className">Optional class name for static member initialization lookup</param>
+        /// <param name="baseIndent">Base indentation string (default is 4 spaces for regular classes, 8 for partial)</param>
         public static void GenerateMember(
             StringBuilder sb, 
             CppMember member, 
             Func<AccessSpecifier, string> accessSpecifierConverter,
             Dictionary<string, List<CppStaticMemberInit>>? staticMemberInits = null,
-            string? className = null)
+            string? className = null,
+            string baseIndent = "    ")
         {
             // Handle region start marker
             if (!string.IsNullOrEmpty(member.RegionStart))
             {
                 sb.AppendLine();
-                sb.AppendLine($"        {member.RegionStart}");
+                sb.AppendLine($"{baseIndent}{member.RegionStart}");
                 sb.AppendLine();
             }
 
@@ -40,7 +42,7 @@ namespace CppToCsConverter.Core.Utils
             {
                 foreach (var comment in member.PrecedingComments)
                 {
-                    sb.AppendLine($"        {comment}");
+                    sb.AppendLine($"{baseIndent}{comment}");
                 }
             }
 
@@ -56,13 +58,13 @@ namespace CppToCsConverter.Core.Utils
             var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
             
             // Generate the final member declaration line
-            sb.AppendLine($"        {accessModifier} {staticModifier}{memberType} {member.Name}{initialization};{postfixComment}");
+            sb.AppendLine($"{baseIndent}{accessModifier} {staticModifier}{memberType} {member.Name}{initialization};{postfixComment}");
 
             // Handle region end marker
             if (!string.IsNullOrEmpty(member.RegionEnd))
             {
                 sb.AppendLine();
-                sb.AppendLine($"        {member.RegionEnd}");
+                sb.AppendLine($"{baseIndent}{member.RegionEnd}");
                 sb.AppendLine();
             }
         }

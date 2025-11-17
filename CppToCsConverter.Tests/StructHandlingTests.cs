@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using CppToCsConverter.Core;
 using CppToCsConverter.Core.Parsers;
 using Xunit;
 
@@ -237,12 +238,99 @@ struct MyStruct
                 Assert.Single(structs);
                 Assert.Equal("MyStruct", structs[0].Name);
                 
-                // Should not be parsed as a class
-                Assert.DoesNotContain(classes, c => c.Name == "MyStruct");
+                // With unified approach, structs are in the classes list with IsStruct=true
+                var structAsClass = classes.FirstOrDefault(c => c.Name == "MyStruct");
+                Assert.NotNull(structAsClass);
+                Assert.True(structAsClass.IsStruct, "MyStruct should be marked as a struct");
             }
             finally
             {
                 File.Delete(tempFile);
+            }
+        }
+
+        [Fact]
+        public void ParseAndGenerateStruct_WithRegionsAccessSpecifiersAndConstructor_ShouldGenerateCorrectly()
+        {
+            // Arrange - Struct with regions, access specifiers, and constructor
+            var headerContent = @"
+struct StructOne
+{
+protected:
+    agrint lTestType;
+
+#pragma region Just a h-file pragma test
+public:
+
+    // att-id member comment
+    TAttId attId;
+    TDimValue dimVal;
+#pragma endregion // Comment test
+
+public:
+    StructOne(const TAttid& inAttId, const TDimValue &inDimVal, agrint lInTestType=0)
+    {
+        lTestType = lInTestType;
+        attid = inAttId;
+        dimVal = inDimVal;
+    }    
+};";
+
+            var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            var outputDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+            Directory.CreateDirectory(tempDir);
+            Directory.CreateDirectory(outputDir);
+            
+            var tempHeaderFile = Path.Combine(tempDir, "StructOne.h");
+            File.WriteAllText(tempHeaderFile, headerContent);
+
+            try
+            {
+                // Act - Parse and generate
+                var converter = new CppToCsConverterApi();
+                converter.ConvertSpecificFiles(
+                    tempDir, 
+                    new[] { "StructOne.h" }, 
+                    outputDir);
+
+                // Assert - Check generated file
+                var generatedFile = Path.Combine(outputDir, "StructOne.cs");
+                Assert.True(File.Exists(generatedFile), "Generated C# file should exist");
+                
+                var generatedContent = File.ReadAllText(generatedFile);
+                
+                // Verify it's generated as internal class (C++ structs become C# classes)
+                Assert.Contains("internal class StructOne", generatedContent);
+                
+                // Verify protected member
+                Assert.Contains("protected agrint lTestType;", generatedContent);
+                
+                // Verify regions are commented out with //#region and //#endregion
+                Assert.Contains("//#region Just a h-file pragma test", generatedContent);
+                Assert.Contains("//#endregion", generatedContent);
+                Assert.Contains("// Comment test", generatedContent);
+                
+                // Verify public members with comment
+                Assert.Contains("// att-id member comment", generatedContent);
+                Assert.Contains("public TAttId attId;", generatedContent);
+                Assert.Contains("public TDimValue dimVal;", generatedContent);
+                
+                // Verify constructor is preserved with correct signature and body
+                Assert.Contains("public StructOne(const TAttid& inAttId, const TDimValue &inDimVal, agrint lInTestType = 0)", generatedContent);
+                Assert.Contains("lTestType = lInTestType;", generatedContent);
+                Assert.Contains("attid = inAttId;", generatedContent);
+                Assert.Contains("dimVal = inDimVal;", generatedContent);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    Directory.Delete(tempDir, true);
+                }
+                if (Directory.Exists(outputDir))
+                {
+                    Directory.Delete(outputDir, true);
+                }
             }
         }
     }

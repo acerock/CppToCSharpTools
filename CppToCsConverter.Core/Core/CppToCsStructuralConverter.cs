@@ -117,28 +117,21 @@ namespace CppToCsConverter.Core.Core
 
             // Parse header files
             var headerFileClasses = new Dictionary<string, List<CppClass>>();
-            var headerFileStructs = new Dictionary<string, List<CppStruct>>();
             
             foreach (var headerFile in headerFiles)
             {
                 Console.WriteLine($"Parsing header: {Path.GetFileName(headerFile)}");
                 var classes = _headerParser.ParseHeaderFile(headerFile);
-                var structs = _headerParser.ParseStructsFromHeaderFile(headerFile);
                 var fileName = Path.GetFileNameWithoutExtension(headerFile);
                 
                 headerFileClasses[fileName] = classes;
-                headerFileStructs[fileName] = structs;
                 
-                // Also add to the main dictionary for backward compatibility
+                // Log what we found (classes and structs are now unified)
                 foreach (var cppClass in classes)
                 {
                     parsedHeaders[cppClass.Name] = cppClass;
-                    Console.WriteLine($"Found class: {cppClass.Name} in {Path.GetFileName(headerFile)}");
-                }
-                
-                foreach (var cppStruct in structs)
-                {
-                    Console.WriteLine($"Found struct: {cppStruct.Name} in {Path.GetFileName(headerFile)}");
+                    var type = cppClass.IsInterface ? "interface" : (cppClass.IsStruct ? "struct" : "class");
+                    Console.WriteLine($"Found {type}: {cppClass.Name} in {Path.GetFileName(headerFile)}");
                 }
             }
 
@@ -172,20 +165,19 @@ namespace CppToCsConverter.Core.Core
 
             }
 
-            // Generate C# files - one per header file containing all its classes and structs
+            // Generate C# files - one per header file containing all its classes (including structs as classes)
             foreach (var headerFileKvp in headerFileClasses)
             {
                 var fileName = headerFileKvp.Key;
                 var classes = headerFileKvp.Value;
-                var structs = headerFileStructs.ContainsKey(fileName) ? headerFileStructs[fileName] : new List<CppStruct>();
                 
-                if (classes.Count == 0 && structs.Count == 0)
+                if (classes.Count == 0)
                     continue;
                     
-                Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} class(es) and {structs.Count} struct(s)");
+                Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} type(s)");
                 
                 // Generate main C# file
-                GenerateAndWriteFile(fileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDirectory, sourceDefines, sourceFileTopComments);
+                GenerateAndWriteFile(fileName, outputDirectory, classes, parsedSources, staticMemberInits, sourceDirectory, sourceDefines, sourceFileTopComments);
                 
                 // Generate additional partial class files for classes that need them
                 GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, sourceFileTopComments, outputDirectory, sourceDirectory);
@@ -311,7 +303,7 @@ namespace CppToCsConverter.Core.Core
             }
         }
 
-        private void GenerateFileContent(StringBuilder sb, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines, string fileName, bool isPartialFile, List<CppMethod>? partialMethods = null)
+        private void GenerateFileContent(StringBuilder sb, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines, string fileName, bool isPartialFile, List<CppMethod>? partialMethods = null)
         {
             if (isPartialFile)
             {
@@ -319,7 +311,8 @@ namespace CppToCsConverter.Core.Core
                 if (classes.Count > 0)
                 {
                     var cppClass = classes[0];
-                    string classAccessModifier = cppClass.IsPublicExport ? "public" : "internal";
+                    string classAccessModifier = cppClass.IsStruct ? "internal" : 
+                                                (cppClass.IsPublicExport ? "public" : "internal");
                     sb.AppendLine($"{classAccessModifier} partial class {cppClass.Name}");
                     sb.AppendLine("{");
 
@@ -337,21 +330,10 @@ namespace CppToCsConverter.Core.Core
             }
             else
             {
-                // Generate structs first (maintain order from .h file)
-                for (int i = 0; i < structs.Count; i++)
-                {
-                    var cppStruct = structs[i];
-                    
-                    if (i > 0 || classes.Count > 0)
-                        sb.AppendLine(); // Add blank line between items
-                    
-                    GenerateStructInline(sb, cppStruct);
-                }
-
                 // Associate source defines with classes before generation
                 AssociateSourceDefinesWithClasses(classes, parsedSources, sourceDefines);
 
-                // Generate each class in the file
+                // Generate each class in the file (structs are now classes with IsStruct=true)
                 for (int i = 0; i < classes.Count; i++)
                 {
                     var cppClass = classes[i];
@@ -369,7 +351,7 @@ namespace CppToCsConverter.Core.Core
                     }
                     else
                     {
-                        // Generate class inline with preserved C++ method bodies
+                        // Generate class inline with preserved C++ method bodies (structs go through same path)
                         GenerateClassWithCppBodies(sb, cppClass, parsedSources, staticMemberInits, fileName);
                     }
                 }
@@ -433,7 +415,7 @@ namespace CppToCsConverter.Core.Core
             return classMethodCounts.First().Class;
         }
 
-        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, List<CppStruct> structs, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string sourceDirectory, Dictionary<string, List<CppDefine>>? sourceDefines = null, Dictionary<string, List<string>>? sourceFileTopComments = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
+        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string sourceDirectory, Dictionary<string, List<CppDefine>>? sourceDefines = null, Dictionary<string, List<string>>? sourceFileTopComments = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
         {
             var sb = new StringBuilder();
             
@@ -443,7 +425,7 @@ namespace CppToCsConverter.Core.Core
             AddFileTopComments(sb, fileName, sourceFileTopComments);
             AddUsingStatements(sb, containsOnlyInterfaces);
             AddNamespace(sb, fileName, sourceDirectory);
-            GenerateFileContent(sb, classes, structs, parsedSources, staticMemberInits, sourceDefines, fileName, isPartialFile, partialMethods);
+            GenerateFileContent(sb, classes, parsedSources, staticMemberInits, sourceDefines, fileName, isPartialFile, partialMethods);
             
             // Write the file
             var csFileName = Path.Combine(outputDirectory, $"{fileName}.cs");
@@ -556,7 +538,9 @@ namespace CppToCsConverter.Core.Core
                 }
             }
 
-            var accessibility = cppClass.IsPublicExport ? "public" : "internal";
+            // Structs are always internal classes in C#
+            var accessibility = cppClass.IsStruct ? "internal" : 
+                               (cppClass.IsPublicExport ? "public" : "internal");
             var classStaticModifier = ShouldBeStaticClass(cppClass, parsedSources) ? "static " : "";
             sb.AppendLine($"{accessibility} {classStaticModifier}class {cppClass.Name}");
             sb.AppendLine("{");
@@ -589,7 +573,7 @@ namespace CppToCsConverter.Core.Core
                 
                 // Check if this static member has an initialization value from source files
                 string initialization = "";
-                string memberType = member.Type;
+                string memberType = (member.IsConst ? "const " : "") + member.Type;
                 string memberName = member.Name;
                 
                 if (member.IsStatic)
@@ -789,8 +773,8 @@ namespace CppToCsConverter.Core.Core
                 var parametersWithDefaults = MergeParametersWithDefaults(method.Parameters, headerMethod?.Parameters);
                 
                 // Use comment-aware method signature generation (same as other paths)
-                GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType, method.Name, parametersWithDefaults);
-                sb.AppendLine("        {");
+                GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType, method.Name, parametersWithDefaults, "    ");
+                sb.AppendLine("    {");
                 
                 // Debug for TrickyToMatch
                 if (method.Name == "TrickyToMatch")
@@ -811,13 +795,13 @@ namespace CppToCsConverter.Core.Core
                     sb.AppendLine(); // Ensure line break before closing brace
                 }
                 
-                sb.AppendLine("        }");
+                sb.AppendLine("    }");
                 sb.AppendLine();
                 
 
             }
 
-            sb.AppendLine("    }");
+            sb.AppendLine("}");
         }
 
         private string ConvertAccessSpecifier(AccessSpecifier access)
@@ -833,7 +817,7 @@ namespace CppToCsConverter.Core.Core
         }
 
         private void GenerateMethodSignatureWithComments(StringBuilder sb, string accessModifier, string staticModifier, 
-            string virtualModifier, string returnType, string methodName, List<CppParameter> parameters)
+            string virtualModifier, string returnType, string methodName, List<CppParameter> parameters, string baseIndent = "    ")
         {
             // Check if any parameter has comments - if not, use simple single-line format
             bool hasParameterComments = parameters.Any(p => 
@@ -848,12 +832,12 @@ namespace CppToCsConverter.Core.Core
             {
                 // Simple single-line format (existing behavior)
                 var parametersString = string.Join(", ", parameters.Select(p => FormatCppParameter(p)));
-                sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}({parametersString})");
+                sb.AppendLine($"{baseIndent}{accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}({parametersString})");
             }
             else
             {
                 // Multi-line format with positioned comments (like CsClassGenerator)
-                sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}(");
+                sb.AppendLine($"{baseIndent}{accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}(");
                 
                 for (int i = 0; i < parameters.Count; i++)
                 {
@@ -866,18 +850,18 @@ namespace CppToCsConverter.Core.Core
                     // Add the parameter with proper comma
                     if (isLast)
                     {
-                        sb.AppendLine($"            {paramString})");
+                        sb.AppendLine($"{baseIndent}    {paramString})");
                     }
                     else
                     {
-                        sb.AppendLine($"            {paramString},");
+                        sb.AppendLine($"{baseIndent}    {paramString},");
                     }
                 }
             }
         }
         
         private void GenerateMethodDeclarationWithComments(StringBuilder sb, string accessModifier, string staticModifier, 
-            string virtualModifier, string returnType, string methodName, List<CppParameter> parameters)
+            string virtualModifier, string returnType, string methodName, List<CppParameter> parameters, string baseIndent = "    ")
         {
             // Check if any parameter has comments - if not, use simple single-line format
             bool hasParameterComments = parameters.Any(p => (p.PositionedComments?.Any() ?? false) || p.InlineComments.Any());
@@ -886,12 +870,12 @@ namespace CppToCsConverter.Core.Core
             {
                 // Simple single-line format (existing behavior)
                 var parametersString = string.Join(", ", parameters.Select(p => FormatCppParameter(p)));
-                sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}({parametersString});");
+                sb.AppendLine($"{baseIndent}    {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}({parametersString});");
             }
             else
             {
                 // Multi-line format with positioned comments (like CsClassGenerator)
-                sb.AppendLine($"        {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}(");
+                sb.AppendLine($"{baseIndent}    {accessModifier} {staticModifier}{virtualModifier}{returnType}{methodName}(");
                 
                 for (int i = 0; i < parameters.Count; i++)
                 {
@@ -904,11 +888,11 @@ namespace CppToCsConverter.Core.Core
                     // Add the parameter with proper comma
                     if (isLast)
                     {
-                        sb.AppendLine($"            {paramString});");
+                        sb.AppendLine($"{baseIndent}        {paramString});");
                     }
                     else
                     {
-                        sb.AppendLine($"            {paramString},");
+                        sb.AppendLine($"{baseIndent}        {paramString},");
                     }
                 }
             }
@@ -1400,44 +1384,6 @@ namespace CppToCsConverter.Core.Core
             return "C" + interfaceName;
         }
 
-        /// <summary>
-        /// Generates a struct as an internal C# class with internal members
-        /// </summary>
-        private void GenerateStructInline(StringBuilder sb, CppStruct cppStruct)
-        {
-            // Add comments before struct declaration
-            if (cppStruct.PrecedingComments.Any())
-            {
-                foreach (var comment in cppStruct.PrecedingComments)
-                {
-                    sb.AppendLine(comment);
-                }
-            }
-
-            // Transform struct to internal class
-            sb.AppendLine($"internal class {cppStruct.Name}");
-            sb.AppendLine("{");
-            
-            // Generate members with internal access modifier
-            foreach (var member in cppStruct.Members)
-            {
-                // Add preceding comments
-                if (member.PrecedingComments.Any())
-                {
-                    foreach (var comment in member.PrecedingComments)
-                    {
-                        sb.AppendLine($"    {comment}");
-                    }
-                }
-                
-                // Generate member with internal modifier
-                var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
-                sb.AppendLine($"    internal {member.Type} {member.Name};{postfixComment}");
-            }
-            
-            sb.AppendLine("}");
-        }
-
         private void GeneratePartialClass(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
         {
 
@@ -1456,8 +1402,9 @@ namespace CppToCsConverter.Core.Core
                 }
             }
 
-            // Determine access modifier for the class
-            string classAccessModifier = cppClass.IsPublicExport ? "public" : "internal";
+            // Determine access modifier for the class (structs are always internal)
+            string classAccessModifier = cppClass.IsStruct ? "internal" : 
+                                        (cppClass.IsPublicExport ? "public" : "internal");
             
             sb.AppendLine($"    {classAccessModifier} partial class {cppClass.Name}");
             sb.AppendLine("    {");
@@ -1513,12 +1460,14 @@ namespace CppToCsConverter.Core.Core
         private void GenerateMemberForPartialClass(StringBuilder sb, CppMember member, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string className)
         {
             // Use the shared utility method for consistent member generation
+            // Partial classes use 8 spaces (2 levels of indentation)
             CppToCsConverter.Core.Utils.MemberGenerationHelper.GenerateMember(
                 sb, 
                 member, 
                 ConvertAccessSpecifier,
                 staticMemberInits,
-                className);
+                className,
+                "        "); // 8 spaces for partial classes
         }
 
         private void GenerateStaticMemberForPartialClass(StringBuilder sb, CppStaticMember staticMember, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string className)
@@ -1558,7 +1507,7 @@ namespace CppToCsConverter.Core.Core
 
             // Use comment-aware method signature generation (same as non-partial)
 
-            GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType + " ", method.Name, mergedMethod.Parameters);
+            GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType + " ", method.Name, mergedMethod.Parameters, "    "); // partial classes use 8 spaces total (4 base + 4 for method indent)
             sb.AppendLine("        {");
             
             // Use implementation body if available
@@ -1760,10 +1709,9 @@ namespace CppToCsConverter.Core.Core
         {
             // Use the refactored method to generate and write the partial file
             var classes = new List<CppClass> { cppClass };
-            var structs = new List<CppStruct>(); // Partial files don't include structs
             var staticMemberInits = new Dictionary<string, List<CppStaticMemberInit>>();
             
-            GenerateAndWriteFile(targetFileName, outputDirectory, classes, structs, parsedSources, staticMemberInits, sourceDirectory, sourceDefines: null, sourceFileTopComments: sourceFileTopComments, isPartialFile: true, partialMethods: methods);
+            GenerateAndWriteFile(targetFileName, outputDirectory, classes, parsedSources, staticMemberInits, sourceDirectory, sourceDefines: null, sourceFileTopComments: sourceFileTopComments, isPartialFile: true, partialMethods: methods);
         }
     }
 }
