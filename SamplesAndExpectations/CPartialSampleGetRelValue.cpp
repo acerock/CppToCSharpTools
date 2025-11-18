@@ -4,7 +4,7 @@
 #include "StdAfx.h"
 #include "CPartialSample.h"
 
-bool CAgrLibHS::GetRelValue (const agrint &lIdRes,
+bool CPartialSample::GetRelValue (const agrint &lIdRes,
                   const TAttId &attRelId, 
                   const TDimValue &dimPostId, 
                   const CString &cTransDateFrom, 
@@ -18,7 +18,7 @@ bool CAgrLibHS::GetRelValue (const agrint &lIdRes,
     return GetRelValue (lIdRes,attRelId,dimPostId,cTransDateFrom,cTransDateTo,false,false,false,dimRelValue, cValidFrom, cValidTo, bOnlyPosLevel);
 }
 
-bool CAgrLibHS::GetRelValue (const agrint &lIdRes,
+bool CPartialSample::GetRelValue (const agrint &lIdRes,
                   const TAttId &attRelId, 
                   const TDimValue &dimPostId, 
                   const CString &cTransDateFrom, 
@@ -34,7 +34,7 @@ bool CAgrLibHS::GetRelValue (const agrint &lIdRes,
 	return GetRelValue (lIdRes,attRelId,dimPostId,cTransDateFrom,cTransDateTo,bAnalysis,bRate,bReport,false,dimRelValue, cValidFrom, cValidTo,bOnlyPosLevel);
 }
 
-bool CAgrLibHS::GetRelValue (const agrint &lIdRes,
+bool CPartialSample::GetRelValue (const agrint &lIdRes,
                   const TAttId &attRelId, 
                   const TDimValue &dimPostId, 
                   const CString &cTransDateFrom, 

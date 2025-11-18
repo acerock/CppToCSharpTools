@@ -483,12 +483,13 @@ namespace CppToCsConverter.Core.Parsers
                 }
 
                 // Parse const, type, reference/pointer, and name
-                var constMatch = Regex.Match(cleanTrimmed, @"^(const\s+)?(.+?)\s*([&*]*)\s+(\w+)$");
+                // Fixed regex to handle space before & or * (e.g., "const bool &param" and "const bool& param")
+                var constMatch = Regex.Match(cleanTrimmed, @"^(const\s+)?(.+?)(?:\s*([&*]+))?\s*(\w+)$");
                 if (constMatch.Success)
                 {
                     parameter.IsConst = constMatch.Groups[1].Success;
                     parameter.Type = constMatch.Groups[2].Value.Trim();
-                    var refPointer = constMatch.Groups[3].Value.Trim();
+                    var refPointer = constMatch.Groups[3].Success ? constMatch.Groups[3].Value.Trim() : "";
                     parameter.IsReference = refPointer.Contains("&");
                     parameter.IsPointer = refPointer.Contains("*");
                     parameter.Name = constMatch.Groups[4].Value;

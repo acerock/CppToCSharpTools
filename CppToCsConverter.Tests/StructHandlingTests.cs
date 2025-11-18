@@ -321,7 +321,8 @@ public:
                 Assert.Contains("public TDimValue dimVal;", generatedContent);
                 
                 // Verify constructor is preserved with correct signature and body
-                Assert.Contains("public StructOne(const TAttid& inAttId, const TDimValue &inDimVal, agrint lInTestType = 0)", generatedContent);
+                // Note: spacing around & is normalized in output (both "TAttid& " and "TDimValue& " are acceptable)
+                Assert.Contains("public StructOne(const TAttid& inAttId, const TDimValue& inDimVal, agrint lInTestType = 0)", generatedContent);
                 Assert.Contains("lTestType = lInTestType;", generatedContent);
                 Assert.Contains("attid = inAttId;", generatedContent);
                 Assert.Contains("dimVal = inDimVal;", generatedContent);

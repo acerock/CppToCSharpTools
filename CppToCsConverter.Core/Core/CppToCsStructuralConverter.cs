@@ -844,17 +844,17 @@ namespace CppToCsConverter.Core.Core
                     var param = parameters[i];
                     var isLast = i == parameters.Count - 1;
                     
-                    // Generate parameter with positioned comments
-                    var paramString = FormatCppParameterWithPositionedComments(param);
+                    // Generate parameter with positioned comments, including comma if not last
+                    var paramString = FormatCppParameterWithPositionedComments(param, includeComma: !isLast);
                     
-                    // Add the parameter with proper comma
+                    // Add the parameter
                     if (isLast)
                     {
                         sb.AppendLine($"{baseIndent}    {paramString})");
                     }
                     else
                     {
-                        sb.AppendLine($"{baseIndent}    {paramString},");
+                        sb.AppendLine($"{baseIndent}    {paramString}");
                     }
                 }
             }
@@ -882,23 +882,23 @@ namespace CppToCsConverter.Core.Core
                     var param = parameters[i];
                     var isLast = i == parameters.Count - 1;
                     
-                    // Generate parameter with positioned comments
-                    var paramString = FormatCppParameterWithPositionedComments(param);
+                    // Generate parameter with positioned comments, including comma if not last
+                    var paramString = FormatCppParameterWithPositionedComments(param, includeComma: !isLast);
                     
-                    // Add the parameter with proper comma
+                    // Add the parameter
                     if (isLast)
                     {
                         sb.AppendLine($"{baseIndent}        {paramString});");
                     }
                     else
                     {
-                        sb.AppendLine($"{baseIndent}        {paramString},");
+                        sb.AppendLine($"{baseIndent}        {paramString}");
                     }
                 }
             }
         }
         
-        public string FormatCppParameterWithPositionedComments(CppParameter param)
+        public string FormatCppParameterWithPositionedComments(CppParameter param, bool includeComma = false)
         {
             // Generate base parameter WITHOUT positioned comments (to avoid duplication)
             var baseParam = FormatCppParameterClean(param);
@@ -926,6 +926,19 @@ namespace CppToCsConverter.Core.Core
             // Add the parameter
             result.Append(baseParam);
             
+            // Check if any suffix comment is a C++ style comment (//), which should have comma before it
+            var hasCppStyleSuffixComment = suffixComments.Any(c => c.CommentText.TrimStart().StartsWith("//"));
+            
+            // If this parameter should have a comma separator (not last param)
+            if (includeComma)
+            {
+                if (hasCppStyleSuffixComment)
+                {
+                    // For // style comments, comma goes BEFORE the comment
+                    result.Append(",");
+                }
+            }
+            
             // Add suffix comments
             if (suffixComments.Any())
             {
@@ -933,6 +946,12 @@ namespace CppToCsConverter.Core.Core
                 {
                     result.Append(" " + comment.CommentText);
                 }
+            }
+            
+            // If comma should be added and we didn't add it before (no C++ style comment), add it after comments
+            if (includeComma && !hasCppStyleSuffixComment)
+            {
+                result.Append(",");
             }
             
             return result.ToString();
@@ -1594,8 +1613,11 @@ namespace CppToCsConverter.Core.Core
                 implementationMethods.AddRange(methodsList.Where(m => m.ClassName == className));
             }
 
+            // Find implementation method by name AND signature (parameter types)
             var implMethod = implementationMethods.FirstOrDefault(m => 
-                m.Name == headerMethod.Name && m.ClassName == headerMethod.ClassName);
+                m.Name == headerMethod.Name && 
+                m.ClassName == headerMethod.ClassName &&
+                ParametersMatch(headerMethod.Parameters, m.Parameters));
 
             if (implMethod == null)
                 return headerMethod;
@@ -1699,21 +1721,21 @@ namespace CppToCsConverter.Core.Core
 
         private bool ParametersMatch(List<CppParameter> headerParams, List<CppParameter> sourceParams)
         {
-            // If header parameter count matches source parameter count, they match
-            if (headerParams.Count == sourceParams.Count)
-                return true;
+            // Parameter counts must match
+            if (headerParams.Count != sourceParams.Count)
+                return false;
             
-            // Special handling: if source parameter parsing failed (producing too many params due to comment parsing issues),
-            // but the method names match, we can still consider it a match for now
-            // This handles cases like GetRate where complex parameter comments break parsing
-            if (sourceParams.Count > headerParams.Count)
+            // Compare each parameter type
+            for (int i = 0; i < headerParams.Count; i++)
             {
-                // For now, we'll be more lenient and allow matching based on method name alone
-                // when source parameter parsing seems to have failed
-                return true;
+                var headerType = NormalizeParameterType(headerParams[i].Type);
+                var sourceType = NormalizeParameterType(sourceParams[i].Type);
+                
+                if (headerType != sourceType)
+                    return false;
             }
             
-            return false;
+            return true;
         }
 
         private void GenerateAdditionalPartialFiles(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory, string sourceDirectory)

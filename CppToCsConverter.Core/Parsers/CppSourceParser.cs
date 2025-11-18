@@ -211,48 +211,90 @@ namespace CppToCsConverter.Core.Parsers
             {
                 var line = lines[i].Trim();
                 
-                // Look for pattern: ClassName::MethodName (
-                var methodHeaderMatch = Regex.Match(line, @"^(?:(\w+(?:\s*\*|\s*&)?)\s+)?(\w+)\s*::\s*([~]?\w+)\s*\($");
+                // Look for pattern: ClassName::MethodName ( - allow params on same line or next line
+                var methodHeaderMatch = Regex.Match(line, @"^(?:(\w+(?:\s*\*|\s*&)?)\s+)?(\w+)\s*::\s*([~]?\w+)\s*\(");
                 if (methodHeaderMatch.Success)
                 {
                     var className = methodHeaderMatch.Groups[2].Value;
                     var methodName = methodHeaderMatch.Groups[3].Value;
                     var returnType = methodHeaderMatch.Groups[1].Success ? methodHeaderMatch.Groups[1].Value.Trim() : "void";
                     
-                    // Skip if we already found this method
-                    bool alreadyFound = existingMethods.Any(m => 
-                        m.ClassName == className && 
-                        m.Name == methodName);
-                        
-                    if (alreadyFound)
-                        continue;
-                    
                     // Find the closing parenthesis and opening brace
                     var parametersString = "";
-                    int currentLine = i + 1;
-                    int parenCount = 1; // We already have one opening paren
+                    
+                    // Check if there are parameters on the same line as the opening paren
+                    int openParenIndex = line.IndexOf('(');
+                    int currentLine = i;
+                    int parenCount = 0;
                     bool foundClosingParen = false;
+                    
+                    // Start counting parens from the opening paren
+                    if (openParenIndex >= 0)
+                    {
+                        for (int charIndex = openParenIndex; charIndex < line.Length; charIndex++)
+                        {
+                            char c = line[charIndex];
+                            if (c == '(') parenCount++;
+                            else if (c == ')')
+                            {
+                                parenCount--;
+                                if (parenCount == 0)
+                                {
+                                    // Found closing paren on same line - extract parameters between parens
+                                    parametersString = line.Substring(openParenIndex + 1, charIndex - openParenIndex - 1) + "\n";
+                                    foundClosingParen = true;
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // If closing paren not on first line, add rest of first line to parametersString
+                        if (!foundClosingParen && openParenIndex < line.Length - 1)
+                        {
+                            parametersString = line.Substring(openParenIndex + 1) + "\n";
+                        }
+                    }
+                    
+                    currentLine = i + 1;
                     bool foundOpeningBrace = false;
                     int braceLineIndex = -1;
                     
                     // Collect parameters across multiple lines
-                    while (currentLine < lines.Length && parenCount > 0)
+                    while (currentLine < lines.Length && parenCount > 0 && !foundClosingParen)
                     {
                         var paramLine = lines[currentLine];
-                        parametersString += paramLine + "\n"; // Add newline to preserve line structure
                         
-                        // Count parentheses to handle nested comments with parens
-                        foreach (char c in paramLine)
+                        // Count parentheses to find the closing paren position
+                        int closingParenPos = -1;
+                        for (int charIndex = 0; charIndex < paramLine.Length; charIndex++)
                         {
+                            char c = paramLine[charIndex];
                             if (c == '(') parenCount++;
-                            else if (c == ')') parenCount--;
+                            else if (c == ')')
+                            {
+                                parenCount--;
+                                if (parenCount == 0)
+                                {
+                                    // Found the closing paren - only include content before it
+                                    closingParenPos = charIndex;
+                                    foundClosingParen = true;
+                                    break;
+                                }
+                            }
                         }
                         
-                        if (parenCount == 0)
+                        // Add the line content (up to closing paren if found)
+                        if (closingParenPos >= 0)
                         {
-                            foundClosingParen = true;
-                            break;
+                            parametersString += paramLine.Substring(0, closingParenPos) + "\n";
                         }
+                        else
+                        {
+                            parametersString += paramLine + "\n"; // Add newline to preserve line structure
+                        }
+                        
+                        if (foundClosingParen)
+                            break;
                         
                         currentLine++;
                     }
@@ -261,22 +303,37 @@ namespace CppToCsConverter.Core.Parsers
                         continue;
                     
                     // Look for const modifier and opening brace after the closing paren
-                    currentLine++;
+                    // Check the current line first (where closing paren was found) for opening brace
                     bool isConst = false;
-                    while (currentLine < lines.Length && !foundOpeningBrace)
+                    var currentBraceLine = lines[currentLine - 1].Trim(); // currentLine is one past the closing paren line
+                    if (currentBraceLine.Contains("const"))
                     {
-                        var braceLine = lines[currentLine].Trim();
-                        if (braceLine.Contains("const") && !foundOpeningBrace)
+                        isConst = true;
+                    }
+                    if (currentBraceLine.Contains("{"))
+                    {
+                        foundOpeningBrace = true;
+                        braceLineIndex = currentLine - 1;
+                    }
+                    
+                    // If not found on same line, look on subsequent lines
+                    if (!foundOpeningBrace)
+                    {
+                        while (currentLine < lines.Length && !foundOpeningBrace)
                         {
-                            isConst = true;
+                            var braceLine = lines[currentLine].Trim();
+                            if (braceLine.Contains("const") && !foundOpeningBrace)
+                            {
+                                isConst = true;
+                            }
+                            if (braceLine.Contains("{"))
+                            {
+                                foundOpeningBrace = true;
+                                braceLineIndex = currentLine;
+                                break;
+                            }
+                            currentLine++;
                         }
-                        if (braceLine.Contains("{"))
-                        {
-                            foundOpeningBrace = true;
-                            braceLineIndex = currentLine;
-                            break;
-                        }
-                        currentLine++;
                     }
                     
                     if (foundOpeningBrace)
@@ -297,6 +354,22 @@ namespace CppToCsConverter.Core.Parsers
 
                         // Parse parameters
                         method.Parameters = ParseParametersFromImplementation(parametersString);
+
+                        // Check if we already parsed this exact method (same name + parameters)
+                        // This prevents duplicates while allowing overloads
+                        bool isDuplicate = methods.Any(m => 
+                            m.ClassName == className && 
+                            m.Name == methodName &&
+                            m.Parameters.Count == method.Parameters.Count &&
+                            ParametersEqual(m.Parameters, method.Parameters)) ||
+                            existingMethods.Any(m => 
+                                m.ClassName == className && 
+                                m.Name == methodName &&
+                                m.Parameters.Count == method.Parameters.Count &&
+                                ParametersEqual(m.Parameters, method.Parameters));
+                        
+                        if (isDuplicate)
+                            continue;
 
                         // Extract method body
                         // Calculate the position of the opening brace based on line numbers
@@ -362,12 +435,13 @@ namespace CppToCsConverter.Core.Parsers
                 
                 // In implementation, no default values should be present
                 // Parse const, type, reference/pointer, and name
-                var constMatch = Regex.Match(cleanTrimmed, @"^(const\s+)?(.+?)(\s*[&*])?\s+(\w+)$");
+                // Fixed regex to handle space before & or * (e.g., "const bool &param" and "const bool& param")
+                var constMatch = Regex.Match(cleanTrimmed, @"^(const\s+)?(.+?)(?:\s*([&*]+))?\s*(\w+)$");
                 if (constMatch.Success)
                 {
                     parameter.IsConst = constMatch.Groups[1].Success;
                     parameter.Type = constMatch.Groups[2].Value.Trim();
-                    var refPointer = constMatch.Groups[3].Value.Trim();
+                    var refPointer = constMatch.Groups[3].Success ? constMatch.Groups[3].Value.Trim() : "";
                     parameter.IsReference = refPointer.Contains("&");
                     parameter.IsPointer = refPointer.Contains("*");
                     parameter.Name = constMatch.Groups[4].Value;
@@ -401,13 +475,48 @@ namespace CppToCsConverter.Core.Parsers
             var current = new System.Text.StringBuilder();
             int depth = 0;
             bool inCStyleComment = false;
+            bool inCppStyleComment = false;
             
             for (int i = 0; i < parametersString.Length; i++)
             {
                 char c = parametersString[i];
                 
+                // Check for start of C++ style comment (//)
+                if (!inCStyleComment && !inCppStyleComment && c == '/' && i + 1 < parametersString.Length && parametersString[i + 1] == '/')
+                {
+                    inCppStyleComment = true;
+                    current.Append(c);
+                    continue;
+                }
+                
+                // Check for end of C++ style comment (newline)
+                if (inCppStyleComment && (c == '\n' || c == '\r'))
+                {
+                    inCppStyleComment = false;
+                    current.Append(c);
+                    
+                    // After a C++ style comment ends (at newline), this is a good place to split parameters
+                    // if we're not inside nested parens/angles and the current content looks complete
+                    if (depth == 0 && current.ToString().Trim().Length > 0)
+                    {
+                        // Check if there's a previous comma in the current parameter
+                        // If so, this comment was a trailing comment and the newline marks the parameter end
+                        var currentStr = current.ToString();
+                        var lastCommaIndex = currentStr.LastIndexOf(',');
+                        if (lastCommaIndex >= 0)
+                        {
+                            // There's a comma followed by a comment and newline - this is a parameter boundary
+                            // Add this parameter and start fresh
+                            parameters.Add(current.ToString());
+                            current.Clear();
+                            continue;
+                        }
+                    }
+                    continue;
+                }
+                
                 // Check for start of C-style comment
-                if (!inCStyleComment && c == '/' && i + 1 < parametersString.Length && parametersString[i + 1] == '*')
+                if (!inCStyleComment && !inCppStyleComment && c == '/' && i + 1 < parametersString.Length && parametersString[i + 1] == '*')
                 {
                     inCStyleComment = true;
                     current.Append(c);
@@ -423,7 +532,7 @@ namespace CppToCsConverter.Core.Parsers
                 }
                 
                 // If we're inside a comment, just append the character
-                if (inCStyleComment)
+                if (inCStyleComment || inCppStyleComment)
                 {
                     current.Append(c);
                     continue;
@@ -436,9 +545,67 @@ namespace CppToCsConverter.Core.Parsers
                     depth--;
                 else if (c == ',' && depth == 0)
                 {
-                    parameters.Add(current.ToString());
-                    current.Clear();
-                    continue;
+                    // Add the comma to current parameter
+                    current.Append(c);
+                    
+                    // Check if there's a trailing // comment on this line
+                    // Look ahead to see if there's a // before the next newline
+                    bool hasTrailingComment = false;
+                    int commentStart = -1;
+                    for (int j = i + 1; j < parametersString.Length; j++)
+                    {
+                        char lookAhead = parametersString[j];
+                        if (lookAhead == '\n' || lookAhead == '\r')
+                        {
+                            // Newline before //, so no trailing comment
+                            break;
+                        }
+                        if (lookAhead == '/' && j + 1 < parametersString.Length && parametersString[j + 1] == '/')
+                        {
+                            // Found // comment before newline - this is a trailing comment
+                            hasTrailingComment = true;
+                            commentStart = j;
+                            break;
+                        }
+                        if (!char.IsWhiteSpace(lookAhead))
+                        {
+                            // Non-whitespace, non-comment content - this is the next parameter
+                            break;
+                        }
+                    }
+                    
+                    if (!hasTrailingComment)
+                    {
+                        // Normal comma split - no trailing comment
+                        parameters.Add(current.ToString());
+                        current.Clear();
+                        continue;
+                    }
+                    else
+                    {
+                        // Has trailing comment - include whitespace and comment, then split after newline
+                        // Add whitespace before comment
+                        for (int j = i + 1; j < commentStart; j++)
+                        {
+                            current.Append(parametersString[j]);
+                        }
+                        // Add the comment
+                        i = commentStart;
+                        while (i < parametersString.Length && parametersString[i] != '\n' && parametersString[i] != '\r')
+                        {
+                            current.Append(parametersString[i]);
+                            i++;
+                        }
+                        // Add newline if present
+                        if (i < parametersString.Length && (parametersString[i] == '\n' || parametersString[i] == '\r'))
+                        {
+                            current.Append(parametersString[i]);
+                        }
+                        // Split here
+                        parameters.Add(current.ToString());
+                        current.Clear();
+                        continue;
+                    }
                 }
                 
                 current.Append(c);
@@ -1132,22 +1299,19 @@ namespace CppToCsConverter.Core.Parsers
                     var ch = parameterText[i];
                     cleanText.Append(ch);
                     
-                    // Add to clean content for parameter name detection
-                    if (!char.IsWhiteSpace(ch))
-                    {
-                        cleanContentSoFar.Append(ch);
-                    }
+                    // Add to clean content for parameter name detection (include spaces for proper word detection)
+                    cleanContentSoFar.Append(ch);
                     
                     // Try to detect if we've seen a parameter name
                     // A parameter typically has format: [const] Type[*|&] paramName
                     // We'll check if we have at least one word that could be a type and another that could be a name
-                    if (!hasSeenParameterName && !char.IsWhiteSpace(ch))
+                    if (!hasSeenParameterName)
                     {
                         var cleanSoFar = cleanContentSoFar.ToString().Trim();
                         // Simple heuristic: if we have multiple words and the current clean content ends with identifier characters
                         if (cleanSoFar.Contains(' ') || cleanSoFar.Contains('&') || cleanSoFar.Contains('*'))
                         {
-                            var words = cleanSoFar.Split(new[] { ' ', '*', '&', '<', '>', ':' }, StringSplitOptions.RemoveEmptyEntries);
+                            var words = cleanSoFar.Split(new[] { ' ', '*', '&', '<', '>', ':', ',' }, StringSplitOptions.RemoveEmptyEntries);
                             if (words.Length >= 2) // We have type and possibly name
                             {
                                 hasSeenParameterName = true;
@@ -1159,7 +1323,14 @@ namespace CppToCsConverter.Core.Parsers
                 }
             }
             
-            return (cleanText.ToString(), positionedComments);
+            // Remove trailing comma from clean text (comma is parameter separator, not part of declaration)
+            var finalCleanText = cleanText.ToString().TrimEnd();
+            if (finalCleanText.EndsWith(','))
+            {
+                finalCleanText = finalCleanText.Substring(0, finalCleanText.Length - 1).TrimEnd();
+            }
+            
+            return (finalCleanText, positionedComments);
         }
 
         /// <summary>
@@ -1170,6 +1341,39 @@ namespace CppToCsConverter.Core.Parsers
             var (cleanText, positionedComments) = ExtractPositionedCommentsFromParameter(parameterText);
             var comments = positionedComments.Select(pc => pc.CommentText).ToList();
             return (cleanText, comments);
+        }
+        
+        /// <summary>
+        /// Checks if two parameter lists are equal by comparing normalized types
+        /// </summary>
+        private bool ParametersEqual(List<CppParameter> params1, List<CppParameter> params2)
+        {
+            if (params1.Count != params2.Count)
+                return false;
+                
+            for (int i = 0; i < params1.Count; i++)
+            {
+                var type1 = NormalizeParameterType(params1[i].Type);
+                var type2 = NormalizeParameterType(params2[i].Type);
+                
+                if (type1 != type2)
+                    return false;
+            }
+            
+            return true;
+        }
+        
+        /// <summary>
+        /// Normalizes parameter type for comparison (removes const, &, *, spaces)
+        /// </summary>
+        private string NormalizeParameterType(string type)
+        {
+            return type.Trim()
+                .Replace(" ", "")
+                .Replace("const", "")
+                .Replace("&", "")
+                .Replace("*", "")
+                .ToLowerInvariant();
         }
     }
 }
