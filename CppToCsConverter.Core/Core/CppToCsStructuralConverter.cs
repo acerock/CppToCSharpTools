@@ -321,7 +321,7 @@ namespace CppToCsConverter.Core.Core
                     {
                         foreach (var method in partialMethods)
                         {
-                            GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources);
+                            GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources, "    "); // 4 spaces for partial files
                         }
                     }
 
@@ -1103,8 +1103,8 @@ namespace CppToCsConverter.Core.Core
         {
             // Generate just the interface part (without extension methods)
             var accessibility = cppInterface.IsPublicExport ? "public" : "internal";
-            sb.AppendLine($"    {accessibility} interface {cppInterface.Name}");
-            sb.AppendLine("    {");
+            sb.AppendLine($"{accessibility} interface {cppInterface.Name}");
+            sb.AppendLine("{");
 
             // Add methods (skip constructors, destructors, and static methods for interfaces)
             var interfaceMethods = cppInterface.Methods
@@ -1115,11 +1115,11 @@ namespace CppToCsConverter.Core.Core
             {
                 var returnType = method.ReturnType ?? "void";
                 var parameters = string.Join(", ", method.Parameters.Select(p => GenerateInterfaceParameter(p)));
-                sb.AppendLine($"        {returnType} {method.Name}({parameters});");
+                sb.AppendLine($"    {returnType} {method.Name}({parameters});");
                 sb.AppendLine();
             }
 
-            sb.AppendLine("    }");
+            sb.AppendLine("}");
         }
 
         private void GenerateExtensionClassIfNeeded(StringBuilder sb, CppClass cppInterface, Dictionary<string, List<CppMethod>> parsedSources)
@@ -1134,8 +1134,8 @@ namespace CppToCsConverter.Core.Core
             var allSourceMethods = parsedSources.Values.SelectMany(methods => methods).ToList();
 
             sb.AppendLine();
-            sb.AppendLine($"    public static class {cppInterface.Name}Extensions");
-            sb.AppendLine("    {");
+            sb.AppendLine($"public static class {cppInterface.Name}Extensions");
+            sb.AppendLine("{");
 
             foreach (var staticMethod in staticMethods)
             {
@@ -1154,14 +1154,14 @@ namespace CppToCsConverter.Core.Core
                     parameters += ", " + methodParams;
                 }
 
-                sb.AppendLine($"        public static {returnType} {staticMethod.Name}({parameters})");
-                sb.AppendLine("        {");
+                sb.AppendLine($"    public static {returnType} {staticMethod.Name}({parameters})");
+                sb.AppendLine("    {");
 
                 // For interface extension methods, provide clean C# factory implementations
                 if (IsFactoryMethod(staticMethod, cppInterface.Name))
                 {
                     var implementationClassName = GetImplementationClassName(cppInterface.Name);
-                    sb.AppendLine($"            return new {implementationClassName}();");
+                    sb.AppendLine($"        return new {implementationClassName}();");
                 }
                 else if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
                 {
@@ -1176,15 +1176,15 @@ namespace CppToCsConverter.Core.Core
                 }
                 else
                 {
-                    sb.AppendLine("            // TODO: Implementation not found");
-                    sb.AppendLine("            throw new NotImplementedException();");
+                    sb.AppendLine("        // TODO: Implementation not found");
+                    sb.AppendLine("        throw new NotImplementedException();");
                 }
 
-                sb.AppendLine("        }");
+                sb.AppendLine("    }");
                 sb.AppendLine();
             }
 
-            sb.AppendLine("    }");
+            sb.AppendLine("}");
         }
 
         private string GenerateInterfaceParameter(CppParameter param)
@@ -1406,8 +1406,8 @@ namespace CppToCsConverter.Core.Core
             string classAccessModifier = cppClass.IsStruct ? "internal" : 
                                         (cppClass.IsPublicExport ? "public" : "internal");
             
-            sb.AppendLine($"    {classAccessModifier} partial class {cppClass.Name}");
-            sb.AppendLine("    {");
+            sb.AppendLine($"{classAccessModifier} partial class {cppClass.Name}");
+            sb.AppendLine("{");
 
             // Generate members (fields) - these go in the main partial class
             foreach (var member in cppClass.Members)
@@ -1428,7 +1428,7 @@ namespace CppToCsConverter.Core.Core
             if (methodsForMainFile.Any())
             {
                 sb.AppendLine();
-                sb.AppendLine("        // Methods for main file (inline + same-named source)");
+                sb.AppendLine("    // Methods for main file (inline + same-named source)");
                 
                 // First: Generate inline methods in header declaration order (methods without implementation or inline methods)
                 var inlineMethods = methodsForMainFile.Where(m => 
@@ -1439,7 +1439,7 @@ namespace CppToCsConverter.Core.Core
                 
                 foreach (var method in inlineMethods)
                 {
-                    GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources);
+                    GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources, "    "); // 4 spaces for file-scoped namespaces
                 }
                 
                 // Second: Generate methods with source implementation in source file order
@@ -1450,24 +1450,24 @@ namespace CppToCsConverter.Core.Core
                 
                 foreach (var method in sourceMethods)
                 {
-                    GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources);
+                    GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources, "    "); // 4 spaces for file-scoped namespaces
                 }
             }
 
-            sb.AppendLine("    }");
+            sb.AppendLine("}");
         }
 
         private void GenerateMemberForPartialClass(StringBuilder sb, CppMember member, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string className)
         {
             // Use the shared utility method for consistent member generation
-            // Partial classes use 8 spaces (2 levels of indentation)
+            // Partial classes use 4 spaces for file-scoped namespaces
             CppToCsConverter.Core.Utils.MemberGenerationHelper.GenerateMember(
                 sb, 
                 member, 
                 ConvertAccessSpecifier,
                 staticMemberInits,
                 className,
-                "        "); // 8 spaces for partial classes
+                "    "); // 4 spaces for file-scoped namespaces
         }
 
         private void GenerateStaticMemberForPartialClass(StringBuilder sb, CppStaticMember staticMember, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string className)
@@ -1489,10 +1489,10 @@ namespace CppToCsConverter.Core.Core
                 }
             }
             
-            sb.AppendLine($"        public static {memberType} {staticMember.Name}{initialization};");
+            sb.AppendLine($"    public static {memberType} {staticMember.Name}{initialization};");
         }
 
-        private void GenerateMethodForPartialClass(StringBuilder sb, CppMethod method, string className, Dictionary<string, List<CppMethod>> parsedSources)
+        private void GenerateMethodForPartialClass(StringBuilder sb, CppMethod method, string className, Dictionary<string, List<CppMethod>> parsedSources, string baseIndent = "    ")
         {
             // Use existing method generation logic
             string accessModifier = ConvertAccessSpecifier(method.AccessSpecifier);
@@ -1507,35 +1507,81 @@ namespace CppToCsConverter.Core.Core
 
             // Use comment-aware method signature generation (same as non-partial)
 
-            GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType + " ", method.Name, mergedMethod.Parameters, "    "); // partial classes use 8 spaces total (4 base + 4 for method indent)
-            sb.AppendLine("        {");
+            GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType + " ", method.Name, mergedMethod.Parameters, baseIndent);
+            sb.AppendLine($"{baseIndent}{{");
             
             // Use implementation body if available
             if (!string.IsNullOrEmpty(method.ImplementationBody))
             {
-                var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                // Reindent to standard 8 spaces first
+                var standardIndentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
                     method.ImplementationBody, 
                     method.ImplementationIndentation
                 );
-                sb.Append(indentedBody);
+                // Adjust to target indent level (baseIndent + 4)
+                var targetIndent = baseIndent + "    ";
+                var adjustedBody = AdjustIndentation(standardIndentedBody, "        ", targetIndent);
+                sb.Append(adjustedBody);
                 sb.AppendLine();
             }
             else if (!string.IsNullOrEmpty(method.InlineImplementation))
             {
-                var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                // Reindent to standard 8 spaces first
+                var standardIndentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
                     method.InlineImplementation, 
                     0
                 );
-                sb.Append(indentedBody);
+                // Adjust to target indent level (baseIndent + 4)
+                var targetIndent = baseIndent + "    ";
+                var adjustedBody = AdjustIndentation(standardIndentedBody, "        ", targetIndent);
+                sb.Append(adjustedBody);
                 sb.AppendLine();
             }
             else
             {
-                sb.AppendLine("            // TODO: Implement method body");
+                sb.AppendLine($"{baseIndent}    // TODO: Implement method body");
             }
             
-            sb.AppendLine("        }");
+            sb.AppendLine($"{baseIndent}}}");
             sb.AppendLine();
+        }
+
+        /// <summary>
+        /// Adjusts indentation of a text block from one level to another
+        /// </summary>
+        private string AdjustIndentation(string text, string fromIndent, string toIndent)
+        {
+            if (string.IsNullOrEmpty(text))
+                return string.Empty;
+                
+            var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+            var result = new System.Text.StringBuilder();
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                
+                if (i > 0)
+                    result.Append("\n");
+                
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    // Empty line - preserve as empty
+                    continue;
+                }
+                else if (line.StartsWith(fromIndent))
+                {
+                    // Replace the from indent with to indent
+                    result.Append(toIndent + line.Substring(fromIndent.Length));
+                }
+                else
+                {
+                    // Line doesn't start with expected indent - preserve as is
+                    result.Append(line);
+                }
+            }
+            
+            return result.ToString();
         }
 
         private CppMethod MergeHeaderMethodWithImplementation(CppMethod headerMethod, Dictionary<string, List<CppMethod>> parsedSources, string className)
