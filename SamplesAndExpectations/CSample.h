@@ -37,13 +37,12 @@ public:
 class CSomeClass
 {
     StructOne memberOne;
-    int memberTwo;
+    protected: int memberTwo;
 
     // Array of ints
     agrint m_aIntArr1[ARR_SIZE]; // Comment about ARR_SIZE 
  
-    public:
-        CSomeClass() : memberTwo(33) {
+    public: CSomeClass() : memberTwo(33) {
             memberOne.lTestType = 0;
         }
 

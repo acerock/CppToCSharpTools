@@ -15,7 +15,7 @@ namespace CppToCsConverter.Core.Parsers
         private readonly Regex _classRegex = new Regex(@"(?:class|struct)\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
         private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(.*?\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{.*?\})?", RegexOptions.Compiled | RegexOptions.Singleline);
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*([^]]*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(.*)$", RegexOptions.Compiled);
-        private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:", RegexOptions.Compiled);
+        private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:\s*(.*)$", RegexOptions.Compiled);
         private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
         private readonly Regex _defineRegex = new Regex(@"^\s*#define\s+(\w+)(?:\s+(.*))?$", RegexOptions.Compiled);
         
@@ -228,12 +228,25 @@ namespace CppToCsConverter.Core.Parsers
                     break;
                 }
 
-                // Check for access specifiers
+                // Check for access specifiers (both standalone and inline with declarations)
                 var accessMatch = _accessSpecifierRegex.Match(line);
                 if (accessMatch.Success)
                 {
                     Enum.TryParse<AccessSpecifier>(accessMatch.Groups[1].Value, true, out currentAccess);
-                    continue;
+                    
+                    // Check if there's content after the access specifier (inline declaration)
+                    var remainingContent = accessMatch.Groups[2].Value.Trim();
+                    if (!string.IsNullOrEmpty(remainingContent))
+                    {
+                        // Reprocess the line with the remaining content as if it were a normal line
+                        line = remainingContent;
+                        // Don't continue, let it fall through to member/method parsing
+                    }
+                    else
+                    {
+                        // Standalone access specifier, continue to next line
+                        continue;
+                    }
                 }
 
                 // Skip lines that are clearly inside method bodies (contain return, if, etc.)
