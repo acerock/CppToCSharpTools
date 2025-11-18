@@ -71,6 +71,11 @@ private:
         return cValue1;
     }
 
+    CSomeClass* InlineWithPointerReturn()
+    {
+        return new CSomeClass();
+    }
+
     void TrickyToMatch(const CString& cResTab, 
         const bool& bGetAgeAndTaxNumberFromResTab, /* agrint &oldParameter,*/ CAgrMT* pmtTable);
 

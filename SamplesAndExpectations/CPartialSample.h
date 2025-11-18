@@ -28,6 +28,14 @@ private:
         return cValue1;
     }
 
+protected:    
+    bool GetRelValue(const agrint& lIdRes, const TAttId& attRelId, const TDimValue& dimPostId, const CString& cTransDateFrom, const CString& cTransDateTo,
+        TDimValue& dimRelValue, CString& cValidFrom, CString& cValidTo);
+    bool GetRelValue(const agrint& lIdRes, const TAttId& attRelId, const TDimValue& dimPostId, const CString& cTransDateFrom, const CString& cTransDateTo,
+        bool bAnalysis, bool bRate, bool bReport, TDimValue& dimRelValue, CString& cValidFrom, CString& cValidTo, bool& bOnlyPosLevel);
+    bool GetRelValue(const agrint& lIdRes, const TAttId& attRelId, const TDimValue& dimPostId, const CString& cTransDateFrom, const CString& cTransDateTo,
+        bool bAnalysis, bool bRate, bool bReport, bool bUseFirstStartingRel, TDimValue& dimRelValue, CString& cValidFrom, CString& cValidTo, bool& bOnlyPosLevel);
+
 public:
     CPartialSample();
     ~CPartialSample();

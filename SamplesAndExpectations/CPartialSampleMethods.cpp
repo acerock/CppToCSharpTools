@@ -2,7 +2,7 @@
  * We expect this comment on the top of the CPartialSampleMethods.cs file before the using statements.  
  */
 #include "StdAfx.h"
-#include "CSample.h"
+#include "CPartialSample.h"
    
 // This is a method comments and is associated to MethodOneInPartial
 void CPartialSample::MethodOneInPartial(const CString& cParam1,

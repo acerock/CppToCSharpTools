@@ -65,7 +65,7 @@ internal class CSample : ISample
     private const int MY_DEFINE4 = 4;
     private const int MY_DEFINE5 = 5;
     private const int CPP_DEFINE4 = 40;
-    
+
     private agrint m_value1;
 
     private CString cValue1;
@@ -175,6 +175,11 @@ internal class CSample : ISample
     {
         // Implementation of the second overload
         return !dim1.IsEmpty() && int1 > 0;
+    }
+
+    CSomeClass* InlineWithPointerReturn()
+    {
+        return new CSomeClass();
     }
 
     private void TrickyToMatch(
