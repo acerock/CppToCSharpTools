@@ -6,12 +6,14 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CppToCsConverter.Core.Models;
 using CppToCsConverter.Core.Logging;
+using CppToCsConverter.Core.Parsers.ParameterParsing;
 
 namespace CppToCsConverter.Core.Parsers
 {
     public class CppSourceParser
     {
         private readonly ILogger _logger;
+        private readonly CppParameterParser _parameterParser;
         private readonly Regex _methodImplementationRegex = new Regex(
             @"(?:(\w+(?:\s*\*|\s*&)?)\s+)?(\w+)\s*::\s*([~]?\w+)\s*\(([^)]*)\)(?:\s*(const))?\s*\{", 
             RegexOptions.Compiled | RegexOptions.Multiline);
@@ -31,6 +33,10 @@ namespace CppToCsConverter.Core.Parsers
         public CppSourceParser(ILogger? logger = null)
         {
             _logger = logger ?? new ConsoleLogger();
+            _parameterParser = new CppParameterParser(
+                new ParameterBlockSplitter(),
+                new ParameterComponentExtractor()
+            );
         }
 
         public (List<CppMethod> Methods, List<CppStaticMemberInit> StaticInits) ParseSourceFile(string filePath)
@@ -60,8 +66,15 @@ namespace CppToCsConverter.Core.Parsers
                 // Parse file top comments first
                 sourceFile.FileTopComments.AddRange(ParseFileTopComments(lines));
                 
+                // Parse structs defined in source file
+                var headerParser = new CppHeaderParser(_logger);
+                sourceFile.Structs.AddRange(headerParser.ParseStructsFromLines(lines));
+                
                 // Parse method implementations using the original approach
                 sourceFile.Methods.AddRange(ParseMethodImplementations(content, sourceFile.FileName));
+                
+                // Move struct constructors/methods from Methods list to their respective structs
+                MoveStructMethodsToStructs(sourceFile.Methods, sourceFile.Structs);
                 
                 // Add comments and regions to the parsed methods
                 AddCommentsAndRegionsToMethods(lines, sourceFile.Methods);
@@ -408,65 +421,11 @@ namespace CppToCsConverter.Core.Parsers
 
         private List<CppParameter> ParseParametersFromImplementation(string parametersString)
         {
-            var parameters = new List<CppParameter>();
-            
             if (string.IsNullOrWhiteSpace(parametersString))
-                return parameters;
+                return new List<CppParameter>();
 
-            var paramParts = SplitParameters(parametersString);
-            
-            foreach (var part in paramParts)
-            {
-                var trimmed = part.Trim();
-                if (string.IsNullOrEmpty(trimmed))
-                    continue;
-
-                var parameter = new CppParameter();
-                parameter.OriginalText = part.Trim(); // Store original for reconstruction
-                
-                // Extract positioned comments while preserving their positions
-                var (cleanText, positionedComments) = ExtractPositionedCommentsFromParameter(part);
-                parameter.PositionedComments = positionedComments;
-                
-                // Also populate legacy InlineComments for backward compatibility
-                parameter.InlineComments = positionedComments.Select(pc => pc.CommentText).ToList();
-                
-                var cleanTrimmed = cleanText.Trim();
-                
-                // In implementation, no default values should be present
-                // Parse const, type, reference/pointer, and name
-                // Fixed regex to handle space before & or * (e.g., "const bool &param" and "const bool& param")
-                var constMatch = Regex.Match(cleanTrimmed, @"^(const\s+)?(.+?)(?:\s*([&*]+))?\s*(\w+)$");
-                if (constMatch.Success)
-                {
-                    parameter.IsConst = constMatch.Groups[1].Success;
-                    parameter.Type = constMatch.Groups[2].Value.Trim();
-                    var refPointer = constMatch.Groups[3].Success ? constMatch.Groups[3].Value.Trim() : "";
-                    parameter.IsReference = refPointer.Contains("&");
-                    parameter.IsPointer = refPointer.Contains("*");
-                    parameter.Name = constMatch.Groups[4].Value;
-                }
-                else
-                {
-                    // Fallback parsing
-                    var words = cleanTrimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (words.Length >= 2)
-                    {
-                        parameter.Type = string.Join(" ", words.Take(words.Length - 1));
-                        parameter.Name = words.Last();
-                    }
-                    else if (words.Length == 1)
-                    {
-                        // Just a type, generate a parameter name
-                        parameter.Type = words[0];
-                        parameter.Name = "param";
-                    }
-                }
-
-                parameters.Add(parameter);
-            }
-
-            return parameters;
+            // Use new parameter parser
+            return _parameterParser.ParseParameters(parametersString);
         }
 
         private string[] SplitParameters(string parametersString)
@@ -1374,6 +1333,50 @@ namespace CppToCsConverter.Core.Parsers
                 .Replace("&", "")
                 .Replace("*", "")
                 .ToLowerInvariant();
+        }
+        
+        /// <summary>
+        /// Moves methods that belong to structs from the methods list to the struct's Methods collection
+        /// </summary>
+        private void MoveStructMethodsToStructs(List<CppMethod> methods, List<CppStruct> structs)
+        {
+            var methodsToRemove = new List<CppMethod>();
+            
+            foreach (var structDef in structs)
+            {
+                // Find methods where the method name matches the struct name (constructor)
+                // or methods that are local to this struct
+                foreach (var method in methods.ToList())
+                {
+                    // Check if this is a constructor for the struct (method name == struct name and it's a local method)
+                    if (method.Name == structDef.Name && method.IsLocalMethod)
+                    {
+                        // Mark as constructor and update properties
+                        method.IsConstructor = true;
+                        method.IsLocalMethod = false; // No longer a local method, it's a struct constructor
+                        method.IsStatic = false; // Constructors are not static
+                        method.AccessSpecifier = AccessSpecifier.Public; // Struct constructors default to public
+                        method.ClassName = structDef.Name; // Associate with the struct
+                        
+                        // Set inline implementation so the body gets generated
+                        if (!string.IsNullOrEmpty(method.ImplementationBody))
+                        {
+                            method.HasInlineImplementation = true;
+                            method.InlineImplementation = method.ImplementationBody;
+                        }
+                        
+                        // Add to struct's methods collection
+                        structDef.Methods.Add(method);
+                        methodsToRemove.Add(method);
+                    }
+                }
+            }
+            
+            // Remove the methods that were moved to structs
+            foreach (var method in methodsToRemove)
+            {
+                methods.Remove(method);
+            }
         }
     }
 }

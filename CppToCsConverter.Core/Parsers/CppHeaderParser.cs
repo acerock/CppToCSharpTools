@@ -6,12 +6,14 @@ using System.Text;
 using System.Text.RegularExpressions;
 using CppToCsConverter.Core.Models;
 using CppToCsConverter.Core.Logging;
+using CppToCsConverter.Core.Parsers.ParameterParsing;
 
 namespace CppToCsConverter.Core.Parsers
 {
     public class CppHeaderParser
     {
         private readonly ILogger _logger;
+        private readonly CppParameterParser _parameterParser;
         private readonly Regex _classRegex = new Regex(@"(?:class|struct)\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
         private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(.*?\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{.*?\})?", RegexOptions.Compiled | RegexOptions.Singleline);
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*([^]]*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(.*)$", RegexOptions.Compiled);
@@ -30,6 +32,10 @@ namespace CppToCsConverter.Core.Parsers
         public CppHeaderParser(ILogger? logger = null)
         {
             _logger = logger ?? new ConsoleLogger();
+            _parameterParser = new CppParameterParser(
+                new ParameterBlockSplitter(),
+                new ParameterComponentExtractor()
+            );
         }
 
         public List<CppClass> ParseHeaderFile(string filePath)
@@ -445,76 +451,15 @@ namespace CppToCsConverter.Core.Parsers
 
         private List<CppParameter> ParseParameters(string parametersString)
         {
-            var parameters = new List<CppParameter>();
-            
             if (string.IsNullOrWhiteSpace(parametersString))
-                return parameters;
+                return new List<CppParameter>();
 
             // Pre-process to remove completely commented-out parameters (like /* agrint &oldParameter,*/)
             // This handles cases where entire parameters are commented out, not just parameter comments
             parametersString = RemoveCommentedOutParameters(parametersString);
 
-            var paramParts = SplitParametersRespectingParentheses(parametersString);
-            
-            foreach (var part in paramParts)
-            {
-                var trimmed = part.Trim();
-                if (string.IsNullOrEmpty(trimmed))
-                    continue;
-
-                var parameter = new CppParameter();
-                parameter.OriginalText = part.Trim(); // Store original for reconstruction
-                
-                // Extract positioned comments while preserving their positions
-                var (cleanText, positionedComments) = ExtractPositionedCommentsFromParameter(part);
-                parameter.PositionedComments = positionedComments;
-                
-                // Also populate legacy InlineComments for backward compatibility
-                parameter.InlineComments = positionedComments.Select(pc => pc.CommentText).ToList();
-                
-                var cleanTrimmed = cleanText.Trim();
-                
-                // Check for default value
-                var defaultIndex = cleanTrimmed.LastIndexOf('=');
-                if (defaultIndex > 0)
-                {
-                    parameter.DefaultValue = cleanTrimmed.Substring(defaultIndex + 1).Trim();
-                    cleanTrimmed = cleanTrimmed.Substring(0, defaultIndex).Trim();
-                }
-
-                // Parse const, type, reference/pointer, and name
-                // Fixed regex to handle space before & or * (e.g., "const bool &param" and "const bool& param")
-                var constMatch = Regex.Match(cleanTrimmed, @"^(const\s+)?(.+?)(?:\s*([&*]+))?\s*(\w+)$");
-                if (constMatch.Success)
-                {
-                    parameter.IsConst = constMatch.Groups[1].Success;
-                    parameter.Type = constMatch.Groups[2].Value.Trim();
-                    var refPointer = constMatch.Groups[3].Success ? constMatch.Groups[3].Value.Trim() : "";
-                    parameter.IsReference = refPointer.Contains("&");
-                    parameter.IsPointer = refPointer.Contains("*");
-                    parameter.Name = constMatch.Groups[4].Value;
-                }
-                else
-                {
-                    // Fallback parsing
-                    var words = cleanTrimmed.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (words.Length >= 2)
-                    {
-                        parameter.Type = string.Join(" ", words.Take(words.Length - 1));
-                        parameter.Name = words.Last();
-                    }
-                    else if (words.Length == 1)
-                    {
-                        // Just a type, no parameter name (valid in header declarations)
-                        parameter.Type = words[0];
-                        parameter.Name = "";
-                    }
-                }
-
-                parameters.Add(parameter);
-            }
-
-            return parameters;
+            // Use new parameter parser
+            return _parameterParser.ParseParameters(parametersString);
         }
 
         private string CollectMultiLineMethodDeclaration(string[] lines, ref int lineIndex)
@@ -1213,7 +1158,7 @@ namespace CppToCsConverter.Core.Parsers
                 var content = File.ReadAllText(filePath);
                 var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
                 
-                return ParseAllStructsFromLines(lines);
+                return ParseStructsFromLines(lines);
             }
             catch (Exception ex)
             {
@@ -1222,7 +1167,7 @@ namespace CppToCsConverter.Core.Parsers
             }
         }
 
-        private List<CppStruct> ParseAllStructsFromLines(string[] lines)
+        public List<CppStruct> ParseStructsFromLines(string[] lines)
         {
             var structs = new List<CppStruct>();
             int i = 0;
@@ -1506,8 +1451,8 @@ namespace CppToCsConverter.Core.Parsers
                 if (contentLine.Contains("#pragma region") || contentLine.Contains("#pragma endregion"))
                     continue;
                 
-                // Parse member field: type name;
-                if (contentLine.Contains(";") && !contentLine.StartsWith("typedef"))
+                // Parse member field: type name; (but only at brace depth 1 - i.e., directly in struct body, not in methods)
+                if (braceDepth == 1 && contentLine.Contains(";") && !contentLine.StartsWith("typedef"))
                 {
                     var member = ParseStructMemberField(contentLine, precedingComments);
                     if (member != null)

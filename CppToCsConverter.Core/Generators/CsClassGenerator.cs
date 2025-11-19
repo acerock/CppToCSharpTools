@@ -255,6 +255,14 @@ namespace CppToCsConverter.Core.Generators
                         convertedBody, implMethod.ImplementationIndentation);
                     sb.AppendLine(indentedBody);
                 }
+                else if (!string.IsNullOrEmpty(method.ImplementationBody))
+                {
+                    // Use implementation from method itself (e.g., struct constructors)
+                    var convertedBody = ConvertCppToCsBody(method.ImplementationBody);
+                    var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                        convertedBody, method.ImplementationIndentation);
+                    sb.AppendLine(indentedBody);
+                }
                 else
                 {
                     // Generate placeholder

@@ -138,6 +138,7 @@ namespace CppToCsConverter.Core.Core
             // Parse source files with complete file data including top comments
             var sourceDefines = new Dictionary<string, List<CppDefine>>();
             var sourceFileTopComments = new Dictionary<string, List<string>>();
+            var sourceStructs = new Dictionary<string, List<CppStruct>>();
             foreach (var sourceFile in sourceFiles)
             {
                 Console.WriteLine($"Parsing source: {Path.GetFileName(sourceFile)}");
@@ -147,6 +148,13 @@ namespace CppToCsConverter.Core.Core
                 staticMemberInits[fileName] = sourceFileData.StaticMemberInits;
                 sourceDefines[fileName] = sourceFileData.Defines;
                 sourceFileTopComments[fileName] = sourceFileData.FileTopComments;
+                sourceStructs[fileName] = sourceFileData.Structs;
+                
+                // Log found structs
+                foreach (var structDef in sourceFileData.Structs)
+                {
+                    Console.WriteLine($"Found struct: {structDef.Name} in {Path.GetFileName(sourceFile)}");
+                }
                 
                 // Debug parsed methods
                 Console.WriteLine($"DEBUG: Parsed {sourceFileData.Methods.Count} methods from {fileName}");
@@ -163,6 +171,46 @@ namespace CppToCsConverter.Core.Core
                 }
                 
 
+            }
+
+            // Add structs from source files to the header file classes (so they get generated)
+            // Insert them after header structs but before the main class
+            foreach (var sourceStructKvp in sourceStructs)
+            {
+                var fileName = sourceStructKvp.Key;
+                var structs = sourceStructKvp.Value;
+                
+                // Convert CppStruct to CppClass
+                foreach (var cppStruct in structs)
+                {
+                    var cppClass = new CppClass
+                    {
+                        Name = cppStruct.Name,
+                        IsStruct = true,
+                        IsPublicExport = false, // Structs from source files are internal
+                        Members = cppStruct.Members,
+                        Methods = cppStruct.Methods, // Copy methods (including constructors)
+                        PrecedingComments = cppStruct.PrecedingComments ?? new List<string>()
+                    };
+                    
+                    // Add to the same file's class list
+                    if (!headerFileClasses.ContainsKey(fileName))
+                    {
+                        headerFileClasses[fileName] = new List<CppClass>();
+                    }
+                    
+                    // Insert struct before the first non-struct class (the main class)
+                    var insertIndex = headerFileClasses[fileName].FindIndex(c => !c.IsStruct);
+                    if (insertIndex >= 0)
+                    {
+                        headerFileClasses[fileName].Insert(insertIndex, cppClass);
+                    }
+                    else
+                    {
+                        // No main class yet, just add at end
+                        headerFileClasses[fileName].Add(cppClass);
+                    }
+                }
             }
 
             // Generate C# files - one per header file containing all its classes (including structs as classes)

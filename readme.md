@@ -291,6 +291,36 @@ internal partial class CSample : ISample
 }
 ```
 
+### Matching method overrides by parameters
+A method can have multiple overrides. We must be sure we match parameters by signature (including C++ modifiers and ref/pointer). Default values set in header files must be persisted when writing the C# code.
+
+### Spaces and const modifier
+All these are the same signature. The square brackets are added as an illustration of a parameter "block".
+```
+void Test([const TAttId &attId])
+void Test([ const TAttId & attId ])
+void Test([ TAttId const & attId ])
+```
+
+### Line breaks and comments
+All these are the same. The square brackets are added as an illustration of a parameter "block".
+void Test([ TAttId const & attId ] , [agrint * i])
+void Test (
+    [ TAttId const & attId ] , // Post-comment
+    [ /* Suffix comment */ agrint * i])
+void Test (
+    [ const TAttId & attId ] , // Post-comment
+    [ /* Suffix comment */ agrint * i]
+    )
+void Test (
+    [ const TAttId & attId ] // Post-comment
+    , [ /* Suffix comment */ agrint * i]
+    )
+void Test (
+    [ const TAttId & attId ] /*/* Post-comment */
+    , [ /* Suffix comment */ agrint * i])
+```
+
 ## Classes with static member and intialization
 A C++ class can have a static member that is initialized outside the constructor. In this cases we need to apply the same initialization to the C# equalent.
 

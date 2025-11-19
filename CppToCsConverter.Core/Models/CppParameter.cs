@@ -25,5 +25,10 @@ namespace CppToCsConverter.Core.Models
         public List<string> InlineComments { get; set; } = new List<string>(); // Comments within the parameter list (legacy)
         public List<ParameterComment> PositionedComments { get; set; } = new List<ParameterComment>(); // Comments with position information
         public string OriginalText { get; set; } = string.Empty; // Original parameter text with comments for reconstruction
+        
+        // Formatting metadata for preserving original style
+        public bool HasLineBreak { get; set; } // Whether this parameter started on a new line
+        public int OriginalIndent { get; set; } // Number of spaces/tabs of indentation
+        public string CanonicalSignature { get; set; } = string.Empty; // Normalized signature for whitespace-insensitive matching
     }
 }

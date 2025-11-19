@@ -12,5 +12,6 @@ namespace CppToCsConverter.Core.Models
         public List<CppMethod> Methods { get; set; } = new List<CppMethod>();
         public List<CppStaticMemberInit> StaticMemberInits { get; set; } = new List<CppStaticMemberInit>();
         public List<CppDefine> Defines { get; set; } = new List<CppDefine>();
+        public List<CppStruct> Structs { get; set; } = new List<CppStruct>(); // Structs/classes defined in source file
     }
 }

@@ -19,5 +19,6 @@ namespace CppToCsConverter.Core.Models
         public StructType Type { get; set; }
         public List<string> PrecedingComments { get; set; } = new List<string>(); // Comments before struct declaration
         public List<CppMember> Members { get; set; } = new List<CppMember>(); // Parsed struct member fields
+        public List<CppMethod> Methods { get; set; } = new List<CppMethod>(); // Constructors and methods
     }
 }
