@@ -375,11 +375,17 @@ namespace CppToCsConverter.Core.Core
                     sb.AppendLine("{");
 
                     // Generate methods for this partial file
-                    if (partialMethods != null)
+                    if (partialMethods != null && partialMethods.Any())
                     {
-                        foreach (var method in partialMethods)
+                        for (int i = 0; i < partialMethods.Count; i++)
                         {
-                            GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources, "    "); // 4 spaces for partial files
+                            GenerateMethodForPartialClass(sb, partialMethods[i], cppClass.Name, parsedSources, "    "); // 4 spaces for partial files
+                            
+                            // Only add blank line between methods, not after the last one
+                            if (i < partialMethods.Count - 1)
+                            {
+                                sb.AppendLine();
+                            }
                         }
                     }
 
@@ -677,14 +683,14 @@ namespace CppToCsConverter.Core.Core
                 }
             }
 
-            if (cppClass.Members.Any())
-                sb.AppendLine();
-
-            // Get method implementations from source files first to avoid duplicates
+            // Only add blank line after members if there are methods following
             var relatedMethods = parsedSources.Values
                 .SelectMany(methods => methods)
                 .Where(m => m.ClassName == cppClass.Name)
                 .ToList();
+            
+            if (cppClass.Members.Any() && relatedMethods.Any())
+                sb.AppendLine();
 
             // Create signature-based matching for overloaded methods
             var implementedMethodSignatures = relatedMethods.Select(m => GetMethodSignature(m)).ToHashSet();
@@ -693,9 +699,9 @@ namespace CppToCsConverter.Core.Core
 
             // Add methods from header (declarations only) - preserve C++ syntax
             // Skip methods that have implementations in source files to avoid duplicates
-            foreach (var method in cppClass.Methods)
+            for (int headerMethodIndex = 0; headerMethodIndex < cppClass.Methods.Count; headerMethodIndex++)
             {
-
+                var method = cppClass.Methods[headerMethodIndex];
 
                 // Skip if this exact method signature has an implementation in source files (avoid duplicates)
                 if (!method.HasInlineImplementation && implementedMethodSignatures.Contains(GetMethodSignature(method)))
@@ -772,13 +778,25 @@ namespace CppToCsConverter.Core.Core
                     // Method declaration without body
                     GenerateMethodDeclarationWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType, method.Name, method.Parameters);
                 }
+                
+                // Only add blank line between header methods, not after the last one
+                if (headerMethodIndex < cppClass.Methods.Count - 1)
+                {
+                    sb.AppendLine();
+                }
+            }
+            
+            // Add blank line between header methods and source methods if both exist
+            if (cppClass.Methods.Any() && relatedMethods.Any())
+            {
                 sb.AppendLine();
             }
 
             // Add method implementations from source files - preserve C++ code exactly as-is
 
-            foreach (var method in relatedMethods)
+            for (int methodIndex = 0; methodIndex < relatedMethods.Count; methodIndex++)
             {
+                var method = relatedMethods[methodIndex];
                 // Debug for TrickyToMatch
                 if (method.Name == "TrickyToMatch")
                 {
@@ -854,8 +872,12 @@ namespace CppToCsConverter.Core.Core
                 }
                 
                 sb.AppendLine("    }");
-                sb.AppendLine();
                 
+                // Only add blank line between methods, not after the last one
+                if (methodIndex < relatedMethods.Count - 1)
+                {
+                    sb.AppendLine();
+                }
 
             }
 
@@ -1186,14 +1208,20 @@ namespace CppToCsConverter.Core.Core
             // Add methods (skip constructors, destructors, and static methods for interfaces)
             var interfaceMethods = cppInterface.Methods
                 .Where(m => !m.IsConstructor && !m.IsDestructor && !m.IsStatic)
-                .Where(m => m.AccessSpecifier == AccessSpecifier.Public);
+                .Where(m => m.AccessSpecifier == AccessSpecifier.Public)
+                .ToList();
 
-            foreach (var method in interfaceMethods)
+            for (int i = 0; i < interfaceMethods.Count; i++)
             {
+                var method = interfaceMethods[i];
                 var returnType = method.ReturnType ?? "void";
                 var parameters = string.Join(", ", method.Parameters.Select(p => GenerateInterfaceParameter(p)));
                 sb.AppendLine($"    {returnType} {method.Name}({parameters});");
-                sb.AppendLine();
+                // Only add blank line between methods, not after the last one
+                if (i < interfaceMethods.Count - 1)
+                {
+                    sb.AppendLine();
+                }
             }
 
             sb.AppendLine("}");
@@ -1514,9 +1542,21 @@ namespace CppToCsConverter.Core.Core
                     .OrderBy(m => cppClass.Methods.IndexOf(m)) // Maintain header order for inline methods
                     .ToList();
                 
-                foreach (var method in inlineMethods)
+                for (int i = 0; i < inlineMethods.Count; i++)
                 {
-                    GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources, "    "); // 4 spaces for file-scoped namespaces
+                    GenerateMethodForPartialClass(sb, inlineMethods[i], cppClass.Name, parsedSources, "    "); // 4 spaces for file-scoped namespaces
+                    
+                    // Add blank line between inline methods, not after the last one
+                    if (i < inlineMethods.Count - 1)
+                    {
+                        sb.AppendLine();
+                    }
+                }
+                
+                // Add blank line between inline and source methods if both exist
+                if (inlineMethods.Any() && methodsForMainFile.Any(m => m.TargetFileName == fileName && !m.HasInlineImplementation))
+                {
+                    sb.AppendLine();
                 }
                 
                 // Second: Generate methods with source implementation in source file order
@@ -1525,9 +1565,15 @@ namespace CppToCsConverter.Core.Core
                     .OrderBy(m => m.OrderIndex) // Order by source file order
                     .ToList();
                 
-                foreach (var method in sourceMethods)
+                for (int i = 0; i < sourceMethods.Count; i++)
                 {
-                    GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources, "    "); // 4 spaces for file-scoped namespaces
+                    GenerateMethodForPartialClass(sb, sourceMethods[i], cppClass.Name, parsedSources, "    "); // 4 spaces for file-scoped namespaces
+                    
+                    // Add blank line between source methods, not after the last one
+                    if (i < sourceMethods.Count - 1)
+                    {
+                        sb.AppendLine();
+                    }
                 }
             }
 
@@ -1629,7 +1675,6 @@ namespace CppToCsConverter.Core.Core
             }
             
             sb.AppendLine($"{baseIndent}}}");
-            sb.AppendLine();
         }
 
         /// <summary>

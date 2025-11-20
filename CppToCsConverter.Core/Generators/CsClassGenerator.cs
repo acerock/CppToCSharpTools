@@ -89,10 +89,14 @@ namespace CppToCsConverter.Core.Generators
             // Add methods - order by implementation order if available
             var orderedMethods = GetOrderedMethods(cppClass, implementationMethods ?? new List<CppMethod>());
             
-            foreach (var method in orderedMethods)
+            for (int i = 0; i < orderedMethods.Count; i++)
             {
-                GenerateMethod(sb, method, implementationMethods ?? new List<CppMethod>(), cppClass);
-                sb.AppendLine();
+                GenerateMethod(sb, orderedMethods[i], implementationMethods ?? new List<CppMethod>(), cppClass);
+                // Only add blank line between methods, not after the last one
+                if (i < orderedMethods.Count - 1)
+                {
+                    sb.AppendLine();
+                }
             }
 
             sb.AppendLine("}");
