@@ -251,6 +251,10 @@ namespace CppToCsConverter.Core.Generators
                         convertedBody, implMethod.ImplementationIndentation);
                     sb.AppendLine(indentedBody);
                 }
+                else if (implMethod != null && implMethod.HasResolvedImplementation)
+                {
+                    // Method has resolved implementation but body is empty - don't add TODO
+                }
                 else if (!string.IsNullOrEmpty(method.ImplementationBody))
                 {
                     // Use implementation from method itself (e.g., struct constructors)
@@ -258,6 +262,10 @@ namespace CppToCsConverter.Core.Generators
                     var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
                         convertedBody, method.ImplementationIndentation);
                     sb.AppendLine(indentedBody);
+                }
+                else if (method.HasResolvedImplementation)
+                {
+                    // Method header has resolved implementation but body is empty - don't add TODO  
                 }
                 else
                 {
@@ -291,6 +299,10 @@ namespace CppToCsConverter.Core.Generators
                     {
                         var defaultReturn = GetDefaultReturnValue(method.ReturnType);
                         sb.AppendLine($"        return {defaultReturn};");
+                    }
+                    else if (method.HasResolvedImplementation)
+                    {
+                        // Method has resolved implementation but body is empty - don't add TODO
                     }
                     else
                     {

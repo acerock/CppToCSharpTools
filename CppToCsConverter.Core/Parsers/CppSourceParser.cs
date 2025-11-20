@@ -198,6 +198,7 @@ namespace CppToCsConverter.Core.Parsers
 
                 // Extract method body
                 method.ImplementationBody = ExtractMethodBody(content, match.Index + match.Length);
+                method.HasResolvedImplementation = true; // Mark as resolved even if body is empty
                 
                 // Set TargetFileName for .cpp implementations
                 method.TargetFileName = fileName;
@@ -418,6 +419,7 @@ namespace CppToCsConverter.Core.Parsers
                         if (braceIndex >= 0)
                         {
                             method.ImplementationBody = ExtractMethodBody(content, braceIndex + 1);
+                            method.HasResolvedImplementation = true; // Mark as resolved even if body is empty
                         }
                         
                         // Set TargetFileName
@@ -775,6 +777,7 @@ namespace CppToCsConverter.Core.Parsers
 
                 // Extract method body
                 localMethod.ImplementationBody = ExtractMethodBody(content, match.Index + match.Length);
+                localMethod.HasResolvedImplementation = true; // Mark as resolved even if body is empty
                 
                 // Only add if we successfully extracted a method body (not just forward declaration)
                 if (!string.IsNullOrWhiteSpace(localMethod.ImplementationBody))

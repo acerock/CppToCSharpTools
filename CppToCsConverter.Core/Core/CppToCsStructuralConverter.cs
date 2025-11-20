@@ -1589,12 +1589,12 @@ namespace CppToCsConverter.Core.Core
             sb.AppendLine($"{baseIndent}{{");
             
             // Use implementation body if available
-            if (!string.IsNullOrEmpty(method.ImplementationBody))
+            if (!string.IsNullOrEmpty(mergedMethod.ImplementationBody))
             {
                 // Reindent to standard 8 spaces first
                 var standardIndentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
-                    method.ImplementationBody, 
-                    method.ImplementationIndentation
+                    mergedMethod.ImplementationBody, 
+                    mergedMethod.ImplementationIndentation
                 );
                 // Adjust to target indent level (baseIndent + 4)
                 var targetIndent = baseIndent + "    ";
@@ -1602,11 +1602,11 @@ namespace CppToCsConverter.Core.Core
                 sb.Append(adjustedBody);
                 sb.AppendLine();
             }
-            else if (!string.IsNullOrEmpty(method.InlineImplementation))
+            else if (!string.IsNullOrEmpty(mergedMethod.InlineImplementation))
             {
                 // Reindent to standard 8 spaces first
                 var standardIndentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
-                    method.InlineImplementation, 
+                    mergedMethod.InlineImplementation, 
                     0
                 );
                 // Adjust to target indent level (baseIndent + 4)
@@ -1615,8 +1615,16 @@ namespace CppToCsConverter.Core.Core
                 sb.Append(adjustedBody);
                 sb.AppendLine();
             }
+            else if (mergedMethod.HasResolvedImplementation)
+            {
+                // Method has resolved implementation but body is empty - don't add TODO
+            }
             else
             {
+                // Log unresolved method for investigation
+                var signatureInfo = $"{mergedMethod.ReturnType} {mergedMethod.ClassName}::{mergedMethod.Name}({string.Join(", ", mergedMethod.Parameters.Select(p => p.Type))})";
+                Console.WriteLine($"??  WARNING: Method implementation not found: {signatureInfo}");
+                Console.WriteLine($"    Class: {mergedMethod.ClassName}, Target file: {mergedMethod.TargetFileName}.cs");
                 sb.AppendLine($"{baseIndent}    // TODO: Implement method body");
             }
             
@@ -1693,7 +1701,12 @@ namespace CppToCsConverter.Core.Core
                 IsDestructor = headerMethod.IsDestructor,
                 IsConst = headerMethod.IsConst,
                 ClassName = headerMethod.ClassName,
-                Parameters = new List<CppParameter>()
+                Parameters = new List<CppParameter>(),
+                
+                // Copy implementation body and resolved flag from implementation
+                ImplementationBody = implMethod.ImplementationBody,
+                HasResolvedImplementation = implMethod.HasResolvedImplementation,
+                ImplementationIndentation = implMethod.ImplementationIndentation
             };
 
             // Merge parameters

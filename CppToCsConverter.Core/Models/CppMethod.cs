@@ -18,6 +18,7 @@ namespace CppToCsConverter.Core.Models
         public bool HasInlineImplementation { get; set; }
         public string InlineImplementation { get; set; } = string.Empty;
         public string ImplementationBody { get; set; } = string.Empty;
+        public bool HasResolvedImplementation { get; set; } = false; // True if implementation was found in source file (even if body is empty)
         public string ClassName { get; set; } = string.Empty; // For source file parsing
         public int OrderIndex { get; set; } // For maintaining order from .cpp files
         public string TargetFileName { get; set; } = string.Empty; // Target .cs file name (without extension) - .cpp file name for implementations, .h file name for inline methods
