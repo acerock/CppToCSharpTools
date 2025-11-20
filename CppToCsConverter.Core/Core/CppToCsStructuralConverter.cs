@@ -1575,7 +1575,8 @@ namespace CppToCsConverter.Core.Core
             string accessModifier = ConvertAccessSpecifier(method.AccessSpecifier);
             string staticModifier = method.IsStatic ? "static " : "";
             string virtualModifier = method.IsVirtual ? "virtual " : "";
-            string returnType = string.IsNullOrWhiteSpace(method.ReturnType) ? "void" : method.ReturnType;
+            string returnType = method.IsConstructor || method.IsDestructor ? "" : 
+                               (string.IsNullOrWhiteSpace(method.ReturnType) ? "void" : method.ReturnType);
             
 
             // Merge header method with implementation method to preserve positioned comments
@@ -1583,8 +1584,8 @@ namespace CppToCsConverter.Core.Core
             
 
             // Use comment-aware method signature generation (same as non-partial)
-
-            GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType + " ", method.Name, mergedMethod.Parameters, baseIndent);
+            string returnTypeWithSpace = string.IsNullOrEmpty(returnType) ? "" : returnType + " ";
+            GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnTypeWithSpace, method.Name, mergedMethod.Parameters, baseIndent);
             sb.AppendLine($"{baseIndent}{{");
             
             // Use implementation body if available

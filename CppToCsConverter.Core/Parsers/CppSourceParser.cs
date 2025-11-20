@@ -185,6 +185,12 @@ namespace CppToCsConverter.Core.Parsers
                 // Check if constructor or destructor
                 method.IsConstructor = !method.Name.StartsWith("~") && method.Name == method.ClassName;
                 method.IsDestructor = method.Name.StartsWith("~");
+                
+                // Constructors and destructors have no return type in C#
+                if (method.IsConstructor || method.IsDestructor)
+                {
+                    method.ReturnType = string.Empty;
+                }
 
                 // Parse parameters from implementation
                 var parametersString = match.Groups[4].Value;
@@ -364,6 +370,12 @@ namespace CppToCsConverter.Core.Parsers
                         // Check if constructor or destructor
                         method.IsConstructor = !method.Name.StartsWith("~") && method.Name == method.ClassName;
                         method.IsDestructor = method.Name.StartsWith("~");
+                        
+                        // Constructors and destructors have no return type in C#
+                        if (method.IsConstructor || method.IsDestructor)
+                        {
+                            method.ReturnType = string.Empty;
+                        }
 
                         // Parse parameters
                         method.Parameters = ParseParametersFromImplementation(parametersString);
@@ -1356,7 +1368,8 @@ namespace CppToCsConverter.Core.Parsers
                         method.IsLocalMethod = false; // No longer a local method, it's a struct constructor
                         method.IsStatic = false; // Constructors are not static
                         method.AccessSpecifier = AccessSpecifier.Public; // Struct constructors default to public
-                        method.ClassName = structDef.Name; // Associate with the struct
+                        method.ClassName = structDef.Name;
+                        method.ReturnType = string.Empty; // Constructors have no return type // Associate with the struct
                         
                         // Set inline implementation so the body gets generated
                         if (!string.IsNullOrEmpty(method.ImplementationBody))

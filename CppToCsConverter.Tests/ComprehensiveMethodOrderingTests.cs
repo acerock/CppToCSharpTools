@@ -191,6 +191,9 @@ void InlineFirstTest::ProcessValue()
             Assert.True(destructorIndex > 0, "Destructor not found");
             Assert.True(processValueIndex > 0, "ProcessValue method not found");
 
+            // Verify destructor does NOT have "void" keyword
+            Assert.DoesNotContain("void ~InlineFirstTest()", content);
+
             // Inline methods should come first (in header order)
             Assert.True(isPositiveIndex < getValueIndex, "IsPositive should come before GetValue (header order)");
             Assert.True(getValueIndex < setValueIndex, "GetValue should come before SetValue (header order)");

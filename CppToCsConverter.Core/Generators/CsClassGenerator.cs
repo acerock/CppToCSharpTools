@@ -197,13 +197,9 @@ namespace CppToCsConverter.Core.Generators
             
             // Handle constructors and destructors properly
             string returnType = "";
-            if (method.IsConstructor)
+            if (method.IsConstructor || method.IsDestructor)
             {
-                returnType = ""; // No return type for constructors
-            }
-            else if (method.IsDestructor)
-            {
-                return; // Skip destructors in C# - handled by finalizer/dispose pattern
+                returnType = ""; // No return type for constructors or destructors
             }
             else
             {
