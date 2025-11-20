@@ -143,6 +143,16 @@ namespace CppToCsConverter.Core.Core
             {
                 Console.WriteLine($"Parsing source: {Path.GetFileName(sourceFile)}");
                 var sourceFileData = _sourceParser.ParseSourceFileComplete(sourceFile);
+                
+                // Skip source files that have no class methods (methods with ::)
+                // These are files with only local functions, structs, or MAIN macros
+                var hasClassMethods = sourceFileData.Methods.Any(m => !m.IsLocalMethod);
+                if (!hasClassMethods)
+                {
+                    Console.WriteLine($"Skipping {Path.GetFileName(sourceFile)} - no class methods found (only local functions/structs)");
+                    continue;
+                }
+                
                 var fileName = Path.GetFileNameWithoutExtension(sourceFile);
                 parsedSources[fileName] = sourceFileData.Methods;
                 staticMemberInits[fileName] = sourceFileData.StaticMemberInits;
