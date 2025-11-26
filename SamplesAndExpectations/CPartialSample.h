@@ -40,7 +40,7 @@ public:
     CPartialSample();
     ~CPartialSample();
 
-    void MethodOne(const CString& cParam1,
+    StructOne* MethodOne(const CString& cParam1,
                    const bool &bParam2,
                    CString *pcParam3);
     void MethodOneInPartial(const CString& cParam1,

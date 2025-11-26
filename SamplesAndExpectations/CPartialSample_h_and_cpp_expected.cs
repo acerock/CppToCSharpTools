@@ -11,6 +11,7 @@ using U4.BatchNet.ServerLib.Compatibility;
 using static BatchNet.Compatibility.Level1;
 using static BatchNet.Compatibility.Level2;
 using static BatchNet.Compatibility.BatchApi;
+using static U4.BatchNet.Sample.Compatibility.SampleDefines;
 
 namespace U4.BatchNet.Sample.Compatibility;
 
@@ -72,10 +73,9 @@ internal partial class CPartialSample
         // Cleanup code here
     }
 
-    public void MethodOne(const CString& cParam1, const bool &bParam2, CString *pcParam3)
+    public StructOne* MethodOne(const CString& cParam1, const bool &bParam2, CString *pcParam3)
     {
         // Implementation of MethodOne
     }
-
 }
 

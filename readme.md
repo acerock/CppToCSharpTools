@@ -53,7 +53,9 @@ public:
 };
 ```
 #### C# Equalent
+Public interfaces have a Create attribute with the main class implementing this interface.
 ```
+[Create(typeof(CSample))]
 public interface ISample
 {
     void MethodOne(const CString cParam1,
@@ -65,7 +67,7 @@ public interface ISample
 ```
 
 ## Internal interfaces
-Public interface in C++ does not have any export definition.
+Internal interface in C++ does not have any export definition.
 #### C++ sample
 ```
 class ISample
@@ -82,6 +84,7 @@ public:
 };
 ```
 #### C# Equalent
+Internal interfaces does not have a Create attribute.
 ```
 internal interface ISample
 {
@@ -93,16 +96,30 @@ internal interface ISample
 }
 ```
 
-### Static methods for interfaces
-In C++, pure virtual classes (or interfaces) can contain static methods - typically as a factory pattern, but these are ignored when building the C# equalent and implemented by extension methods on the interface (or object factory by the Create attribute.)
+## Static CreateInstance() method for public interfaces
+In C++, pure virtual classes (or interfaces) can contain static methods as part of C++ factory pattern, but these are ignored when building the C# equalent and instead used to resolve the type for the create attribute typeof argument for the interface.
+
+ISample.h
 ```
-	public static class ISampleExtensions
-	{
-		public static ISample GetInstance(this ISample sample)
-		{
-			return new CSample();
-		}
-	}
+static ISample* GetInstance();
+```
+
+CSample.cpp
+```
+ISample* ISample::GetInstance()
+{
+    CSample* pSample = new CSample();
+    return pSample;
+};
+```
+
+ISample.cs
+```
+[Create(typeof(CSample))]
+public interface ISample
+{
+    ...
+}
 ```
 
 # C++ header files (.h)
@@ -574,9 +591,10 @@ internal class MyStruct
 {
     internal bool MyBoolField;
     internal agrint MyIntField;
-};
+}
 
 /* The Interface */
+[Create(typeof(CSample))]
 public interface ISample
 {
     void MethodOne(CString cParam1,
@@ -593,15 +611,6 @@ internal class MyOtherStruct
     // This struct has a comment copied as is
     internal bool someBool;
     internal agrint intValue;
-};
-
-internal static class ISampleExtensions
-{
-    public static ISample GetInstance(this ISample sample)
-    {
-        CSample* pSample = new CSample();
-        return pSample;
-    }
 }
 ```
 
@@ -680,9 +689,12 @@ Collecting defines from C++ files:
 2. There might be more defines found in multi-file C++ class source files.
 
 Constructing C# class with defines
-1. Defines collected from header file are reconstructed as C# internal const members at the very start of the class after the class opening bracket. In case of partial classes, these defines will go to the main .cs file.
+1. Defines collected from a interface header having a public interface (remember the __declspec(dllexport)) are to be made public. 
+These need to belong to a public static class. The name of this class is based on the .h file they appear. For instance, for ISample.h the class is named SampleDefines.cs. For ISomeLibXY, the class is named SomeLibXYDefines.
+2. Defines collected from non-interface header file are reconstructed as C# internal const members at the very start of the class after the class opening bracket. In case of partial classes, these defines will go to the main .cs file.
 2. Defines collected from source files are reconstructed as C# private const members after the ones from the header file.
 3. In case of source file defines in a partial class scenario, the partial source file defines are written to the matching partial class .cs file.
+4. All other .cs files created get an additional `using static <namespace-for-classes>.SampleDefines;`
 
 ### Transforming to const members in the .cs file
 The define statement is translated to an internal const in the format 
@@ -693,6 +705,9 @@ If the define was found in header file, the <access-modifier> is internal.
 If the define was found in source file, the <access-modifier> is private.
 
 To descide the type we need to look at the value. 
+
+Note that we perserve post and suffix comments as for other members as well as indentation.
+
 #### Samples
 ```
 #define mychar1define _T('')

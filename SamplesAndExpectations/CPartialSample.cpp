@@ -34,7 +34,7 @@ CPartialSample::~CPartialSample()
     // Cleanup code here
 };
 
-void CPartialSample::MethodOne(const CString& cParam1,
+StructOne* CPartialSample::MethodOne(const CString& cParam1,
                    const bool &bParam2,
                    CString *pcParam3)
 {

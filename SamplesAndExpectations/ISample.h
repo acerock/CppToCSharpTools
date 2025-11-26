@@ -1,5 +1,9 @@
 #pragma once
 
+// Some define
+#define IN_INTERFACE_DEF01 1
+#define IN_INTERFACE_DEF02 2 // Another define
+
 /* My struct */
 typedef struct
 {
