@@ -166,8 +166,7 @@ namespace CppToCsConverter.Core.Core
                     Console.WriteLine($"Found struct: {structDef.Name} in {Path.GetFileName(sourceFile)}");
                 }
                 
-                // Debug parsed methods
-                Console.WriteLine($"DEBUG: Parsed {sourceFileData.Methods.Count} methods from {fileName}");
+                // Parse source file methods
                 foreach (var method in sourceFileData.Methods)
                 {
                     if (method.Name == "GetRate")
@@ -715,8 +714,10 @@ namespace CppToCsConverter.Core.Core
             WriteDefineStatementsInline(sb, cppClass);
 
             // Add members - preserve original C++ types and add static initializations
-            foreach (var member in cppClass.Members)
+            for (int memberIndex = 0; memberIndex < cppClass.Members.Count; memberIndex++)
             {
+                var member = cppClass.Members[memberIndex];
+                
                 // Add region start marker (from .h file, converted to comment)
                 if (!string.IsNullOrEmpty(member.RegionStart))
                 {

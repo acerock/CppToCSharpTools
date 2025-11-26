@@ -625,22 +625,7 @@ namespace CppToCsConverter.Core.Generators
                 p.InlineComments.Any() ||
                 (!string.IsNullOrEmpty(p.OriginalText) && (p.OriginalText.Contains("/*") || p.OriginalText.Contains("//"))));
             
-            // Debug GetRate method specifically
-            if (methodName == "GetRate")
-            {
-                Console.WriteLine($"DEBUG: CsClassGenerator.GenerateMethodSignatureWithComments for {methodName}");
-                Console.WriteLine($"DEBUG: hasParameterComments = {hasParameterComments}");
-                Console.WriteLine($"DEBUG: parameters.Count = {parameters.Count}");
-                for (int i = 0; i < parameters.Count; i++)
-                {
-                    var p = parameters[i];
-                    Console.WriteLine($"  Param[{i}]: {p.Name}");
-                    Console.WriteLine($"    PositionedComments: {p.PositionedComments?.Count ?? 0}");
-                    Console.WriteLine($"    InlineComments: {p.InlineComments?.Count ?? 0}");
-                    Console.WriteLine($"    OriginalText: '{p.OriginalText}'");
-                    Console.WriteLine($"    Contains /*: {(!string.IsNullOrEmpty(p.OriginalText) && p.OriginalText.Contains("/*"))}");
-                }
-            }
+            // Generate method signature with optional parameter comments
             
 
             

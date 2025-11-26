@@ -88,31 +88,40 @@ namespace CppToCsConverter.Core.Parsers
                 
             // Find the main class that should get the defines:
             // 1. If there's a class whose name matches the filename, use that
-            // 2. Otherwise, if there's only one class, use that
+            // 2. Otherwise, if there's only one class, use that  
             // 3. Otherwise, use the first non-interface class
             // 4. Otherwise, use the first class
+            // IMPORTANT: Skip structs - they should not get header defines
             
             CppClass? targetClass = null;
             
-            // Try to find class matching filename
-            targetClass = classes.FirstOrDefault(c => c.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
+            // Try to find class matching filename (but not if it's a struct)
+            targetClass = classes.FirstOrDefault(c => !c.IsStruct && c.Name.Equals(fileName, StringComparison.OrdinalIgnoreCase));
             
-            // If no filename match, try single class
-            if (targetClass == null && classes.Count == 1)
+            // If no filename match, try single class (but not if it's a struct)
+            if (targetClass == null && classes.Count == 1 && !classes[0].IsStruct)
             {
                 targetClass = classes[0];
             }
             
-            // If multiple classes, prefer non-interface classes
+            // If multiple classes, prefer non-interface, non-struct classes
             if (targetClass == null)
             {
-                targetClass = classes.FirstOrDefault(c => !c.IsInterface) ?? classes[0];
+                targetClass = classes.FirstOrDefault(c => !c.IsInterface && !c.IsStruct) ?? classes.FirstOrDefault(c => !c.IsStruct);
             }
             
-            // Associate defines with the target class
-            if (targetClass != null)
+            // Associate defines with the target class (if found and not a struct)
+            if (targetClass != null && !targetClass.IsStruct)
             {
                 targetClass.HeaderDefines.AddRange(headerDefines);
+            }
+            else if (targetClass != null && targetClass.IsStruct)
+            {
+                // Structs don't get header defines
+            }
+            else
+            {
+                // No target class found for defines
             }
         }
 
@@ -894,19 +903,36 @@ namespace CppToCsConverter.Core.Parsers
                 // Check for end of multi-line comment
                 if (trimmedLine.EndsWith("*/"))
                 {
-                    inMultiLineComment = true;
-                    commentBlock.Insert(0, line); // Keep original indentation temporarily
+                    // Check if this is a pure comment line or a code line with postfix comment
+                    // Pure comment: starts with //, /*, or * (continuation line)
+                    // Code with postfix: has non-comment content before the /*
+                    bool isPureCommentLine = trimmedLine.StartsWith("//") || 
+                                            trimmedLine.StartsWith("/*") || 
+                                            trimmedLine.StartsWith("*") ||
+                                            !trimmedLine.Contains("/*"); // Multi-line comment continuation without /* on this line
                     
-                    // If this line also starts the comment, we're done with this block
-                    if (trimmedLine.StartsWith("/*"))
+                    if (isPureCommentLine)
                     {
-                        inMultiLineComment = false;
+                        inMultiLineComment = true;
+                        commentBlock.Insert(0, line); // Keep original indentation temporarily
+                        
+                        // If this line also starts the comment, we're done with this block
+                        if (trimmedLine.StartsWith("/*"))
+                        {
+                            inMultiLineComment = false;
+                            lookbackIndex--;
+                            continue;
+                        }
+                        
                         lookbackIndex--;
                         continue;
                     }
-                    
-                    lookbackIndex--;
-                    continue;
+                    else
+                    {
+                        // Line ends with */ but has code before /* 
+                        // This is a code line with postfix comment - stop collecting
+                        break;
+                    }
                 }
                 
                 // Check for start of multi-line comment
@@ -939,7 +965,12 @@ namespace CppToCsConverter.Core.Parsers
                     if (peekIndex >= 0)
                     {
                         var peekLine = lines[peekIndex].Trim();
-                        if (peekLine.StartsWith("//") || peekLine.EndsWith("*/"))
+                        // Only continue if the peeked line is a PURE comment (not a member with postfix comment)
+                        bool isPureComment = (peekLine.StartsWith("//")) || 
+                                            (peekLine.StartsWith("/*") && peekLine.EndsWith("*/")) ||
+                                            (peekLine.StartsWith("*") && peekLine.EndsWith("*/"));
+                        
+                        if (isPureComment)
                         {
                             // There are more comments, include the empty line
                             commentBlock.Insert(0, line);
@@ -1469,10 +1500,9 @@ namespace CppToCsConverter.Core.Parsers
         /// </summary>
         private CppMember? ParseStructMemberField(string line, List<string> precedingComments)
         {
-            // Remove trailing semicolon
-            var cleanLine = line.TrimEnd(';').Trim();
+            var cleanLine = line.Trim();
             
-            // Check for postfix comment
+            // Check for postfix comment first
             string postfixComment = "";
             int commentIndex = cleanLine.IndexOf("//");
             if (commentIndex == -1)
@@ -1483,6 +1513,9 @@ namespace CppToCsConverter.Core.Parsers
                 postfixComment = cleanLine.Substring(commentIndex).Trim();
                 cleanLine = cleanLine.Substring(0, commentIndex).Trim();
             }
+            
+            // Now remove trailing semicolon after comment is extracted
+            cleanLine = cleanLine.TrimEnd(';').Trim();
             
             // Parse type and name
             var parts = cleanLine.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
