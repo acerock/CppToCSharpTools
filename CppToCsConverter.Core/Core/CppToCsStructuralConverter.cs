@@ -224,6 +224,33 @@ namespace CppToCsConverter.Core.Core
             }
 
             // Generate C# files - one per header file containing all its classes (including structs as classes)
+            var generatedDefinesClasses = new List<string>(); // Track generated defines classes
+            
+            // First pass: identify all defines classes that will be generated
+            foreach (var headerFileKvp in headerFileClasses)
+            {
+                var fileName = headerFileKvp.Key;
+                var classes = headerFileKvp.Value;
+                
+                if (classes.Count == 0)
+                    continue;
+                    
+                // Check if this file contains a public interface with defines
+                var publicInterfacesWithDefines = classes
+                    .Where(c => c.IsInterface && c.IsPublicExport && c.HeaderDefines.Any())
+                    .ToList();
+                
+                foreach (var interfaceClass in publicInterfacesWithDefines)
+                {
+                    string definesClassName = interfaceClass.Name.TrimStart('I') + "Defines";
+                    if (!generatedDefinesClasses.Contains(definesClassName))
+                    {
+                        generatedDefinesClasses.Add(definesClassName);
+                    }
+                }
+            }
+            
+            // Second pass: generate all files with knowledge of all defines classes
             foreach (var headerFileKvp in headerFileClasses)
             {
                 var fileName = headerFileKvp.Key;
@@ -234,11 +261,14 @@ namespace CppToCsConverter.Core.Core
                     
                 Console.WriteLine($"Generating C# file: {fileName}.cs with {classes.Count} type(s)");
                 
+                // Generate defines files for public interfaces
+                GenerateDefinesFilesForPublicInterfaces(fileName, outputDirectory, classes, sourceDirectory);
+                
                 // Generate main C# file
-                GenerateAndWriteFile(fileName, outputDirectory, classes, parsedSources, staticMemberInits, sourceDirectory, sourceDefines, sourceFileTopComments);
+                GenerateAndWriteFile(fileName, outputDirectory, classes, parsedSources, staticMemberInits, sourceDirectory, sourceDefines, sourceFileTopComments, isPartialFile: false, partialMethods: null, definesClasses: generatedDefinesClasses);
                 
                 // Generate additional partial class files for classes that need them
-                GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, sourceFileTopComments, outputDirectory, sourceDirectory);
+                GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, sourceFileTopComments, outputDirectory, sourceDirectory, generatedDefinesClasses);
             }
             
             // Old individual class generation logic has been replaced with file-based generation above
@@ -248,7 +278,7 @@ namespace CppToCsConverter.Core.Core
 
 
 
-        private void AddUsingStatements(StringBuilder sb, bool interfaceOnly)
+        private void AddUsingStatements(StringBuilder sb, bool interfaceOnly, List<string>? definesClasses = null, string? sourceDirectory = null)
         {
             if (interfaceOnly)
             {
@@ -270,6 +300,16 @@ namespace CppToCsConverter.Core.Core
                 sb.AppendLine("using static BatchNet.Compatibility.Level1;");
                 sb.AppendLine("using static BatchNet.Compatibility.Level2;");
                 sb.AppendLine("using static BatchNet.Compatibility.BatchApi;");
+                
+                // Add using static for defines classes
+                if (definesClasses != null && definesClasses.Any() && !string.IsNullOrEmpty(sourceDirectory))
+                {
+                    var namespaceName = ResolveNamespace(sourceDirectory);
+                    foreach (var definesClass in definesClasses)
+                    {
+                        sb.AppendLine($"using static {namespaceName}.{definesClass};");
+                    }
+                }
             }
             sb.AppendLine();
         }
@@ -361,6 +401,71 @@ namespace CppToCsConverter.Core.Core
             }
         }
 
+        private string? GenerateDefinesFilesForPublicInterfaces(string fileName, string outputDirectory, List<CppClass> classes, string sourceDirectory)
+        {
+            // Find public interfaces with defines
+            var publicInterfacesWithDefines = classes
+                .Where(c => c.IsInterface && c.IsPublicExport && c.HeaderDefines.Any())
+                .ToList();
+            
+            string? generatedDefinesClassName = null;
+            
+            foreach (var interfaceClass in publicInterfacesWithDefines)
+            {
+                // Generate defines class name: ISample -> SampleDefines
+                string definesClassName = interfaceClass.Name.TrimStart('I') + "Defines";
+                generatedDefinesClassName = definesClassName;
+                
+                var sb = new StringBuilder();
+                
+                // Add using statements
+                AddUsingStatements(sb, false); // Use class-style using statements
+                
+                // Add namespace
+                AddNamespace(sb, fileName, sourceDirectory);
+                
+                // Generate public static class
+                sb.AppendLine($"public static class {definesClassName}");
+                sb.AppendLine("{");
+                
+                // Generate defines as public const members
+                for (int i = 0; i < interfaceClass.HeaderDefines.Count; i++)
+                {
+                    var define = interfaceClass.HeaderDefines[i];
+                    
+                    // Add preceding comments
+                    if (define.PrecedingComments != null && define.PrecedingComments.Any())
+                    {
+                        foreach (var comment in define.PrecedingComments)
+                        {
+                            sb.AppendLine($"    {comment}");
+                        }
+                    }
+                    
+                    // Determine type from value
+                    string constType = define.InferType();
+                    string normalizedValue = define.NormalizeValue();
+                    
+                    // Generate const member as public (override the GetAccessModifier method)
+                    sb.AppendLine($"    public const {constType} {define.Name} = {normalizedValue};");
+                    
+                    // Only add blank line between defines, not after the last one
+                    if (i < interfaceClass.HeaderDefines.Count - 1)
+                    {
+                        sb.AppendLine();
+                    }
+                }
+                
+                sb.AppendLine("}");
+                
+                // Write the file
+                var definesFileName = Path.Combine(outputDirectory, $"{definesClassName}.cs");
+                WriteFileToDirectory(definesFileName, sb.ToString(), definesClassName);
+            }
+            
+            return generatedDefinesClassName;
+        }
+
         private void GenerateFileContent(StringBuilder sb, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines, string fileName, bool isPartialFile, List<CppMethod>? partialMethods = null)
         {
             if (isPartialFile)
@@ -407,11 +512,8 @@ namespace CppToCsConverter.Core.Core
                     
                     if (cppClass.IsInterface)
                     {
-                        // Generate interface without extension methods first
-                        GenerateInterfaceInline(sb, cppClass);
-                        
-                        // Generate extension class for static methods if any exist
-                        GenerateExtensionClassIfNeeded(sb, cppClass, parsedSources);
+                        // Generate interface with Create attribute if applicable
+                        GenerateInterfaceInline(sb, cppClass, parsedSources);
                     }
                     else
                     {
@@ -479,7 +581,7 @@ namespace CppToCsConverter.Core.Core
             return classMethodCounts.First().Class;
         }
 
-        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string sourceDirectory, Dictionary<string, List<CppDefine>>? sourceDefines = null, Dictionary<string, List<string>>? sourceFileTopComments = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null)
+        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string sourceDirectory, Dictionary<string, List<CppDefine>>? sourceDefines = null, Dictionary<string, List<string>>? sourceFileTopComments = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null, List<string>? definesClasses = null)
         {
             var sb = new StringBuilder();
             
@@ -487,7 +589,7 @@ namespace CppToCsConverter.Core.Core
             bool containsOnlyInterfaces = classes.All(c => c.IsInterface);
             
             AddFileTopComments(sb, fileName, sourceFileTopComments);
-            AddUsingStatements(sb, containsOnlyInterfaces);
+            AddUsingStatements(sb, containsOnlyInterfaces, definesClasses, sourceDirectory);
             AddNamespace(sb, fileName, sourceDirectory);
             GenerateFileContent(sb, classes, parsedSources, staticMemberInits, sourceDefines, fileName, isPartialFile, partialMethods);
             
@@ -1198,12 +1300,88 @@ namespace CppToCsConverter.Core.Core
             return result.ToString();
         }
 
-        private void GenerateInterfaceInline(StringBuilder sb, CppClass cppInterface)
+        private string? ResolveImplementingClassFromFactory(CppClass cppInterface, Dictionary<string, List<CppMethod>> parsedSources)
+        {
+            // Look for static factory method (e.g., GetInstance, CreateInstance, etc.)
+            var staticFactoryMethod = cppInterface.Methods
+                .FirstOrDefault(m => m.IsStatic && m.AccessSpecifier == AccessSpecifier.Public);
+
+            if (staticFactoryMethod == null)
+                return null;
+
+            // Find implementation in source files
+            var allSourceMethods = parsedSources.Values.SelectMany(methods => methods).ToList();
+            var implementation = allSourceMethods.FirstOrDefault(impl =>
+                impl.ClassName == cppInterface.Name &&
+                impl.Name == staticFactoryMethod.Name &&
+                !string.IsNullOrEmpty(impl.ImplementationBody));
+
+            if (implementation == null || string.IsNullOrEmpty(implementation.ImplementationBody))
+                return null;
+
+            // Parse the implementation body to find the implementing class
+            // Look for patterns like: CSample* pSample = new CSample();
+            // or: return new CSample();
+            var body = implementation.ImplementationBody;
+            
+            // Pattern 1: new ClassName()
+            var newPattern = new System.Text.RegularExpressions.Regex(@"new\s+([A-Z][A-Za-z0-9_]*)\s*\(");
+            var match = newPattern.Match(body);
+            if (match.Success)
+            {
+                return match.Groups[1].Value;
+            }
+
+            // Pattern 2: ClassName* variable = new ClassName()
+            var declarationPattern = new System.Text.RegularExpressions.Regex(@"([A-Z][A-Za-z0-9_]*)\s*\*\s*\w+\s*=\s*new\s+([A-Z][A-Za-z0-9_]*)\s*\(");
+            match = declarationPattern.Match(body);
+            if (match.Success)
+            {
+                return match.Groups[2].Value;
+            }
+
+            return null;
+        }
+
+        private void GenerateInterfaceInline(StringBuilder sb, CppClass cppInterface, Dictionary<string, List<CppMethod>> parsedSources)
         {
             // Generate just the interface part (without extension methods)
             var accessibility = cppInterface.IsPublicExport ? "public" : "internal";
+            
+            // Add Create attribute for public interfaces with resolved implementing class
+            if (cppInterface.IsPublicExport)
+            {
+                var implementingClass = ResolveImplementingClassFromFactory(cppInterface, parsedSources);
+                if (!string.IsNullOrEmpty(implementingClass))
+                {
+                    sb.AppendLine($"[Create(typeof({implementingClass}))]");
+                }
+            }
+            
             sb.AppendLine($"{accessibility} interface {cppInterface.Name}");
             sb.AppendLine("{");
+
+            // For internal interfaces, include defines in the interface
+            // For public interfaces, defines go to a separate file
+            if (!cppInterface.IsPublicExport && cppInterface.HeaderDefines.Any())
+            {
+                foreach (var define in cppInterface.HeaderDefines)
+                {
+                    // Write preceding comments with proper indentation
+                    foreach (var comment in define.PrecedingComments)
+                    {
+                        sb.AppendLine($"    {comment}");
+                    }
+                    
+                    // Transform the define to a C# const declaration (internal for interface defines)
+                    string constType = define.InferType();
+                    string normalizedValue = define.NormalizeValue();
+                    sb.AppendLine($"    internal const {constType} {define.Name} = {normalizedValue};");
+                }
+                
+                // Add blank line after defines
+                sb.AppendLine();
+            }
 
             // Add methods (skip constructors, destructors, and static methods for interfaces)
             var interfaceMethods = cppInterface.Methods
@@ -1222,71 +1400,6 @@ namespace CppToCsConverter.Core.Core
                 {
                     sb.AppendLine();
                 }
-            }
-
-            sb.AppendLine("}");
-        }
-
-        private void GenerateExtensionClassIfNeeded(StringBuilder sb, CppClass cppInterface, Dictionary<string, List<CppMethod>> parsedSources)
-        {
-            var staticMethods = cppInterface.Methods
-                .Where(m => m.IsStatic && m.AccessSpecifier == AccessSpecifier.Public)
-                .ToList();
-
-            if (!staticMethods.Any())
-                return;
-
-            var allSourceMethods = parsedSources.Values.SelectMany(methods => methods).ToList();
-
-            sb.AppendLine();
-            sb.AppendLine($"public static class {cppInterface.Name}Extensions");
-            sb.AppendLine("{");
-
-            foreach (var staticMethod in staticMethods)
-            {
-                // Find implementation in source files
-                var implementation = allSourceMethods.FirstOrDefault(impl =>
-                    impl.ClassName == cppInterface.Name &&
-                    impl.Name == staticMethod.Name &&
-                    !string.IsNullOrEmpty(impl.ImplementationBody));
-
-                var returnType = ConvertTypeForExtensionMethod(staticMethod.ReturnType ?? "void");
-                var parameters = $"this {cppInterface.Name} instance";
-                
-                if (staticMethod.Parameters.Any())
-                {
-                    var methodParams = string.Join(", ", staticMethod.Parameters.Select(p => GenerateInterfaceParameter(p)));
-                    parameters += ", " + methodParams;
-                }
-
-                sb.AppendLine($"    public static {returnType} {staticMethod.Name}({parameters})");
-                sb.AppendLine("    {");
-
-                // For interface extension methods, provide clean C# factory implementations
-                if (IsFactoryMethod(staticMethod, cppInterface.Name))
-                {
-                    var implementationClassName = GetImplementationClassName(cppInterface.Name);
-                    sb.AppendLine($"        return new {implementationClassName}();");
-                }
-                else if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
-                {
-                    // Use actual implementation body for non-factory methods
-                    // Use IndentationManager for proper context-aware indentation
-                    var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
-                        implementation.ImplementationBody, 
-                        implementation.ImplementationIndentation
-                    );
-                    sb.Append(indentedBody);
-                    sb.AppendLine(); // Ensure line break before closing brace
-                }
-                else
-                {
-                    sb.AppendLine("        // TODO: Implementation not found");
-                    sb.AppendLine("        throw new NotImplementedException();");
-                }
-
-                sb.AppendLine("    }");
-                sb.AppendLine();
             }
 
             sb.AppendLine("}");
@@ -1449,44 +1562,6 @@ namespace CppToCsConverter.Core.Core
             
             // Fall back to just name match if no perfect match found
             return headerMethods.FirstOrDefault(h => h.Name == sourceMethod.Name);
-        }
-
-        private string ConvertTypeForExtensionMethod(string cppType)
-        {
-            // For extension methods, convert C++ pointer types to C# reference types
-            // Remove trailing pointer indicator if present
-            if (cppType.EndsWith("*"))
-            {
-                return cppType.Substring(0, cppType.Length - 1).Trim();
-            }
-            
-            // Return the type as-is if no conversion needed
-            return cppType;
-        }
-
-        private bool IsFactoryMethod(CppMethod method, string interfaceName)
-        {
-            // Check if this is a factory method that returns the interface type
-            // Common patterns: GetInstance, Create, etc.
-            var returnType = ConvertTypeForExtensionMethod(method.ReturnType ?? "");
-            return returnType == interfaceName && 
-                   (method.Name.Contains("Instance") || 
-                    method.Name.Contains("Create") ||
-                    method.Name == "Get" ||
-                    method.Name.StartsWith("Get"));
-        }
-
-        private string GetImplementationClassName(string interfaceName)
-        {
-            // Convert interface name to implementation class name
-            // ISample -> CSample, IMyInterface -> CMyInterface, etc.
-            if (interfaceName.StartsWith("I") && interfaceName.Length > 1 && char.IsUpper(interfaceName[1]))
-            {
-                return "C" + interfaceName.Substring(1);
-            }
-            
-            // Fallback: just prepend C
-            return "C" + interfaceName;
         }
 
         private void GeneratePartialClass(StringBuilder sb, CppClass cppClass, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string fileName)
@@ -1855,7 +1930,7 @@ namespace CppToCsConverter.Core.Core
             return true;
         }
 
-        private void GenerateAdditionalPartialFiles(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory, string sourceDirectory)
+        private void GenerateAdditionalPartialFiles(string fileName, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory, string sourceDirectory, List<string>? definesClasses = null)
         {
             foreach (var cppClass in classes)
             {
@@ -1883,20 +1958,20 @@ namespace CppToCsConverter.Core.Core
                         var methodsForTarget = methodsByTargetFile[targetFile];
                         if (methodsForTarget.Any())
                         {
-                            GeneratePartialClassFile(cppClass, targetFile, methodsForTarget, parsedSources, sourceFileTopComments, outputDirectory, sourceDirectory);
+                            GeneratePartialClassFile(cppClass, targetFile, methodsForTarget, parsedSources, sourceFileTopComments, outputDirectory, sourceDirectory, definesClasses);
                         }
                     }
                 }
             }
         }
 
-        private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory, string sourceDirectory)
+        private void GeneratePartialClassFile(CppClass cppClass, string targetFileName, List<CppMethod> methods, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<string>>? sourceFileTopComments, string outputDirectory, string sourceDirectory, List<string>? definesClasses = null)
         {
             // Use the refactored method to generate and write the partial file
             var classes = new List<CppClass> { cppClass };
             var staticMemberInits = new Dictionary<string, List<CppStaticMemberInit>>();
             
-            GenerateAndWriteFile(targetFileName, outputDirectory, classes, parsedSources, staticMemberInits, sourceDirectory, sourceDefines: null, sourceFileTopComments: sourceFileTopComments, isPartialFile: true, partialMethods: methods);
+            GenerateAndWriteFile(targetFileName, outputDirectory, classes, parsedSources, staticMemberInits, sourceDirectory, sourceDefines: null, sourceFileTopComments: sourceFileTopComments, isPartialFile: true, partialMethods: methods, definesClasses: definesClasses);
         }
     }
 }

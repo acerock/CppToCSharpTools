@@ -56,7 +56,7 @@ public:
                 
                 // Should not contain destructor or static methods in interface
                 Assert.DoesNotContain("~ISample", result);
-                Assert.DoesNotContain("GetInstance", result.Split("Extensions")[0]); // Not in interface part
+                Assert.DoesNotContain("GetInstance", result); // Static methods not in interface or extension class
             }
             finally
             {
@@ -102,9 +102,9 @@ public:
         }
 
         [Fact]
-        public void GenerateInterface_WithStaticMethods_ShouldCreateExtensionsClass()
+        public void GenerateInterface_WithStaticMethods_ShouldNotCreateExtensionsClass()
         {
-            // Arrange - Based on readme.md static method example
+            // Arrange - Based on updated requirement: no extension classes, use Create attribute instead
             var headerContent = @"
 class __declspec(dllexport) ISample
 {
@@ -127,13 +127,12 @@ public:
 
                 var result = _generator.GenerateInterface(interfaceClass);
 
-                // Assert - Should create extensions class for static methods
-                Assert.Contains("public static class ISampleExtensions", result);
-                Assert.Contains("public static ISample GetInstance(", result);
+                // Assert - Should NOT create extensions class anymore
+                Assert.DoesNotContain("ISampleExtensions", result);
+                Assert.DoesNotContain("public static ISample GetInstance(", result);
                 
-                // Static method should not be in the interface definition
-                var interfacePart = result.Split("Extensions")[0];
-                Assert.DoesNotContain("GetInstance", interfacePart);
+                // Static method should not be in the interface definition either
+                Assert.DoesNotContain("GetInstance", result);
             }
             finally
             {

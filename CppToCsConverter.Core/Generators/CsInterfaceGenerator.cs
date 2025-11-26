@@ -26,8 +26,18 @@ namespace CppToCsConverter.Core.Generators
             sb.AppendLine("namespace GeneratedInterfaces;");
             sb.AppendLine();
 
-            // Interface declaration
+            // Add Create attribute for public interfaces with resolved implementing class
             var accessibility = cppInterface.IsPublicExport ? "public" : "internal";
+            if (cppInterface.IsPublicExport && sourceImplementations != null)
+            {
+                var implementingClass = ResolveImplementingClassFromFactory(cppInterface, sourceImplementations);
+                if (!string.IsNullOrEmpty(implementingClass))
+                {
+                    sb.AppendLine($"[Create(typeof({implementingClass}))]");
+                }
+            }
+
+            // Interface declaration
             sb.AppendLine($"{accessibility} interface {cppInterface.Name}");
             sb.AppendLine("{");
 
@@ -45,49 +55,49 @@ namespace CppToCsConverter.Core.Generators
 
             sb.AppendLine("}");
 
-            // Generate extension class for static methods if any exist
-            var staticMethods = cppInterface.Methods
-                .Where(m => m.IsStatic && m.AccessSpecifier == AccessSpecifier.Public)
-                .ToList();
+            return sb.ToString();
+        }
 
-            if (staticMethods.Any())
+        private string? ResolveImplementingClassFromFactory(CppClass cppInterface, List<CppMethod> sourceImplementations)
+        {
+            // Look for static factory method (e.g., GetInstance, CreateInstance, etc.)
+            var staticFactoryMethod = cppInterface.Methods
+                .FirstOrDefault(m => m.IsStatic && m.AccessSpecifier == AccessSpecifier.Public);
+
+            if (staticFactoryMethod == null)
+                return null;
+
+            // Find implementation in source files
+            var implementation = sourceImplementations.FirstOrDefault(impl =>
+                impl.ClassName == cppInterface.Name &&
+                impl.Name == staticFactoryMethod.Name &&
+                !string.IsNullOrEmpty(impl.ImplementationBody));
+
+            if (implementation == null || string.IsNullOrEmpty(implementation.ImplementationBody))
+                return null;
+
+            // Parse the implementation body to find the implementing class
+            // Look for patterns like: CSample* pSample = new CSample();
+            // or: return new CSample();
+            var body = implementation.ImplementationBody;
+            
+            // Pattern 1: new ClassName()
+            var newPattern = new System.Text.RegularExpressions.Regex(@"new\s+([A-Z][A-Za-z0-9_]*)\s*\(");
+            var match = newPattern.Match(body);
+            if (match.Success)
             {
-                sb.AppendLine();
-                sb.AppendLine($"public static class {cppInterface.Name}Extensions");
-                sb.AppendLine("{");
-
-                foreach (var staticMethod in staticMethods)
-                {
-                    // Find implementation in source files
-                    var implementation = sourceImplementations?.FirstOrDefault(impl => 
-                        impl.ClassName == cppInterface.Name && 
-                        impl.Name == staticMethod.Name && 
-                        !string.IsNullOrEmpty(impl.ImplementationBody));
-                    
-                    var methodSignature = GenerateExtensionMethodSignature(cppInterface.Name, staticMethod);
-                    sb.AppendLine($"    {methodSignature}");
-                    sb.AppendLine("    {");
-                    
-                    if (implementation != null && !string.IsNullOrEmpty(implementation.ImplementationBody))
-                    {
-                        // Use actual implementation body
-                        var indentedBody = IndentMethodBody(implementation.ImplementationBody, 2);
-                        sb.Append(indentedBody);
-                    }
-                    else
-                    {
-                        sb.AppendLine("        // TODO: Implementation not found");
-                        sb.AppendLine("        throw new NotImplementedException();");
-                    }
-                    
-                    sb.AppendLine("    }");
-                    sb.AppendLine();
-                }
-
-                sb.AppendLine("}");
+                return match.Groups[1].Value;
             }
 
-            return sb.ToString();
+            // Pattern 2: ClassName* variable = new ClassName()
+            var declarationPattern = new System.Text.RegularExpressions.Regex(@"([A-Z][A-Za-z0-9_]*)\s*\*\s*\w+\s*=\s*new\s+([A-Z][A-Za-z0-9_]*)\s*\(");
+            match = declarationPattern.Match(body);
+            if (match.Success)
+            {
+                return match.Groups[2].Value;
+            }
+
+            return null;
         }
 
         private string GenerateMethodSignature(CppMethod method)
@@ -96,33 +106,6 @@ namespace CppToCsConverter.Core.Generators
             var parameters = string.Join(", ", method.Parameters.Select(GenerateParameter));
 
             return $"{returnType} {method.Name}({parameters})";
-        }
-
-        private string GenerateExtensionMethodSignature(string interfaceName, CppMethod method)
-        {
-            var returnType = ConvertTypeForExtensionMethod(method.ReturnType);
-            var parameters = $"this {interfaceName} instance";
-            
-            if (method.Parameters.Any())
-            {
-                var methodParams = string.Join(", ", method.Parameters.Select(GenerateParameter));
-                parameters += ", " + methodParams;
-            }
-
-            return $"public static {returnType} {method.Name}({parameters})";
-        }
-
-        private string ConvertTypeForExtensionMethod(string cppType)
-        {
-            // For extension methods, convert C++ pointer types to C# reference types
-            // Remove trailing pointer indicator if present
-            if (cppType.EndsWith("*"))
-            {
-                return cppType.Substring(0, cppType.Length - 1).Trim();
-            }
-            
-            // Return the type as-is if no conversion needed
-            return cppType;
         }
 
         private string GenerateParameter(CppParameter param)
@@ -146,30 +129,6 @@ namespace CppToCsConverter.Core.Generators
                 result += " = " + param.DefaultValue;
                 
             return result;
-        }
-        
-        private string IndentMethodBody(string methodBody, int indentLevel)
-        {
-            if (string.IsNullOrEmpty(methodBody))
-                return string.Empty;
-                
-            var lines = methodBody.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
-            var sb = new StringBuilder();
-            var indent = new string(' ', indentLevel * 4);
-            
-            foreach (var line in lines)
-            {
-                if (!string.IsNullOrWhiteSpace(line))
-                {
-                    sb.AppendLine(indent + line.TrimStart());
-                }
-                else
-                {
-                    sb.AppendLine();
-                }
-            }
-            
-            return sb.ToString();
         }
     }
 }
