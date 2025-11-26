@@ -432,6 +432,12 @@ namespace CppToCsConverter.Core.Core
                 {
                     var define = interfaceClass.HeaderDefines[i];
                     
+                    // Add blank line before this define if it has preceding comments AND it's not the first define
+                    if (i > 0 && define.PrecedingComments != null && define.PrecedingComments.Any())
+                    {
+                        sb.AppendLine();
+                    }
+                    
                     // Add preceding comments
                     if (define.PrecedingComments != null && define.PrecedingComments.Any())
                     {
@@ -445,14 +451,9 @@ namespace CppToCsConverter.Core.Core
                     string constType = define.InferType();
                     string normalizedValue = define.NormalizeValue();
                     
-                    // Generate const member as public (override the GetAccessModifier method)
-                    sb.AppendLine($"    public const {constType} {define.Name} = {normalizedValue};");
-                    
-                    // Only add blank line between defines, not after the last one
-                    if (i < interfaceClass.HeaderDefines.Count - 1)
-                    {
-                        sb.AppendLine();
-                    }
+                    // Generate const member as public (with optional postfix comment)
+                    string postfixComment = !string.IsNullOrEmpty(define.PostfixComment) ? $" {define.PostfixComment}" : "";
+                    sb.AppendLine($"    public const {constType} {define.Name} = {normalizedValue};{postfixComment}");
                 }
                 
                 sb.AppendLine("}");
@@ -599,20 +600,28 @@ namespace CppToCsConverter.Core.Core
 
         private void WriteDefineStatementsInline(StringBuilder sb, CppClass cppClass)
         {
-            // Write header defines first
-            foreach (var define in cppClass.HeaderDefines)
-            {
-                WriteCommentsAndDefineInline(sb, define);
-            }
+            var allDefines = new List<CppDefine>();
             
-            // Then source defines (ordered by source file)
-            foreach (var define in cppClass.SourceDefines.OrderBy(d => d.SourceFileName))
+            // Collect all defines in order: header first, then source
+            allDefines.AddRange(cppClass.HeaderDefines);
+            allDefines.AddRange(cppClass.SourceDefines.OrderBy(d => d.SourceFileName));
+            
+            // Write all defines with proper spacing
+            for (int i = 0; i < allDefines.Count; i++)
             {
+                var define = allDefines[i];
+                
+                // Add blank line before this define if it has preceding comments AND it's not the first define
+                if (i > 0 && define.PrecedingComments != null && define.PrecedingComments.Any())
+                {
+                    sb.AppendLine();
+                }
+                
                 WriteCommentsAndDefineInline(sb, define);
             }
             
             // Add a blank line after defines if any were written
-            if (cppClass.HeaderDefines.Any() || cppClass.SourceDefines.Any())
+            if (allDefines.Any())
             {
                 sb.AppendLine();
             }
@@ -1377,7 +1386,10 @@ namespace CppToCsConverter.Core.Core
                     // Transform the define to a C# const declaration (internal for interface defines)
                     string constType = define.InferType();
                     string normalizedValue = define.NormalizeValue();
-                    sb.AppendLine($"    internal const {constType} {define.Name} = {normalizedValue};");
+                    
+                    // Generate const member (with optional postfix comment)
+                    string postfixComment = !string.IsNullOrEmpty(define.PostfixComment) ? $" {define.PostfixComment}" : "";
+                    sb.AppendLine($"    internal const {constType} {define.Name} = {normalizedValue};{postfixComment}");
                 }
                 
                 // Add blank line after defines

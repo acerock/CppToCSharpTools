@@ -22,12 +22,89 @@ This is a C++ to C# structural converter that transforms C++ header (.h) and imp
 - **ALWAYS** run the full test suite after changes to ensure no regressions
 - Use existing test patterns found in `CppToCsConverter.Tests/`
 - Test file naming: `[Feature]Tests.cs` (e.g., `InterfaceGenerationTests.cs`)
-- Current test count: 449+ tests - all must pass
+- Current test count: 467+ tests - all must pass
 
 ### Code Organization
 - **Core Library**: `CppToCsConverter.Core/` - API and core conversion logic
 - **CLI Tool**: `CppToCsConverter/` - Command-line interface
 - **Tests**: `CppToCsConverter.Tests/` - Comprehensive test suite
+
+### Test Data and Working Folders
+- **SamplesAndExpectations/**: Small, well-defined test cases for development and testing
+  - Contains example .h and .cpp files with known expected outputs
+  - Use this folder for testing during development
+  - Example: `SamplesAndExpectations/ISample.h`, `CSample.h`, etc.
+  
+- **Work/**: Working directory for ad-hoc testing and experiments
+  - Place temporary test files here
+  - Output subdirectories for different test scenarios
+  - Example: `Work/SampleNet/` for output files
+  
+- **d:\Tests\CppToCs/**: **REAL PRODUCTION CODE - DO NOT USE FOR TESTING**
+  - Contains actual production C++ codebase (e.g., AgrLibHS/)
+  - Full conversion pipeline with multiple post-processing steps
+  - Only use for final validation, never for development testing
+
+### CLI Tool Usage
+
+The `CppToCsConverter` CLI tool accepts the following arguments:
+
+#### Basic Syntax
+```bash
+CppToCsConverter <source_directory> [output_directory]
+CppToCsConverter <source_directory> <file1,file2,...> [output_directory]
+```
+
+#### Arguments
+- `source_directory`: Path to folder containing .h and .cpp files (required)
+- `output_directory`: Path where .cs files will be generated (optional, defaults to `<source_directory>/Generated_CS`)
+- `file list`: Comma-separated list of specific files to convert (optional)
+
+#### Usage Examples
+
+**Example 1: Convert all files from SamplesAndExpectations**
+```bash
+dotnet run --project CppToCsConverter -- "D:\BatchNetTools\CppToCSharpTools\SamplesAndExpectations" "D:\BatchNetTools\CppToCSharpTools\Work\Output"
+```
+
+**Example 2: Convert all files with default output location**
+```bash
+dotnet run --project CppToCsConverter -- "D:\BatchNetTools\CppToCSharpTools\SamplesAndExpectations"
+# Output goes to: D:\BatchNetTools\CppToCSharpTools\SamplesAndExpectations\Generated_CS
+```
+
+**Example 3: Convert specific files only**
+```bash
+dotnet run --project CppToCsConverter -- "D:\BatchNetTools\CppToCSharpTools\SamplesAndExpectations" "ISample.h,CSample.h,CSample.cpp"
+# Output goes to: D:\BatchNetTools\CppToCSharpTools\SamplesAndExpectations\Generated_CS
+```
+
+**Example 4: Convert specific files to custom output**
+```bash
+dotnet run --project CppToCsConverter -- "D:\BatchNetTools\CppToCSharpTools\SamplesAndExpectations" "ISample.h,CSample.h,CSample.cpp" "D:\BatchNetTools\CppToCSharpTools\Work\CustomOutput"
+```
+
+**Example 5: Using from tests (common pattern)**
+```csharp
+var api = new CppToCsConverterApi();
+string outputDir = Path.Combine(Path.GetTempPath(), "TestOutput");
+api.ConvertDirectory(
+    sourceDirectory: @"D:\BatchNetTools\CppToCSharpTools\SamplesAndExpectations",
+    outputDirectory: outputDir,
+    specificFiles: null  // or new[] { "ISample.h", "CSample.cpp" }
+);
+```
+
+#### Quick Test Commands
+```bash
+# From solution root - convert samples to Work folder
+dotnet run --project CppToCsConverter -- ".\SamplesAndExpectations" ".\Work\TestOutput"
+
+# Check generated output
+Get-Content ".\Work\TestOutput\ISample.cs"
+Get-Content ".\Work\TestOutput\SampleDefines.cs"
+Get-Content ".\Work\TestOutput\CSample.cs"
+```
 
 ### Key Architectural Patterns
 
@@ -180,6 +257,7 @@ public void Feature_Scenario_ExpectedBehavior()
 6. Update this file if patterns change
 
 ### Recent Major Fixes
+- Postfix comment preservation for #define statements (added `PostfixComment` property to `CppDefine` model)
 - Empty method body handling with `HasResolvedImplementation` flag
 - Blank line generation using indexed for loops
 - Partial class blank line handling (main file + partial files)
@@ -193,7 +271,7 @@ public void Feature_Scenario_ExpectedBehavior()
 4. Ask the user before making assumptions
 
 ## Success Criteria
-- All 449+ tests passing
+- All 467+ tests passing
 - No regression in existing functionality  
 - Generated C# files match patterns in readme.md
 - Code follows established architectural patterns

@@ -112,10 +112,35 @@ namespace CppToCsConverter.Core.Parsers
                         // Collect comments before the define
                         var precedingComments = CollectPrecedingComments(lines, i);
                         
+                        // Extract postfix comment from value (e.g., "2 // comment" -> value="2", comment="// comment")
+                        string rawValue = defineMatch.Groups[2].Value.Trim();
+                        string cleanValue = rawValue;
+                        string postfixComment = string.Empty;
+                        
+                        // Check for // comments
+                        int slashCommentIndex = rawValue.IndexOf("//");
+                        if (slashCommentIndex >= 0)
+                        {
+                            postfixComment = rawValue.Substring(slashCommentIndex).Trim();
+                            cleanValue = rawValue.Substring(0, slashCommentIndex).Trim();
+                        }
+                        
+                        // Check for /* */ comments (only if no // comment found)
+                        if (string.IsNullOrEmpty(postfixComment))
+                        {
+                            int blockCommentIndex = rawValue.IndexOf("/*");
+                            if (blockCommentIndex >= 0)
+                            {
+                                postfixComment = rawValue.Substring(blockCommentIndex).Trim();
+                                cleanValue = rawValue.Substring(0, blockCommentIndex).Trim();
+                            }
+                        }
+                        
                         var define = new CppDefine
                         {
                             Name = defineMatch.Groups[1].Value,
-                            Value = defineMatch.Groups[2].Value.Trim(),
+                            Value = cleanValue,
+                            PostfixComment = postfixComment,
                             FullDefinition = line,
                             PrecedingComments = precedingComments,
                             SourceFileName = fileName,

@@ -9,6 +9,7 @@ namespace CppToCsConverter.Core.Models
         public string Value { get; set; } = string.Empty;
         public string FullDefinition { get; set; } = string.Empty; // "#define NAME value"
         public List<string> PrecedingComments { get; set; } = new List<string>();
+        public string PostfixComment { get; set; } = string.Empty; // Comment after the value
         public string SourceFileName { get; set; } = string.Empty; // Track which file it came from
         public bool IsFromHeader { get; set; } = false; // True if from .h file, false if from .cpp file
         
