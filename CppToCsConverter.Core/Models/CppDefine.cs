@@ -12,6 +12,7 @@ namespace CppToCsConverter.Core.Models
         public string PostfixComment { get; set; } = string.Empty; // Comment after the value
         public string SourceFileName { get; set; } = string.Empty; // Track which file it came from
         public bool IsFromHeader { get; set; } = false; // True if from .h file, false if from .cpp file
+        public int OrderIndex { get; set; } // Position in file relative to other elements
         
         /// <summary>
         /// Infers the C# type from the define value.

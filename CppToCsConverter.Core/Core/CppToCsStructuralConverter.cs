@@ -139,6 +139,7 @@ namespace CppToCsConverter.Core.Core
             var sourceDefines = new Dictionary<string, List<CppDefine>>();
             var sourceFileTopComments = new Dictionary<string, List<string>>();
             var sourceStructs = new Dictionary<string, List<CppStruct>>();
+            var sourceRegions = new Dictionary<string, List<CppRegion>>();
             foreach (var sourceFile in sourceFiles)
             {
                 Console.WriteLine($"Parsing source: {Path.GetFileName(sourceFile)}");
@@ -159,6 +160,7 @@ namespace CppToCsConverter.Core.Core
                 sourceDefines[fileName] = sourceFileData.Defines;
                 sourceFileTopComments[fileName] = sourceFileData.FileTopComments;
                 sourceStructs[fileName] = sourceFileData.Structs;
+                sourceRegions[fileName] = sourceFileData.Regions;
                 
                 // Log found structs
                 foreach (var structDef in sourceFileData.Structs)
@@ -264,7 +266,7 @@ namespace CppToCsConverter.Core.Core
                 GenerateDefinesFilesForPublicInterfaces(fileName, outputDirectory, classes, sourceDirectory);
                 
                 // Generate main C# file
-                GenerateAndWriteFile(fileName, outputDirectory, classes, parsedSources, staticMemberInits, sourceDirectory, sourceDefines, sourceFileTopComments, isPartialFile: false, partialMethods: null, definesClasses: generatedDefinesClasses);
+                GenerateAndWriteFile(fileName, outputDirectory, classes, parsedSources, staticMemberInits, sourceDirectory, sourceDefines, sourceRegions, sourceFileTopComments, isPartialFile: false, partialMethods: null, definesClasses: generatedDefinesClasses);
                 
                 // Generate additional partial class files for classes that need them
                 GenerateAdditionalPartialFiles(fileName, classes, parsedSources, staticMemberInits, sourceFileTopComments, outputDirectory, sourceDirectory, generatedDefinesClasses);
@@ -466,7 +468,7 @@ namespace CppToCsConverter.Core.Core
             return generatedDefinesClassName;
         }
 
-        private void GenerateFileContent(StringBuilder sb, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines, string fileName, bool isPartialFile, List<CppMethod>? partialMethods = null)
+        private void GenerateFileContent(StringBuilder sb, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, Dictionary<string, List<CppDefine>>? sourceDefines, Dictionary<string, List<CppRegion>>? sourceRegions, string fileName, bool isPartialFile, List<CppMethod>? partialMethods = null)
         {
             if (isPartialFile)
             {
@@ -479,17 +481,63 @@ namespace CppToCsConverter.Core.Core
                     sb.AppendLine($"{classAccessModifier} partial class {cppClass.Name}");
                     sb.AppendLine("{");
 
-                    // Generate methods for this partial file
+                    // Generate methods with regions interspersed for this partial file
                     if (partialMethods != null && partialMethods.Any())
                     {
-                        for (int i = 0; i < partialMethods.Count; i++)
+                        // Merge methods and regions by OrderIndex for correct ordering
+                        var orderedElements = new List<(int order, string type, object element)>();
+                        
+                        // Add methods with their OrderIndex
+                        foreach (var method in partialMethods)
                         {
-                            GenerateMethodForPartialClass(sb, partialMethods[i], cppClass.Name, parsedSources, "    "); // 4 spaces for partial files
+                            orderedElements.Add((method.OrderIndex, "method", method));
+                        }
+                        
+                        // Add regions from same source file(s) as these methods
+                        var sourceFileNames = partialMethods.Select(m => m.TargetFileName ?? fileName).Distinct().ToList();
+                        foreach (var region in cppClass.Regions.Where(r => !r.IsFromHeader && sourceFileNames.Contains(r.SourceFileName)))
+                        {
+                            orderedElements.Add((region.OrderIndex, "region", region));
+                        }
+                        
+                        // Sort by OrderIndex to maintain file order
+                        orderedElements = orderedElements.OrderBy(e => e.order).ToList();
+
+                        // Write elements in order
+                        for (int elementIndex = 0; elementIndex < orderedElements.Count; elementIndex++)
+                        {
+                            var (order, type, element) = orderedElements[elementIndex];
                             
-                            // Only add blank line between methods, not after the last one
-                            if (i < partialMethods.Count - 1)
+                            if (type == "region")
                             {
-                                sb.AppendLine();
+                                var region = (CppRegion)element;
+                                if (region.IsStart)
+                                {
+                                    sb.AppendLine();
+                                    sb.AppendLine($"    {region.Text}");
+                                    sb.AppendLine(); // Blank line after region start
+                                }
+                                else
+                                {
+                                    sb.AppendLine();
+                                    sb.AppendLine($"    {region.Text}");
+                                }
+                            }
+                            else if (type == "method")
+                            {
+                                var method = (CppMethod)element;
+                                GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources, "    "); // 4 spaces for partial files
+                                
+                                // Only add blank line between elements, not after the last one
+                                // Check if next element is a method (regions handle their own spacing)
+                                if (elementIndex < orderedElements.Count - 1)
+                                {
+                                    var nextElement = orderedElements[elementIndex + 1];
+                                    if (nextElement.type == "method")
+                                    {
+                                        sb.AppendLine();
+                                    }
+                                }
                             }
                         }
                     }
@@ -500,7 +548,7 @@ namespace CppToCsConverter.Core.Core
             else
             {
                 // Associate source defines with classes before generation
-                AssociateSourceDefinesWithClasses(classes, parsedSources, sourceDefines);
+                AssociateSourceDefinesWithClasses(classes, parsedSources, sourceDefines, sourceRegions);
 
                 // Generate each class in the file (structs are now classes with IsStruct=true)
                 for (int i = 0; i < classes.Count; i++)
@@ -524,7 +572,7 @@ namespace CppToCsConverter.Core.Core
             }
         }
 
-        private void AssociateSourceDefinesWithClasses(List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppDefine>>? sourceDefines)
+        private void AssociateSourceDefinesWithClasses(List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppDefine>>? sourceDefines, Dictionary<string, List<CppRegion>>? sourceRegions = null)
         {
             if (sourceDefines == null || !sourceDefines.Any())
                 return;
@@ -548,6 +596,30 @@ namespace CppToCsConverter.Core.Core
                 if (targetClass != null)
                 {
                     targetClass.SourceDefines.AddRange(definesForThisFile);
+                }
+            }
+            
+            // Merge source file regions into classes
+            if (sourceRegions != null && sourceRegions.Any())
+            {
+                foreach (var sourceFileName in sourceRegions.Keys)
+                {
+                    var regionsForThisFile = sourceRegions[sourceFileName];
+                    if (!regionsForThisFile.Any())
+                        continue;
+                    
+                    // Find methods from this source file to determine which class gets the regions
+                    var methods = parsedSources.ContainsKey(sourceFileName) ? parsedSources[sourceFileName] : new List<CppMethod>();
+                    if (!methods.Any())
+                        continue;
+                    
+                    // Use same strategy as defines to find the target class
+                    var targetClass = DetermineTargetClassForSourceDefines(classes, methods, sourceFileName);
+                    
+                    if (targetClass != null)
+                    {
+                        targetClass.Regions.AddRange(regionsForThisFile);
+                    }
                 }
             }
         }
@@ -581,7 +653,7 @@ namespace CppToCsConverter.Core.Core
             return classMethodCounts.First().Class;
         }
 
-        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string sourceDirectory, Dictionary<string, List<CppDefine>>? sourceDefines = null, Dictionary<string, List<string>>? sourceFileTopComments = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null, List<string>? definesClasses = null)
+        private void GenerateAndWriteFile(string fileName, string outputDirectory, List<CppClass> classes, Dictionary<string, List<CppMethod>> parsedSources, Dictionary<string, List<CppStaticMemberInit>> staticMemberInits, string sourceDirectory, Dictionary<string, List<CppDefine>>? sourceDefines = null, Dictionary<string, List<CppRegion>>? sourceRegions = null, Dictionary<string, List<string>>? sourceFileTopComments = null, bool isPartialFile = false, List<CppMethod>? partialMethods = null, List<string>? definesClasses = null)
         {
             var sb = new StringBuilder();
             
@@ -591,7 +663,7 @@ namespace CppToCsConverter.Core.Core
             AddFileTopComments(sb, fileName, sourceFileTopComments);
             AddUsingStatements(sb, containsOnlyInterfaces, definesClasses, sourceDirectory);
             AddNamespace(sb, fileName, sourceDirectory);
-            GenerateFileContent(sb, classes, parsedSources, staticMemberInits, sourceDefines, fileName, isPartialFile, partialMethods);
+            GenerateFileContent(sb, classes, parsedSources, staticMemberInits, sourceDefines, sourceRegions, fileName, isPartialFile, partialMethods);
             
             // Write the file
             var csFileName = Path.Combine(outputDirectory, $"{fileName}.cs");
@@ -904,93 +976,137 @@ namespace CppToCsConverter.Core.Core
                 sb.AppendLine();
             }
 
-            // Add method implementations from source files - preserve C++ code exactly as-is
-
-            for (int methodIndex = 0; methodIndex < relatedMethods.Count; methodIndex++)
+            // Add method implementations from source files with regions interspersed
+            // Merge methods and regions by OrderIndex for correct ordering
+            var orderedElements = new List<(int order, string type, object element)>();
+            
+            // Add methods with their OrderIndex
+            for (int i = 0; i < relatedMethods.Count; i++)
             {
-                var method = relatedMethods[methodIndex];
-                // Debug for TrickyToMatch
-                if (method.Name == "TrickyToMatch")
-                {
+                orderedElements.Add((relatedMethods[i].OrderIndex, "method", relatedMethods[i]));
+            }
+            
+            // Add regions from the same source file(s) as the methods
+            // For non-partial classes: fileName is the class name (e.g., "CSample")
+            // Regions from source files have SourceFileName matching the file they came from
+            var sourceFileNames = relatedMethods.Select(m => m.TargetFileName ?? fileName).Distinct().ToList();
+            foreach (var region in cppClass.Regions.Where(r => !r.IsFromHeader && sourceFileNames.Contains(r.SourceFileName)))
+            {
+                orderedElements.Add((region.OrderIndex, "region", region));
+            }
+            
+            // Sort by OrderIndex to maintain file order
+            orderedElements = orderedElements.OrderBy(e => e.order).ToList();
 
-                }
-
-                // Add source region start (from .cpp file - preserved as region)
-                if (!string.IsNullOrEmpty(method.SourceRegionStart))
-                {
-                    sb.AppendLine();
-                    sb.AppendLine($"        {method.SourceRegionStart}");
-                    sb.AppendLine();
-                }
-
-                // Find corresponding header declaration to get access modifier and default values
-                var headerMethod = FindMatchingHeaderMethod(cppClass.Methods, method);
+            // Write elements in order
+            for (int elementIndex = 0; elementIndex < orderedElements.Count; elementIndex++)
+            {
+                var (order, type, element) = orderedElements[elementIndex];
                 
-                // Add header region start (from .h file - converted to comment)
-                if (headerMethod != null && !string.IsNullOrEmpty(headerMethod.HeaderRegionStart))
+                if (type == "region")
                 {
-                    sb.AppendLine();
-                    sb.AppendLine($"        {headerMethod.HeaderRegionStart}");
-                    sb.AppendLine();
-                }
-
-                // Add comments from .h file
-                if (headerMethod != null && headerMethod.HeaderComments.Any())
-                {
-                    foreach (var comment in headerMethod.HeaderComments)
+                    var region = (CppRegion)element;
+                    if (region.IsStart)
                     {
-                        sb.AppendLine($"        {comment}");
+                        sb.AppendLine();
+                        sb.AppendLine($"    {region.Text}");
+                    }
+                    else
+                    {
+                        sb.AppendLine();
+                        sb.AppendLine($"    {region.Text}");
                     }
                 }
-
-                // Add comments from .cpp file
-                if (method.SourceComments.Any())
+                else if (type == "method")
                 {
-                    foreach (var comment in method.SourceComments)
+                    var method = (CppMethod)element;
+                    
+                    // Debug for TrickyToMatch
+                    if (method.Name == "TrickyToMatch")
                     {
-                        sb.AppendLine($"        {comment}");
+
+                    }
+
+                    // Find corresponding header declaration to get access modifier and default values
+                    var headerMethod = FindMatchingHeaderMethod(cppClass.Methods, method);
+                    
+                    // Add header region start (from .h file - converted to comment)
+                    if (headerMethod != null && !string.IsNullOrEmpty(headerMethod.HeaderRegionStart))
+                    {
+                        sb.AppendLine();
+                        sb.AppendLine($"    {headerMethod.HeaderRegionStart}");
+                        sb.AppendLine();
+                    }
+
+                    // Add comments from .h file
+                    if (headerMethod != null && headerMethod.HeaderComments.Any())
+                    {
+                        foreach (var comment in headerMethod.HeaderComments)
+                        {
+                            sb.AppendLine($"    {comment}");
+                        }
+                    }
+
+                    // Add comments from .cpp file
+                    if (method.SourceComments.Any())
+                    {
+                        foreach (var comment in method.SourceComments)
+                        {
+                            sb.AppendLine($"    {comment}");
+                        }
+                    }
+
+                    var accessModifier = headerMethod != null ? ConvertAccessSpecifier(headerMethod.AccessSpecifier) : 
+                                        (method.IsLocalMethod ? ConvertAccessSpecifier(method.AccessSpecifier) : "public");
+                    var staticModifier = method.IsStatic ? "static " : "";
+                    var virtualModifier = method.IsVirtual ? "virtual " : "";
+                    var returnType = method.IsConstructor || method.IsDestructor ? "" : method.ReturnType + " ";
+                    
+                    var parametersWithDefaults = MergeParametersWithDefaults(method.Parameters, headerMethod?.Parameters);
+                    
+                    // Use comment-aware method signature generation (same as other paths)
+                    GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType, method.Name, parametersWithDefaults, "    ");
+                    sb.AppendLine("    {");
+                    
+                    // Debug for TrickyToMatch
+                    if (method.Name == "TrickyToMatch")
+                    {
+
+                    }
+                    
+                    if (!string.IsNullOrEmpty(method.ImplementationBody))
+                    {
+                        // Include the original C++ implementation body with proper indentation
+                        // Use 8 spaces since .cpp method bodies already have indentation
+                        // Use IndentationManager for proper context-aware indentation
+                        var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
+                            method.ImplementationBody, 
+                            method.ImplementationIndentation
+                        );
+                        sb.Append(indentedBody);
+                        sb.AppendLine(); // Ensure line break before closing brace
+                    }
+                    
+                    sb.AppendLine("    }");
+                    
+                    // Add header region end (from .h file - converted to comment)
+                    if (headerMethod != null && !string.IsNullOrEmpty(headerMethod.HeaderRegionEnd))
+                    {
+                        sb.AppendLine();
+                        sb.AppendLine($"    {headerMethod.HeaderRegionEnd}");
+                    }
+                    
+                    // Only add blank line between elements, not after the last one
+                    // Check if next element is a method (regions handle their own spacing)
+                    if (elementIndex < orderedElements.Count - 1)
+                    {
+                        var nextElement = orderedElements[elementIndex + 1];
+                        if (nextElement.type == "method")
+                        {
+                            sb.AppendLine();
+                        }
                     }
                 }
-
-                var accessModifier = headerMethod != null ? ConvertAccessSpecifier(headerMethod.AccessSpecifier) : 
-                                    (method.IsLocalMethod ? ConvertAccessSpecifier(method.AccessSpecifier) : "public");
-                var staticModifier = method.IsStatic ? "static " : "";
-                var virtualModifier = method.IsVirtual ? "virtual " : "";
-                var returnType = method.IsConstructor || method.IsDestructor ? "" : method.ReturnType + " ";
-                
-                var parametersWithDefaults = MergeParametersWithDefaults(method.Parameters, headerMethod?.Parameters);
-                
-                // Use comment-aware method signature generation (same as other paths)
-                GenerateMethodSignatureWithComments(sb, accessModifier, staticModifier, virtualModifier, returnType, method.Name, parametersWithDefaults, "    ");
-                sb.AppendLine("    {");
-                
-                // Debug for TrickyToMatch
-                if (method.Name == "TrickyToMatch")
-                {
-
-                }
-                
-                if (!string.IsNullOrEmpty(method.ImplementationBody))
-                {
-                    // Include the original C++ implementation body with proper indentation
-                    // Use 8 spaces since .cpp method bodies already have indentation
-                    // Use IndentationManager for proper context-aware indentation
-                    var indentedBody = CppToCsConverter.Core.Utils.IndentationManager.ReindentMethodBody(
-                        method.ImplementationBody, 
-                        method.ImplementationIndentation
-                    );
-                    sb.Append(indentedBody);
-                    sb.AppendLine(); // Ensure line break before closing brace
-                }
-                
-                sb.AppendLine("    }");
-                
-                // Only add blank line between methods, not after the last one
-                if (methodIndex < relatedMethods.Count - 1)
-                {
-                    sb.AppendLine();
-                }
-
             }
 
             sb.AppendLine("}");
@@ -1647,20 +1763,68 @@ namespace CppToCsConverter.Core.Core
                     sb.AppendLine();
                 }
                 
-                // Second: Generate methods with source implementation in source file order
+                // Second: Generate methods with source implementation in source file order, interspersed with regions
                 var sourceMethods = methodsForMainFile.Where(m => 
                     m.TargetFileName == fileName && !m.HasInlineImplementation)
                     .OrderBy(m => m.OrderIndex) // Order by source file order
                     .ToList();
                 
-                for (int i = 0; i < sourceMethods.Count; i++)
+                if (sourceMethods.Any())
                 {
-                    GenerateMethodForPartialClass(sb, sourceMethods[i], cppClass.Name, parsedSources, "    "); // 4 spaces for file-scoped namespaces
+                    // Merge methods and regions by OrderIndex for correct ordering
+                    var orderedElements = new List<(int order, string type, object element)>();
                     
-                    // Add blank line between source methods, not after the last one
-                    if (i < sourceMethods.Count - 1)
+                    // Add methods with their OrderIndex
+                    foreach (var method in sourceMethods)
                     {
-                        sb.AppendLine();
+                        orderedElements.Add((method.OrderIndex, "method", method));
+                    }
+                    
+                    // Add regions from main source file
+                    foreach (var region in cppClass.Regions.Where(r => !r.IsFromHeader && r.SourceFileName == fileName))
+                    {
+                        orderedElements.Add((region.OrderIndex, "region", region));
+                    }
+                    
+                    // Sort by OrderIndex to maintain file order
+                    orderedElements = orderedElements.OrderBy(e => e.order).ToList();
+
+                    // Write elements in order
+                    for (int elementIndex = 0; elementIndex < orderedElements.Count; elementIndex++)
+                    {
+                        var (order, type, element) = orderedElements[elementIndex];
+                        
+                        if (type == "region")
+                        {
+                            var region = (CppRegion)element;
+                            if (region.IsStart)
+                            {
+                                sb.AppendLine();
+                                sb.AppendLine($"    {region.Text}");
+                                sb.AppendLine(); // Blank line after region start
+                            }
+                            else
+                            {
+                                sb.AppendLine();
+                                sb.AppendLine($"    {region.Text}");
+                            }
+                        }
+                        else if (type == "method")
+                        {
+                            var method = (CppMethod)element;
+                            GenerateMethodForPartialClass(sb, method, cppClass.Name, parsedSources, "    "); // 4 spaces for file-scoped namespaces
+                            
+                            // Only add blank line between elements, not after the last one
+                            // Check if next element is a method (regions handle their own spacing)
+                            if (elementIndex < orderedElements.Count - 1)
+                            {
+                                var nextElement = orderedElements[elementIndex + 1];
+                                if (nextElement.type == "method")
+                                {
+                                    sb.AppendLine();
+                                }
+                            }
+                        }
                     }
                 }
             }

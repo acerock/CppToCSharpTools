@@ -20,6 +20,8 @@ public:
     }
 };
 
+#region Constructors
+
 CPartialSample::CPartialSample()
 {
     m_value1 = 0;
@@ -34,9 +36,15 @@ CPartialSample::~CPartialSample()
     // Cleanup code here
 };
 
+#endregion
+
+#region Methods
+
 StructOne* CPartialSample::MethodOne(const CString& cParam1,
                    const bool &bParam2,
                    CString *pcParam3)
 {
     // Implementation of MethodOne
 }
+
+#pragma endregion

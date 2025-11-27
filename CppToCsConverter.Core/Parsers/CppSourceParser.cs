@@ -27,7 +27,7 @@ namespace CppToCsConverter.Core.Parsers
             @"(?:(const)\s+)?(?:(\w+)\s+)?(\w+)\s*::\s*(\w+)(?:\s*\[\s*\])?(?:\s*\[\s*(\d*)\s*\])?\s*=\s*([^;]+);", 
             RegexOptions.Compiled);
 
-        private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
+        private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#(?:pragma\s+)?(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
         private readonly Regex _defineRegex = new Regex(@"^\s*#define\s+(\w+)(?:\s+(.*))?$", RegexOptions.Compiled);
 
         public CppSourceParser(ILogger? logger = null)
@@ -78,6 +78,9 @@ namespace CppToCsConverter.Core.Parsers
                 
                 // Add comments and regions to the parsed methods
                 AddCommentsAndRegionsToMethods(lines, sourceFile.Methods);
+                
+                // Parse region markers as standalone elements
+                sourceFile.Regions.AddRange(ParseRegionMarkers(lines, sourceFile.FileName));
                 
                 // Parse static member initializations
                 sourceFile.StaticMemberInits.AddRange(ParseStaticMemberInitializations(content));
@@ -875,16 +878,10 @@ namespace CppToCsConverter.Core.Parsers
                 }
             }
             
-            // Sort by file position and assign new order indices
-            var sortedMethods = methodPositions
-                .OrderBy(mp => mp.position)
-                .Select((mp, index) => new { mp.method, orderIndex = index })
-                .ToList();
-            
-            // Update the OrderIndex for each method
-            foreach (var item in sortedMethods)
+            // Sort by file position and use position as OrderIndex (not sequential index)
+            foreach (var (method, position) in methodPositions)
             {
-                item.method.OrderIndex = item.orderIndex;
+                method.OrderIndex = position; // Use character position for consistent ordering with regions
             }
         }
 
@@ -1099,15 +1096,60 @@ namespace CppToCsConverter.Core.Parsers
                         break;
                     }
                     
-                    // If we hit another method or non-comment line, stop looking
+                    // If we hit another method, this current method is NOT the last one in the region
+                    // So don't assign the endregion to it
                     if (_methodImplementationRegex.IsMatch(line))
                     {
+                        regionEnd = string.Empty; // Clear any found endregion
                         break;
                     }
                 }
             }
             
             return (regionStart, regionEnd);
+        }
+        
+        /// <summary>
+        /// Parse region markers (#region/#endregion) as standalone elements with order index
+        /// </summary>
+        private List<CppRegion> ParseRegionMarkers(string[] lines, string sourceFileName)
+        {
+            var regions = new List<CppRegion>();
+            int charPosition = 0; // Track character position in file
+            
+            for (int i = 0; i < lines.Length; i++)
+            {
+                var line = lines[i];
+                var trimmedLine = line.Trim();
+                
+                if (!string.IsNullOrWhiteSpace(trimmedLine))
+                {
+                    var regionMatch = _pragmaRegionRegex.Match(trimmedLine);
+                    if (regionMatch.Success)
+                    {
+                        var regionType = regionMatch.Groups[1].Value.ToLower();
+                        var description = regionMatch.Groups[2].Success ? regionMatch.Groups[2].Value.Trim() : string.Empty;
+                        
+                        var region = new CppRegion
+                        {
+                            IsStart = regionType == "region",
+                            Text = regionType == "region" 
+                                ? $"#region {description}".Trim()
+                                : $"#endregion{(string.IsNullOrEmpty(description) ? "" : " " + description)}",
+                            OrderIndex = charPosition + line.IndexOf('#'), // Character position in file
+                            SourceFileName = sourceFileName,
+                            IsFromHeader = false
+                        };
+                        
+                        regions.Add(region);
+                    }
+                }
+                
+                // Add line length + newline characters for next iteration
+                charPosition += line.Length + Environment.NewLine.Length;
+            }
+            
+            return regions;
         }
         
         /// <summary>

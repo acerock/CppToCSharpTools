@@ -15,5 +15,6 @@ namespace CppToCsConverter.Core.Models
         public string PostfixComment { get; set; } = string.Empty; // Comment on the same line as member declaration (after the semicolon)
         public string RegionStart { get; set; } = string.Empty; // Region start marker (from .h file - converted to comment)
         public string RegionEnd { get; set; } = string.Empty; // Region end marker (from .h file - converted to comment)
+        public int OrderIndex { get; set; } // Position in file relative to other elements
     }
 }

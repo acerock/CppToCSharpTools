@@ -16,6 +16,7 @@ namespace CppToCsConverter.Core.Models
         public List<string> PrecedingComments { get; set; } = new List<string>(); // Comments before class declaration
         public List<CppDefine> HeaderDefines { get; set; } = new List<CppDefine>(); // Define statements from header file
         public List<CppDefine> SourceDefines { get; set; } = new List<CppDefine>(); // Define statements from source files
+        public List<CppRegion> Regions { get; set; } = new List<CppRegion>(); // Region markers from source files
         
         public AccessSpecifier DefaultAccessSpecifier => IsInterface ? AccessSpecifier.Public : 
                                                           IsStruct ? AccessSpecifier.Internal : 

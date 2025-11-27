@@ -13,5 +13,6 @@ namespace CppToCsConverter.Core.Models
         public List<CppStaticMemberInit> StaticMemberInits { get; set; } = new List<CppStaticMemberInit>();
         public List<CppDefine> Defines { get; set; } = new List<CppDefine>();
         public List<CppStruct> Structs { get; set; } = new List<CppStruct>(); // Structs/classes defined in source file
+        public List<CppRegion> Regions { get; set; } = new List<CppRegion>(); // Region markers from source file
     }
 }

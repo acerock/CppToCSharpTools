@@ -62,8 +62,9 @@ void CSample::MethodOne()
                 Assert.Equal("value", localMethod.Parameters[0].Name);
                 
                 // Check ordering - local method should come first (order in file)
-                Assert.Equal(0, localMethod.OrderIndex);
-                Assert.Equal(1, classMethod.OrderIndex);
+                // OrderIndex now uses character position, so just check that local method has lower index
+                Assert.True(localMethod.OrderIndex < classMethod.OrderIndex, 
+                    $"Local method OrderIndex ({localMethod.OrderIndex}) should be less than class method OrderIndex ({classMethod.OrderIndex})");
             }
             finally
             {
@@ -113,21 +114,23 @@ void CSample::MethodTwo()
                 Assert.Equal(4, sourceFile.Methods.Count);
                 
                 // Verify ordering matches the file
+                // OrderIndex now uses character position, so check relative ordering
                 Assert.Equal("CheckSomeValue", sourceFile.Methods[0].Name);
                 Assert.True(sourceFile.Methods[0].IsLocalMethod);
-                Assert.Equal(0, sourceFile.Methods[0].OrderIndex);
                 
                 Assert.Equal("MethodOne", sourceFile.Methods[1].Name);
                 Assert.False(sourceFile.Methods[1].IsLocalMethod);
-                Assert.Equal(1, sourceFile.Methods[1].OrderIndex);
                 
                 Assert.Equal("CheckSomeValue2", sourceFile.Methods[2].Name);
                 Assert.True(sourceFile.Methods[2].IsLocalMethod);
-                Assert.Equal(2, sourceFile.Methods[2].OrderIndex);
                 
                 Assert.Equal("MethodTwo", sourceFile.Methods[3].Name);
                 Assert.False(sourceFile.Methods[3].IsLocalMethod);
-                Assert.Equal(3, sourceFile.Methods[3].OrderIndex);
+                
+                // Check that OrderIndex increases in file order
+                Assert.True(sourceFile.Methods[0].OrderIndex < sourceFile.Methods[1].OrderIndex);
+                Assert.True(sourceFile.Methods[1].OrderIndex < sourceFile.Methods[2].OrderIndex);
+                Assert.True(sourceFile.Methods[2].OrderIndex < sourceFile.Methods[3].OrderIndex);
             }
             finally
             {

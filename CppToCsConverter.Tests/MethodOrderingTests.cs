@@ -249,12 +249,16 @@ void TestClass::SecondMethod()
                 var sortedMethods = methods.OrderBy(m => m.OrderIndex).ToList();
                 
                 Assert.Equal(3, methods.Count);
+                // OrderIndex now uses character position, so check relative ordering
                 Assert.Equal("ThirdMethod", sortedMethods[0].Name);
-                Assert.Equal(0, sortedMethods[0].OrderIndex);
                 Assert.Equal("FirstMethod", sortedMethods[1].Name);
-                Assert.Equal(1, sortedMethods[1].OrderIndex);
                 Assert.Equal("SecondMethod", sortedMethods[2].Name);
-                Assert.Equal(2, sortedMethods[2].OrderIndex);
+                
+                // Verify OrderIndex increases in file order
+                Assert.True(sortedMethods[0].OrderIndex < sortedMethods[1].OrderIndex,
+                    $"ThirdMethod OrderIndex ({sortedMethods[0].OrderIndex}) should be less than FirstMethod OrderIndex ({sortedMethods[1].OrderIndex})");
+                Assert.True(sortedMethods[1].OrderIndex < sortedMethods[2].OrderIndex,
+                    $"FirstMethod OrderIndex ({sortedMethods[1].OrderIndex}) should be less than SecondMethod OrderIndex ({sortedMethods[2].OrderIndex})");
 
                 // Debug output
                 System.Console.WriteLine("=== PARSED METHODS ORDER ===");
