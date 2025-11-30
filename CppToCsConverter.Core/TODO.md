@@ -1,3 +1,3 @@
-1. All methods generated in interface .cs are void!
+1. ~~All methods generated in interface .cs are void!~~ **RESOLVED** - Return types are correctly preserved. Tested with void, bool, and agrint return types.
 2. All classes/structs found in a .h file with interface need to be public. And internal members need to be public.
 3. 

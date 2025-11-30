@@ -15,7 +15,7 @@ namespace CppToCsConverter.Core.Parsers
         private readonly ILogger _logger;
         private readonly CppParameterParser _parameterParser;
         private readonly Regex _classRegex = new Regex(@"(?:class|struct)\s+(?:__declspec\s*\([^)]+\)\s+)?(\w+)(?:\s*:\s*(?:public|private|protected)\s+(\w+))?", RegexOptions.Compiled);
-        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:(\w+(?:\s*\*|\s*&)?(?:::\w+)?)\s+)?([~]?\w+)\s*\(.*?\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{.*?\})?", RegexOptions.Compiled | RegexOptions.Singleline);
+        private readonly Regex _methodRegex = new Regex(@"(?:(virtual)\s+)?(?:(static)\s+)?(?:((?:const\s+)?\w+(?:::\w+)?[\*&]*)\s+)?([~]?\w+)\s*\(.*?\)(?:\s*(const))?(?:\s*:\s*([^{]*))?(?:\s*=\s*0)?(?:\s*\{.*?\})?", RegexOptions.Compiled | RegexOptions.Singleline);
         private readonly Regex _memberRegex = new Regex(@"^\s*(?:(static)\s+)?(?:(const)\s+)?(\w+(?:\s*\*|\s*&)?)\s+(\w+)(?:\s*\[\s*([^]]*)\s*\])?(?:\s*=\s*([^;]+))?;\s*(.*)$", RegexOptions.Compiled);
         private readonly Regex _accessSpecifierRegex = new Regex(@"^(private|protected|public)\s*:\s*(.*)$", RegexOptions.Compiled);
         private readonly Regex _pragmaRegionRegex = new Regex(@"^\s*#pragma\s+(region|endregion)(?:\s+(.*))?$", RegexOptions.Compiled);
@@ -319,7 +319,12 @@ namespace CppToCsConverter.Core.Parsers
                 {
                     var originalIndex = i;
                     var methodLine = CollectMultiLineMethodDeclaration(lines, ref i);
-                    var methodMatch = _methodRegex.Match(methodLine);
+                    
+                    // Normalize spacing around pointers and references in return type for regex matching
+                    // This converts "CAgrMT *GetMethod" to "CAgrMT* GetMethod" for consistent regex matching
+                    var normalizedMethodLine = NormalizePointerSpacing(methodLine);
+                    
+                    var methodMatch = _methodRegex.Match(normalizedMethodLine);
                     
 
                     
@@ -327,7 +332,8 @@ namespace CppToCsConverter.Core.Parsers
                     {
                         try
                         {
-                            var method = ParseMethod(methodMatch, currentAccess, methodLine, currentClass.Name, fileName);
+                            // Pass BOTH the original and normalized lines so we can extract return type from original
+                            var method = ParseMethod(methodMatch, currentAccess, methodLine, normalizedMethodLine, currentClass.Name, fileName);
                             if (method != null)
                             {
                                 // Collect comments and region markers for method from .h file
@@ -408,17 +414,20 @@ namespace CppToCsConverter.Core.Parsers
             return currentClass;
         }
 
-        private CppMethod? ParseMethod(Match methodMatch, AccessSpecifier currentAccess, string collectedMethodLine, string className, string fileName)
+        private CppMethod? ParseMethod(Match methodMatch, AccessSpecifier currentAccess, string originalMethodLine, string normalizedMethodLine, string className, string fileName)
         {
+            // Extract return type from ORIGINAL line to preserve C++ formatting (spaces before * or &)
+            string returnType = ExtractReturnTypeFromOriginalLine(originalMethodLine, methodMatch.Groups[4].Value);
+            
             var method = new CppMethod
             {
                 Name = methodMatch.Groups[4].Value,
-                ReturnType = methodMatch.Groups[3].Success ? methodMatch.Groups[3].Value.Trim() : "void",
+                ReturnType = returnType,
                 AccessSpecifier = currentAccess,
                 IsVirtual = methodMatch.Groups[1].Success,
                 IsStatic = methodMatch.Groups[2].Success,
                 IsConst = methodMatch.Groups[5].Success,
-                HasInlineImplementation = collectedMethodLine.Contains("{"), // Use string matching for detection
+                HasInlineImplementation = originalMethodLine.Contains("{"), // Use string matching for detection
                 ClassName = className // Fix: Set the ClassName for proper method matching
             };
             
@@ -443,7 +452,7 @@ namespace CppToCsConverter.Core.Parsers
                 method.TargetFileName = fileName;
                 
                 // Extract just the method body content between braces
-                var fullMethod = collectedMethodLine;
+                var fullMethod = originalMethodLine;
                 var openBrace = fullMethod.IndexOf('{');
                 var closeBrace = fullMethod.LastIndexOf('}');
                 
@@ -468,17 +477,17 @@ namespace CppToCsConverter.Core.Parsers
             
             // Always use our balanced parentheses extractor for consistent results
             var methodName = methodMatch.Groups[4].Value;
-            int methodNameIndex = collectedMethodLine.IndexOf(methodName);
+            int methodNameIndex = originalMethodLine.IndexOf(methodName);
             if (methodNameIndex >= 0)
             {
-                parametersString = ExtractBalancedParameters(collectedMethodLine, methodNameIndex);
+                parametersString = ExtractBalancedParameters(originalMethodLine, methodNameIndex);
             }
             
             method.Parameters = ParseParameters(parametersString);
 
             // Check if it's pure virtual by checking the collected method line
             // We can't rely on lines[lineIndex] anymore since we collected multi-line declarations
-            method.IsPureVirtual = collectedMethodLine.Contains("= 0");
+            method.IsPureVirtual = originalMethodLine.Contains("= 0");
 
             return method;
         }
@@ -1735,5 +1744,65 @@ namespace CppToCsConverter.Core.Parsers
             var comments = positionedComments.Select(pc => pc.CommentText).ToList();
             return (cleanText, comments);
         }
+        /// <summary>
+        /// Extracts the return type from the original method line to preserve C++ formatting (spaces before * or &).
+        /// Uses the method name to identify where the return type ends.
+        /// </summary>
+        private string ExtractReturnTypeFromOriginalLine(string originalMethodLine, string methodName)
+        {
+            // Find the method name in the original line
+            int methodNameIndex = originalMethodLine.IndexOf(methodName + "(");
+            if (methodNameIndex == -1)
+                methodNameIndex = originalMethodLine.IndexOf(methodName + " (");
+            
+            if (methodNameIndex == -1)
+                return "void"; // Can't find method name, default to void
+
+            // Extract everything before the method name
+            string beforeMethodName = originalMethodLine.Substring(0, methodNameIndex).Trim();
+
+            // Remove modifiers to get the return type
+            beforeMethodName = System.Text.RegularExpressions.Regex.Replace(beforeMethodName, @"^\s*(virtual|static)\s+", "");
+            beforeMethodName = System.Text.RegularExpressions.Regex.Replace(beforeMethodName, @"^\s*(virtual|static)\s+", ""); // Handle both virtual and static
+
+            beforeMethodName = beforeMethodName.Trim();
+
+            // If nothing left, it's a constructor/destructor (no return type)
+            if (string.IsNullOrWhiteSpace(beforeMethodName) || beforeMethodName.StartsWith("~"))
+                return "void";
+
+            return beforeMethodName;
+        }
+
+
+        /// <summary>
+        /// Normalizes spacing around pointers and references in method declarations to ensure consistent regex matching.
+        /// Converts "Type *method" or "Type * method" to "Type* method" (no space before *, space after)
+        /// Converts "Type &method" or "Type & method" to "Type& method" (no space before &, space after)
+        /// This only applies to return types, not within parameter lists.
+        /// </summary>
+        private string NormalizePointerSpacing(string methodLine)
+        {
+            // Find the opening parenthesis to identify where parameters start
+            int paramStartIndex = methodLine.IndexOf('(');
+            if (paramStartIndex == -1)
+                return methodLine; // No parameters, return as-is
+
+            // Only normalize the part before the parameters (the return type and method name part)
+            string beforeParams = methodLine.Substring(0, paramStartIndex);
+            string fromParams = methodLine.Substring(paramStartIndex);
+
+            // Normalize pointer spacing: "Type *" or "Type * " -> "Type* "
+            // Normalize reference spacing: "Type &" or "Type & " -> "Type& "
+            // Use regex to find type followed by optional spaces, then * or &, then method name
+            beforeParams = System.Text.RegularExpressions.Regex.Replace(
+                beforeParams,
+                @"(\w+)\s+([\*&]+)\s*(\w+)",  // Type, spaces, pointer/ref, optional spaces, methodName
+                "$1$2 $3"  // Type+pointer/ref, space, methodName
+            );
+
+            return beforeParams + fromParams;
+        }
     }
 }
+

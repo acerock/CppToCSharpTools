@@ -928,7 +928,7 @@ namespace CppToCsConverter.Core.Core
                 var accessModifier = ConvertAccessSpecifier(method.AccessSpecifier);
                 var staticModifier = method.IsStatic ? "static " : "";
                 var virtualModifier = method.IsVirtual ? "virtual " : "";
-                var returnType = method.IsConstructor || method.IsDestructor ? "" : method.ReturnType + " ";
+                var returnType = method.IsConstructor || method.IsDestructor ? "" : NormalizePointerSpacingForOutput(method.ReturnType) + " ";
                 
                 if (method.HasInlineImplementation)
                 {
@@ -1267,13 +1267,15 @@ namespace CppToCsConverter.Core.Core
 
         public string FormatCppParameterClean(CppParameter param)
         {
-            // Format parameter without any comments (to avoid duplication)
+            // Format parameter without any comments (to avoid duplication), but normalize pointer/reference spacing
             var result = "";
             
             if (param.IsConst)
                 result += "const ";
-                
-            result += param.Type;
+            
+            // Normalize pointer spacing in the type itself
+            var normalizedType = NormalizePointerSpacingForOutput(param.Type);
+            result += normalizedType;
             
             if (param.IsReference)
                 result += "&";
@@ -1290,13 +1292,15 @@ namespace CppToCsConverter.Core.Core
 
         private string FormatCppParameter(CppParameter param)
         {
-            // Preserve original C++ parameter syntax exactly as-is
+            // Preserve original C++ parameter syntax exactly as-is, but normalize pointer/reference spacing
             var result = "";
             
             if (param.IsConst)
                 result += "const ";
-                
-            result += param.Type;
+            
+            // Normalize pointer spacing in the type itself
+            var normalizedType = NormalizePointerSpacingForOutput(param.Type);
+            result += normalizedType;
             
             if (param.IsReference)
                 result += "&";
@@ -1521,7 +1525,7 @@ namespace CppToCsConverter.Core.Core
             for (int i = 0; i < interfaceMethods.Count; i++)
             {
                 var method = interfaceMethods[i];
-                var returnType = method.ReturnType ?? "void";
+                var returnType = NormalizePointerSpacingForOutput(method.ReturnType ?? "void");
                 var parameters = string.Join(", ", method.Parameters.Select(p => GenerateInterfaceParameter(p)));
                 sb.AppendLine($"    {returnType} {method.Name}({parameters});");
                 // Only add blank line between methods, not after the last one
@@ -1536,13 +1540,15 @@ namespace CppToCsConverter.Core.Core
 
         private string GenerateInterfaceParameter(CppParameter param)
         {
-            // Preserve original C++ parameter syntax exactly as-is
+            // Preserve original C++ parameter syntax exactly as-is, but normalize pointer/reference spacing
             var result = "";
             
             if (param.IsConst)
                 result += "const ";
-                
-            result += param.Type;
+            
+            // Normalize pointer spacing in the type itself (handles cases like "CAgrMT *" in param.Type)
+            var normalizedType = NormalizePointerSpacingForOutput(param.Type);
+            result += normalizedType;
             
             if (param.IsReference)
                 result += "&";
@@ -2149,6 +2155,20 @@ namespace CppToCsConverter.Core.Core
             var staticMemberInits = new Dictionary<string, List<CppStaticMemberInit>>();
             
             GenerateAndWriteFile(targetFileName, outputDirectory, classes, parsedSources, staticMemberInits, sourceDirectory, sourceDefines: null, sourceFileTopComments: sourceFileTopComments, isPartialFile: true, partialMethods: methods, definesClasses: definesClasses);
+        }
+
+        /// <summary>
+        /// Normalizes pointer and reference spacing for C# output.
+        /// Converts "Type *" or "Type &" to "Type*" or "Type&" (no space before operator).
+        /// This allows downstream tools to easily detect and transform pointers/references.
+        /// </summary>
+        private string NormalizePointerSpacingForOutput(string type)
+        {
+            if (string.IsNullOrEmpty(type))
+                return type;
+
+            // Replace " *" with "*" and " &" with "&" 
+            return type.Replace(" *", "*").Replace(" &", "&");
         }
     }
 }

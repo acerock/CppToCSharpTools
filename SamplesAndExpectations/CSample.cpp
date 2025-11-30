@@ -25,7 +25,17 @@ ISample* ISample::GetInstance()
 
 int CSomeClass::GetMemberTwo() const
 {
+    struct tm time;
     /* Sample method body */
+    try
+    {
+        // Something
+    }
+    catch (...)
+    {
+        
+    }
+
     return memberTwo;
 }
      
