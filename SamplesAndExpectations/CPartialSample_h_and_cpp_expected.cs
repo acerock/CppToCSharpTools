@@ -75,7 +75,16 @@ internal partial class CPartialSample
 
     public StructOne* MethodOne(const CString& cParam1, const bool &bParam2, CString *pcParam3)
     {
-        // Implementation of MethodOne
+        try
+        {
+            // Implementation of MethodOne
+            return null;
+        }
+        catch (...)
+        {
+            return null;
+        }
+        return null;
     }
 }
 

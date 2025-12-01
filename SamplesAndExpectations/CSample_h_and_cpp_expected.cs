@@ -48,7 +48,17 @@ internal class CSomeClass
 
     public int GetMemberTwo()
     {
+        struct tm time;
         /* Sample method body */
+        try
+        {
+            // Something
+        }
+        catch (...)
+        {
+            
+        }
+
         return memberTwo;
     }
 }

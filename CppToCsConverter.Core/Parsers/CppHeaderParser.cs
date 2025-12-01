@@ -217,8 +217,12 @@ namespace CppToCsConverter.Core.Parsers
                 var classMatch = _classRegex.Match(line);
                 bool isTypedefStruct = line.TrimStart().StartsWith("typedef struct");
                 
+                // Exclude lines ending with semicolon that are variable declarations (e.g., "struct tm time;")
+                // but not class/struct definitions (which end with "};")
+                bool isVariableDeclaration = line.TrimEnd().EndsWith(";") && !line.TrimEnd().EndsWith("};");
+                
                 // Also check for typedef struct without a name (will get name from closing brace)
-                if ((classMatch.Success || isTypedefStruct) && !inClass)
+                if ((classMatch.Success || isTypedefStruct) && !inClass && !isVariableDeclaration)
                 {
                     // Collect comments before the class/struct declaration
                     var precedingComments = CollectPrecedingComments(lines, i);
@@ -1268,25 +1272,32 @@ namespace CppToCsConverter.Core.Parsers
                 // Check for struct patterns
                 CppStruct? structResult = null;
                 
-                // Pattern 1: struct MyStruct
-                var simpleMatch = _simpleStructRegex.Match(line);
-                if (simpleMatch.Success)
-                {
-                    structResult = ParseSimpleStruct(lines, ref i, simpleMatch.Groups[1].Value);
-                }
+                // Exclude lines ending with semicolon that are variable declarations (e.g., "struct tm time;")
+                // but not struct definitions (which end with "};")
+                bool isVariableDeclaration = line.TrimEnd().EndsWith(";") && !line.TrimEnd().EndsWith("};");
                 
-                // Pattern 2: typedef struct
-                var typedefMatch = _typedefStructRegex.Match(line);
-                if (typedefMatch.Success)
+                if (!isVariableDeclaration)
                 {
-                    structResult = ParseTypedefStruct(lines, ref i);
-                }
-                
-                // Pattern 3: typedef struct MyTag  
-                var typedefTagMatch = _typedefStructTagRegex.Match(line);
-                if (typedefTagMatch.Success)
-                {
-                    structResult = ParseTypedefStructTag(lines, ref i, typedefTagMatch.Groups[1].Value);
+                    // Pattern 1: struct MyStruct
+                    var simpleMatch = _simpleStructRegex.Match(line);
+                    if (simpleMatch.Success)
+                    {
+                        structResult = ParseSimpleStruct(lines, ref i, simpleMatch.Groups[1].Value);
+                    }
+                    
+                    // Pattern 2: typedef struct
+                    var typedefMatch = _typedefStructRegex.Match(line);
+                    if (typedefMatch.Success)
+                    {
+                        structResult = ParseTypedefStruct(lines, ref i);
+                    }
+                    
+                    // Pattern 3: typedef struct MyTag  
+                    var typedefTagMatch = _typedefStructTagRegex.Match(line);
+                    if (typedefTagMatch.Success)
+                    {
+                        structResult = ParseTypedefStructTag(lines, ref i, typedefTagMatch.Groups[1].Value);
+                    }
                 }
 
                 if (structResult != null)
