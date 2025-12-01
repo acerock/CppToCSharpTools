@@ -771,11 +771,13 @@ namespace CppToCsConverter.Core.Parsers
                 if (methodName.Contains("::"))
                     continue;
                 
-                // Skip if method name contains common non-method patterns
+                // Skip if method name contains common non-method patterns (control flow keywords)
                 if (methodName.Equals("if", StringComparison.OrdinalIgnoreCase) ||
                     methodName.Equals("while", StringComparison.OrdinalIgnoreCase) ||
                     methodName.Equals("for", StringComparison.OrdinalIgnoreCase) ||
-                    methodName.Equals("switch", StringComparison.OrdinalIgnoreCase))
+                    methodName.Equals("switch", StringComparison.OrdinalIgnoreCase) ||
+                    methodName.Equals("catch", StringComparison.OrdinalIgnoreCase) ||
+                    methodName.Equals("try", StringComparison.OrdinalIgnoreCase))
                     continue;
                 
                 // Check if this is already found as a class method (to avoid duplicates)

@@ -210,6 +210,45 @@ This sample shows how this starts to build up the structure and content of the C
 }
 ```
 
+## C++ const member variables with initialization
+C++ classes can have const member variables that are initialized at declaration. These members are similar to regular member variables but have the `const` modifier and an initialization value.
+
+Unlike static member initialization (which appears in .cpp files), const members with initialization appear directly in the .h file class declaration.
+
+#### Sample const member variables
+CSample.h
+```
+class CSample : public ISample
+{
+private:
+    // Comment
+    const CString s_cStructFlatType = "N"; // More comment
+
+public:
+    const agrint gs_lStructLevelGLDimensionMin = 1;
+}
+```
+
+Expected CSample.cs
+```
+internal class CSample : ISample
+{
+    // Comment
+    private const CString s_cStructFlatType = "N"; // More comment
+
+    public const agrint gs_lStructLevelGLDimensionMin = 1;
+}
+```
+
+#### Rules for const members
+1. Const members are identified by the `const` keyword before the type in the member declaration
+2. They have an initialization value (` = <value>`) in the same declaration
+3. Access modifiers apply the same way as regular members (private by default, or explicit public/protected)
+4. Preceding comments and postfix comments are preserved
+5. The `const` keyword is preserved in the C# output
+6. The initialization value is preserved as-is (no type conversion)
+7. Order of const members relative to other members is preserved based on their position in the .h file
+
 # C++ source files (.cpp)
 A method can be inline defined (having method body) in the .h file. If not the body is found in a .cpp file with the class scope resolutor (::).
 

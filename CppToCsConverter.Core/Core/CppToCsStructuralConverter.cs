@@ -818,13 +818,20 @@ namespace CppToCsConverter.Core.Core
 
                 var accessModifier = ConvertAccessSpecifier(member.AccessSpecifier);
                 var staticModifier = member.IsStatic ? "static " : "";
+                var constModifier = member.IsConst ? "const " : "";
                 
-                // Check if this static member has an initialization value from source files
+                // Check for initialization value
                 string initialization = "";
-                string memberType = (member.IsConst ? "const " : "") + member.Type;
+                string memberType = member.Type;
                 string memberName = member.Name;
                 
-                if (member.IsStatic)
+                // Priority 1: Const members with initialization from header
+                if (member.IsConst && !string.IsNullOrEmpty(member.InitializationValue))
+                {
+                    initialization = $" = {member.InitializationValue}";
+                }
+                // Priority 2: Static members with initialization from source files
+                else if (member.IsStatic)
                 {
                     var staticInit = staticMemberInits.Values
                         .SelectMany(inits => inits)
@@ -848,6 +855,7 @@ namespace CppToCsConverter.Core.Core
                         initialization = $" = new {member.Type}[{member.ArraySize}]";
                     }
                 }
+                // Priority 3: Array members
                 else if (member.IsArray)
                 {
                     // Non-static array member - provide proper C# initialization
@@ -857,7 +865,7 @@ namespace CppToCsConverter.Core.Core
                 
                 // Include postfix comment if present
                 var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
-                sb.AppendLine($"    {accessModifier} {staticModifier}{memberType} {memberName}{initialization};{postfixComment}");
+                sb.AppendLine($"    {accessModifier} {constModifier}{staticModifier}{memberType} {memberName}{initialization};{postfixComment}");
 
                 // Add region end marker (from .h file, converted to comment)  
                 if (!string.IsNullOrEmpty(member.RegionEnd))

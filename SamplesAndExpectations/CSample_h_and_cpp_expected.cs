@@ -87,6 +87,11 @@ internal class CSample : ISample
 
     private static agrint m_iIndex = -1;
 
+    // Comment
+    private const CString s_cStructFlatType = "N"; // More comment
+
+    public const agrint gs_lStructLevelGLDimensionMin = 1;
+
     public CSample()
     {
         m_value1 = 0;

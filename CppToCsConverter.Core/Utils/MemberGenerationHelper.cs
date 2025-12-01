@@ -49,6 +49,7 @@ namespace CppToCsConverter.Core.Utils
             // Generate access modifier and static modifier
             var accessModifier = accessSpecifierConverter(member.AccessSpecifier);
             var staticModifier = member.IsStatic ? "static " : "";
+            var constModifier = member.IsConst ? "const " : "";
             
             // Handle type and initialization (with static member initialization support)
             var (memberType, initialization) = ProcessMemberTypeAndInitialization(
@@ -58,7 +59,7 @@ namespace CppToCsConverter.Core.Utils
             var postfixComment = string.IsNullOrEmpty(member.PostfixComment) ? "" : $" {member.PostfixComment}";
             
             // Generate the final member declaration line
-            sb.AppendLine($"{baseIndent}{accessModifier} {staticModifier}{memberType} {member.Name}{initialization};{postfixComment}");
+            sb.AppendLine($"{baseIndent}{accessModifier} {constModifier}{staticModifier}{memberType} {member.Name}{initialization};{postfixComment}");
 
             // Handle region end marker
             if (!string.IsNullOrEmpty(member.RegionEnd))
@@ -84,8 +85,13 @@ namespace CppToCsConverter.Core.Utils
             string memberType = member.Type;
             string initialization = "";
 
+            // Handle const member initialization (takes priority)
+            if (member.IsConst && !string.IsNullOrEmpty(member.InitializationValue))
+            {
+                initialization = $" = {member.InitializationValue}";
+            }
             // Handle static member initialization if this is a static member and we have initialization data
-            if (member.IsStatic && staticMemberInits != null && !string.IsNullOrEmpty(className))
+            else if (member.IsStatic && staticMemberInits != null && !string.IsNullOrEmpty(className))
             {
                 var staticInit = staticMemberInits.Values
                     .SelectMany(inits => inits)
@@ -102,9 +108,8 @@ namespace CppToCsConverter.Core.Utils
                     }
                 }
             }
-            
             // Handle array members without static initialization
-            if (member.IsArray && string.IsNullOrEmpty(initialization))
+            else if (member.IsArray && string.IsNullOrEmpty(initialization))
             {
                 memberType = $"{member.Type}[]";
                 initialization = $" = new {member.Type}[{member.ArraySize}]";

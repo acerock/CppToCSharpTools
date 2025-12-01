@@ -31,6 +31,12 @@ class CSomeClass
     // Array of ints
     agrint m_aIntArr1[ARR_SIZE]; // Comment about ARR_SIZE 
  
+    // Comment
+	const CString s_cStructFlatType = "N"; // More comment
+
+    public:
+    const agrint gs_lStructLevelGLDimensionMin = 1;
+
     public:
         CSomeClass() : memberTwo(33) {
             memberOne.lTestType = 0;

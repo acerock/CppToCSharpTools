@@ -9,6 +9,7 @@ namespace CppToCsConverter.Core.Models
         public AccessSpecifier AccessSpecifier { get; set; }
         public bool IsStatic { get; set; }
         public bool IsConst { get; set; }
+        public string InitializationValue { get; set; } = string.Empty; // For const members with initialization (e.g., const int x = 5)
         public bool IsArray { get; set; }
         public string ArraySize { get; set; } = string.Empty;
         public List<string> PrecedingComments { get; set; } = new List<string>(); // Comments before member declaration

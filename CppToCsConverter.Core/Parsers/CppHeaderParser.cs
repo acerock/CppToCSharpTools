@@ -397,6 +397,7 @@ namespace CppToCsConverter.Core.Parsers
                             IsConst = memberMatch.Groups[2].Success,
                             IsArray = memberMatch.Groups[5].Success,
                             ArraySize = memberMatch.Groups[5].Success ? memberMatch.Groups[5].Value : string.Empty,
+                            InitializationValue = memberMatch.Groups[6].Success ? memberMatch.Groups[6].Value.Trim() : string.Empty,
                             PrecedingComments = precedingComments,
                             PostfixComment = postfixComment,
                             RegionStart = regionStart,
