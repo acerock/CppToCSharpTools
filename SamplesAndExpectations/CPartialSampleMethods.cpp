@@ -9,6 +9,21 @@ void CPartialSample::MethodOneInPartial(const CString& cParam1,
                    const bool &bParam2,
                    CString *pcParam3)
 {
+    struct DistrStruct
+    {
+    public:
+        TAttId attId;
+        TDimValue dimVal;
+        CString cDimFlag;
+        TAttId attDistrId;
+        TDimValue dimDistr;
+        TDimValue dimOrig;
+        DistrStruct(){;};
+    };
+
+    DistrStruct as[7];
+
+    TDimValue dimDistrAccount;
     // Implementation of MethodOneInPartial
 }
 

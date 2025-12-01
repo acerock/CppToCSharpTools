@@ -61,14 +61,16 @@ namespace CppToCsConverter.Core.Parsers
             try
             {
                 var content = File.ReadAllText(filePath);
-                var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                // DO NOT use RemoveEmptyEntries - we need to preserve line structure for brace tracking
+                var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
                 
                 // Parse file top comments first
                 sourceFile.FileTopComments.AddRange(ParseFileTopComments(lines));
                 
-                // Parse structs defined in source file
+                // Parse structs defined in source file (skip those inside method bodies)
                 var headerParser = new CppHeaderParser(_logger);
-                sourceFile.Structs.AddRange(headerParser.ParseStructsFromLines(lines));
+                var parsedStructs = headerParser.ParseStructsFromLines(lines, skipMethodBodies: true);
+                sourceFile.Structs.AddRange(parsedStructs);
                 
                 // Parse method implementations using the original approach
                 sourceFile.Methods.AddRange(ParseMethodImplementations(content, sourceFile.FileName));
@@ -756,12 +758,19 @@ namespace CppToCsConverter.Core.Parsers
             var targetClassName = classCounts.OrderByDescending(kvp => kvp.Value)
                                             .FirstOrDefault().Key ?? "Unknown";
             
+            // Get ranges of content that are inside method bodies (to exclude them)
+            var methodBodyRanges = GetMethodBodyRanges(content, existingMethods);
+            
             // Find all potential local method matches
             var matches = _localMethodRegex.Matches(content);
             var lines = content.Split('\n');
             
             foreach (Match match in matches)
             {
+                // Skip if this match is inside an existing method body
+                if (methodBodyRanges.Any(range => match.Index >= range.Start && match.Index < range.End))
+                    continue;
+                
                 var returnType = match.Groups[1].Success ? match.Groups[1].Value.Trim() : "void";
                 var methodName = match.Groups[2].Value;
                 var parametersString = match.Groups[3].Value;
@@ -817,6 +826,48 @@ namespace CppToCsConverter.Core.Parsers
             }
             
             return localMethods;
+        }
+        
+        /// <summary>
+        /// Returns the character ranges (start, end) of all method bodies in the content
+        /// </summary>
+        private List<(int Start, int End)> GetMethodBodyRanges(string content, List<CppMethod> methods)
+        {
+            var ranges = new List<(int Start, int End)>();
+            
+            foreach (var method in methods)
+            {
+                // Find the method signature in the content
+                var searchPattern = $"{method.ClassName}::{method.Name}";
+                var methodIndex = content.IndexOf(searchPattern);
+                if (methodIndex < 0)
+                    continue;
+                
+                // Find the opening brace
+                var openBraceIndex = content.IndexOf('{', methodIndex);
+                if (openBraceIndex < 0)
+                    continue;
+                
+                // Track braces to find the matching closing brace
+                int braceCount = 1;
+                int currentIndex = openBraceIndex + 1;
+                while (currentIndex < content.Length && braceCount > 0)
+                {
+                    if (content[currentIndex] == '{')
+                        braceCount++;
+                    else if (content[currentIndex] == '}')
+                        braceCount--;
+                    currentIndex++;
+                }
+                
+                if (braceCount == 0)
+                {
+                    // Found the matching closing brace
+                    ranges.Add((openBraceIndex, currentIndex));
+                }
+            }
+            
+            return ranges;
         }
         
         /// <summary>

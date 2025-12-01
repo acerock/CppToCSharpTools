@@ -217,8 +217,9 @@ void TestPartial::TestMethod(
         [Fact]
         public void PartialClass_WithoutImplementation_ShouldUseHeaderComments()
         {
-            // Arrange - Create test files where partial class method has no implementation
-            var tempDir = Path.GetTempPath();
+            // Arrange - Create test files in isolated directory
+            var tempDir = Path.Combine(Path.GetTempPath(), "HeaderOnlyInput_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
             var headerFile = Path.Combine(tempDir, "TestHeaderOnly.h");
             
             var headerContent = @"
@@ -240,18 +241,19 @@ public:
                 // Act
                 _converter.ConvertDirectory(tempDir, outputDir);
 
-                // Assert - Header comments should be preserved when no implementation exists
-                var files = Directory.GetFiles(outputDir, "*.cs");
-                Assert.NotEmpty(files);
+                // Assert - Header comments should be preserved when no implementation is available
+                var outputFile = Path.Combine(outputDir, "TestHeaderOnly.cs");
+                Assert.True(File.Exists(outputFile), $"Expected output file {outputFile} not found");
 
-                var content = File.ReadAllText(files[0]);
+                var content = File.ReadAllText(outputFile);
                 
                 // Should use header comments when no implementation is available
                 Assert.Contains("/* header only comment */", content);
             }
             finally
             {
-                if (File.Exists(headerFile)) File.Delete(headerFile);
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, true);
                 
                 var outputDir = Path.Combine(Path.GetTempPath(), "HeaderOnlyTest");
                 if (Directory.Exists(outputDir))

@@ -1239,11 +1239,92 @@ namespace CppToCsConverter.Core.Parsers
 
         public List<CppStruct> ParseStructsFromLines(string[] lines)
         {
+            return ParseStructsFromLines(lines, skipMethodBodies: false);
+        }
+
+        public List<CppStruct> ParseStructsFromLines(string[] lines, bool skipMethodBodies)
+        {
             var structs = new List<CppStruct>();
             int i = 0;
+            int braceDepth = 0;
+            bool insideMethodBody = false;
+            bool expectingMethodBody = false; // Flag when we see method signature without brace
             
             while (i < lines.Length)
             {
+                var line = lines[i].Trim();
+                
+                // Track brace depth to detect when we're inside method bodies (for source files)
+                if (skipMethodBodies)
+                {
+                    // Count braces on this line
+                    int openBraces = line.Count(c => c == '{');
+                    int closeBraces = line.Count(c => c == '}');
+                    
+                    // Check if this line is a method signature (has :: and ( at depth 0)
+                    if (!insideMethodBody && braceDepth == 0 && line.Contains("::") && line.Contains("("))
+                    {
+                        // This is a method signature
+                        if (openBraces > 0)
+                        {
+                            // Method body starts on same line
+                            insideMethodBody = true;
+                            braceDepth = openBraces - closeBraces;
+                        }
+                        else
+                        {
+                            // Method body will start on next line with {
+                            expectingMethodBody = true;
+                        }
+                        i++;
+                        continue;
+                    }
+                    
+                    // If we're expecting a method body, the next { starts it
+                    if (expectingMethodBody)
+                    {
+                        if (openBraces > 0)
+                        {
+                            expectingMethodBody = false;
+                            insideMethodBody = true;
+                            braceDepth = openBraces - closeBraces;
+                        }
+                        // Skip this line whether it has braces or not (it's part of method signature/declaration)
+                        i++;
+                        continue;
+                    }
+                    
+                    // Track braces while inside method body
+                    if (insideMethodBody && braceDepth > 0)
+                    {
+                        braceDepth += openBraces - closeBraces;
+                        
+                        if (braceDepth <= 0)
+                        {
+                            insideMethodBody = false;
+                            braceDepth = 0;
+                        }
+                        
+                        i++;
+                        continue; // Skip struct parsing while inside method body
+                    }
+                }
+                
+                // Only try to parse structs when we're NOT inside a method and NOT expecting a method body
+                if (skipMethodBodies && (insideMethodBody || expectingMethodBody))
+                {
+                    i++;
+                    continue;
+                }
+                
+                // When skipMethodBodies is true, only parse structs if "struct" keyword is on current line
+                // This prevents ParseNextStructFromLines from scanning forward into method bodies
+                if (skipMethodBodies && !line.Contains("struct"))
+                {
+                    i++;
+                    continue;
+                }
+                
                 var foundStruct = ParseNextStructFromLines(lines, ref i);
                 if (foundStruct != null)
                 {

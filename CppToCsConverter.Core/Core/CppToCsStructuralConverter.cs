@@ -165,7 +165,7 @@ namespace CppToCsConverter.Core.Core
                 // Log found structs
                 foreach (var structDef in sourceFileData.Structs)
                 {
-                    Console.WriteLine($"Found struct: {structDef.Name} in {Path.GetFileName(sourceFile)}");
+                    Console.WriteLine($"Found struct: {structDef.Name} in {Path.GetFileName(sourceFile)} (Count: {sourceFileData.Structs.Count})");
                 }
                 
                 // Parse source file methods
